@@ -24,13 +24,19 @@ def main():
     print("=" * 70)
     print()
     
+    # Use platform-appropriate camera IDs
+    if sys.platform == 'win32':
+        cam1_id, cam2_id = 0, 2
+    else:
+        cam1_id, cam2_id = 0, 2  # Linux: use 0,2 based on test results
+    
     print("Configuration:")
-    print("  Camera 1: Index 0 (HD USB Camera)")
-    print("  Camera 2: Index 2 (HD USB Camera)")
+    print(f"  Camera 1: Index {cam1_id} (HD USB Camera)")
+    print(f"  Camera 2: Index {cam2_id} (HD USB Camera)")
     print("  Resolution: 1280x720 @ 120fps")
     print()
     
-    recorder = DualCameraRecorder(camera1_id=0, camera2_id=2)
+    recorder = DualCameraRecorder(camera1_id=cam1_id, camera2_id=cam2_id)
     
     try:
         print("Step 1: Starting both cameras simultaneously...")

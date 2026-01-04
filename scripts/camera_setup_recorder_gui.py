@@ -33,10 +33,17 @@ class TabbedCameraGUI:
     PROP_SHARPNESS = cv2.CAP_PROP_SHARPNESS
     PROP_GAMMA = cv2.CAP_PROP_GAMMA
     
-    def __init__(self, camera1_id: int = 0, camera2_id: int = 2, 
+    def __init__(self, camera1_id: int = None, camera2_id: int = None, 
                  width: int = 1280, height: int = 720, fps: int = 60):
-        self.camera1_id = camera1_id
-        self.camera2_id = camera2_id
+        # Use platform-appropriate defaults if not specified
+        if sys.platform == 'win32':
+            # Windows: Use cameras 0 and 2 (skip built-in at 1)
+            self.camera1_id = camera1_id if camera1_id is not None else 0
+            self.camera2_id = camera2_id if camera2_id is not None else 2
+        else:
+            # Linux/Other: Use cameras 0 and 1
+            self.camera1_id = camera1_id if camera1_id is not None else 0
+            self.camera2_id = camera2_id if camera2_id is not None else 1
         self.width = width
         self.height = height
         self.fps = fps
@@ -660,11 +667,13 @@ class TabbedCameraGUI:
         print("  - Q/ESC: Quit")
         print()
         
-        # Open cameras
+        # Open cameras with platform-appropriate backend
         if sys.platform == 'win32':
+            # Windows: Use DirectShow backend for better compatibility
             self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
             self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
         else:
+            # Linux/Other: Use default backend (V4L2 on Linux)
             self.cap1 = cv2.VideoCapture(self.camera1_id)
             self.cap2 = cv2.VideoCapture(self.camera2_id)
         
@@ -983,8 +992,12 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Camera Setup & Recording GUI')
-    parser.add_argument('--camera1', type=int, default=0, help='Camera 1 ID (default: 0)')
-    parser.add_argument('--camera2', type=int, default=2, help='Camera 2 ID (default: 2)')
+    # Platform-appropriate defaults: Windows uses 0,2 (skip built-in at 1), Linux uses 0,1
+    default_cam1, default_cam2 = (0, 2) if sys.platform == 'win32' else (0, 1)
+    parser.add_argument('--camera1', type=int, default=default_cam1, 
+                       help=f'Camera 1 ID (default: {default_cam1})')
+    parser.add_argument('--camera2', type=int, default=default_cam2, 
+                       help=f'Camera 2 ID (default: {default_cam2})')
     parser.add_argument('--width', type=int, default=1280, help='Resolution width (default: 1280)')
     parser.add_argument('--height', type=int, default=720, help='Resolution height (default: 720)')
     parser.add_argument('--fps', type=int, default=60, help='Frame rate (default: 60)')

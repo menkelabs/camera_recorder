@@ -67,7 +67,12 @@ def main():
     print(f"  Expected frames: {expected_frames}")
     print()
     
-    recorder = DualCameraRecorder(camera1_id=0, camera2_id=2)  # Use cameras 0 and 2 (HD USB), not 1 (built-in)
+    # Use platform-appropriate camera IDs
+    if sys.platform == 'win32':
+        cam1_id, cam2_id = 0, 2
+    else:
+        cam1_id, cam2_id = 0, 2  # Linux: use 0,2 based on test results
+    recorder = DualCameraRecorder(camera1_id=cam1_id, camera2_id=cam2_id)
     
     try:
         # Start cameras at 60fps

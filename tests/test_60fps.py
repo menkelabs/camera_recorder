@@ -15,7 +15,11 @@ def test_camera_fps(camera_id, target_fps):
     """Test if camera can achieve target FPS"""
     print(f"Testing Camera {camera_id} at {target_fps} FPS...")
     
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+    # Use platform-appropriate backend
+    if sys.platform == 'win32':
+        cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
         print(f"  [X] Cannot open camera {camera_id}")
         return False
@@ -70,10 +74,15 @@ def main():
     print("=" * 70)
     print()
     
-    # Test both cameras
+    # Test both cameras (use platform-appropriate defaults)
+    if sys.platform == 'win32':
+        cam2_id = 2  # Windows: skip built-in at 1
+    else:
+        cam2_id = 2  # Linux: use 2 if available (test showed 0,2 are available)
+    
     cam1_ok = test_camera_fps(0, 60)
     print()
-    cam2_ok = test_camera_fps(1, 60)
+    cam2_ok = test_camera_fps(cam2_id, 60)
     
     print()
     print("=" * 70)

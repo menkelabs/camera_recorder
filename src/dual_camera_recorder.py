@@ -29,11 +29,13 @@ class CameraCapture:
         
     def start(self, width: int = 1280, height: int = 720, fps: int = 30):
         """Start camera capture thread"""
-        # Use DirectShow backend on Windows for better compatibility
+        # Use platform-appropriate backend
         import sys
         if sys.platform == 'win32' and isinstance(self.camera_id, int):
+            # Windows: Use DirectShow backend for better compatibility
             self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_DSHOW)
         else:
+            # Linux/Other: Use default backend (V4L2 on Linux)
             self.cap = cv2.VideoCapture(self.camera_id)
         if not self.cap.isOpened():
             raise ValueError(f"Failed to open camera {self.camera_id}")
@@ -108,7 +110,18 @@ class CameraCapture:
 class DualCameraRecorder:
     """Main recorder class for dual camera synchronized recording"""
     
-    def __init__(self, camera1_id = 0, camera2_id = 2):
+    def __init__(self, camera1_id = None, camera2_id = None):
+        # Use platform-appropriate defaults if not specified
+        import sys
+        if sys.platform == 'win32':
+            # Windows: Use cameras 0 and 2 (skip built-in at 1)
+            camera1_id = camera1_id if camera1_id is not None else 0
+            camera2_id = camera2_id if camera2_id is not None else 2
+        else:
+            # Linux/Other: Use cameras 0 and 1
+            camera1_id = camera1_id if camera1_id is not None else 0
+            camera2_id = camera2_id if camera2_id is not None else 1
+        
         self.camera1 = CameraCapture(camera1_id)
         self.camera2 = CameraCapture(camera2_id)
         self.recording = False
