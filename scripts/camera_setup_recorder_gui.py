@@ -50,6 +50,7 @@ class TabbedCameraGUI:
         
         self.cap1 = None
         self.cap2 = None
+        self.cameras_available = False  # Track if cameras are actually available
         self.recorder = None
         self.running = False
         
@@ -68,6 +69,7 @@ class TabbedCameraGUI:
         self.analysis_camera2 = None
         self.analysis_progress = ""
         self.analysis_start_time = None
+        self.analysis_frame_index = 0  # Current frame index for navigation
         
         # Property ranges
         self.prop_ranges = {
@@ -420,11 +422,35 @@ class TabbedCameraGUI:
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         y_pos += 40
         
-        # Combined summary metrics (use camera 2 for rotation, camera 1 for sway)
-        summary_y = y_pos
-        line_height = 30
+        # Get frame count for navigation
+        max_frames = 0
+        if self.analysis_camera1:
+            max_frames = max(max_frames, len(self.analysis_camera1.get('sway', [])))
+        if self.analysis_camera2:
+            max_frames = max(max_frames, len(self.analysis_camera2.get('shoulder_turn', [])))
         
-        # Get summary data
+        # Ensure frame index is valid
+        if max_frames > 0:
+            self.analysis_frame_index = max(0, min(max_frames - 1, self.analysis_frame_index))
+        else:
+            self.analysis_frame_index = 0
+        
+        # Frame navigation info
+        frame_info_y = y_pos
+        if max_frames > 0:
+            frame_text = f"Frame: {self.analysis_frame_index + 1}/{max_frames}  (A/← Previous, D/→ Next)"
+            cv2.putText(frame, frame_text, (20, frame_info_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        frame_info_y += 25
+        
+        # MAX METRICS SECTION (prominently displayed)
+        summary_y = frame_info_y + 5
+        cv2.putText(frame, "MAX VALUES:", (20, summary_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
+        summary_y += 25
+        line_height = 28
+        
+        # Get summary data (max values are already stored in summary)
         summary1 = self.analysis_camera1.get('summary', {}) if self.analysis_camera1 else {}
         summary2 = self.analysis_camera2.get('summary', {}) if self.analysis_camera2 else {}
         
@@ -432,7 +458,7 @@ class TabbedCameraGUI:
         max_shoulder = summary2.get('max_shoulder_turn')
         if max_shoulder is not None:
             text = f"Max Shoulder Turn: {max_shoulder:+.1f}°"
-            cv2.putText(frame, text, (20, summary_y), 
+            cv2.putText(frame, text, (30, summary_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             summary_y += line_height
         
@@ -440,7 +466,7 @@ class TabbedCameraGUI:
         max_hip = summary2.get('max_hip_turn')
         if max_hip is not None:
             text = f"Max Hip Turn: {max_hip:+.1f}°"
-            cv2.putText(frame, text, (20, summary_y), 
+            cv2.putText(frame, text, (30, summary_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             summary_y += line_height
         
@@ -448,7 +474,7 @@ class TabbedCameraGUI:
         max_xfactor = summary2.get('max_x_factor')
         if max_xfactor is not None:
             text = f"Max X-Factor: {max_xfactor:.1f}°"
-            cv2.putText(frame, text, (20, summary_y), 
+            cv2.putText(frame, text, (30, summary_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             summary_y += line_height
         
@@ -456,16 +482,65 @@ class TabbedCameraGUI:
         max_sway_l = summary1.get('max_sway_left')
         max_sway_r = summary1.get('max_sway_right')
         if max_sway_l is not None or max_sway_r is not None:
-            sway_text = "Lateral Sway: "
+            sway_text = "Max Lateral Sway: "
             if max_sway_l is not None:
-                sway_text += f"Left {abs(max_sway_l):.0f}px, "
+                sway_text += f"Left {abs(max_sway_l):.0f}px"
+                if max_sway_r is not None:
+                    sway_text += ", "
             if max_sway_r is not None:
                 sway_text += f"Right {max_sway_r:.0f}px"
-            cv2.putText(frame, sway_text, (20, summary_y), 
+            cv2.putText(frame, sway_text, (30, summary_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             summary_y += line_height
         
-        summary_y += 20
+        summary_y += 15
+        
+        # LIVE METRICS SECTION (current frame values)
+        live_y = summary_y
+        cv2.putText(frame, "CURRENT FRAME VALUES:", (20, live_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
+        live_y += 25
+        
+        # Get current frame data
+        frame_idx = self.analysis_frame_index if max_frames > 0 else 0
+        
+        # Current Shoulder Turn
+        if self.analysis_camera2 and frame_idx < len(self.analysis_camera2.get('shoulder_turn', [])):
+            current_shoulder = self.analysis_camera2['shoulder_turn'][frame_idx]
+            if current_shoulder is not None:
+                text = f"Shoulder Turn: {current_shoulder:+.1f}°"
+                cv2.putText(frame, text, (30, live_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
+                live_y += 22
+        
+        # Current Hip Turn
+        if self.analysis_camera2 and frame_idx < len(self.analysis_camera2.get('hip_turn', [])):
+            current_hip = self.analysis_camera2['hip_turn'][frame_idx]
+            if current_hip is not None:
+                text = f"Hip Turn: {current_hip:+.1f}°"
+                cv2.putText(frame, text, (30, live_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
+                live_y += 22
+        
+        # Current X-Factor
+        if self.analysis_camera2 and frame_idx < len(self.analysis_camera2.get('x_factor', [])):
+            current_xfactor = self.analysis_camera2['x_factor'][frame_idx]
+            if current_xfactor is not None:
+                text = f"X-Factor: {current_xfactor:.1f}°"
+                cv2.putText(frame, text, (30, live_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
+                live_y += 22
+        
+        # Current Lateral Sway
+        if self.analysis_camera1 and frame_idx < len(self.analysis_camera1.get('sway', [])):
+            current_sway = self.analysis_camera1['sway'][frame_idx]
+            if current_sway is not None:
+                text = f"Lateral Sway: {current_sway:+.0f}px"
+                cv2.putText(frame, text, (30, live_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
+                live_y += 22
+        
+        live_y += 15
         
         # Two-column layout for per-camera results
         col_width = (w - 40) // 2
@@ -533,83 +608,210 @@ class TabbedCameraGUI:
         if self.is_recording:
             return
         
-        if not self.recorder:
+        # Check if cameras are available (logical check - don't try if they failed at startup)
+        if not self.cameras_available:
+            self.status_message = "Cameras not available - cannot record"
+            self.status_time = time.time()
+            print(f"ERROR: Cameras not available (cameras_available={self.cameras_available}) - cannot start recording")
+            print("Make sure cameras are connected and not in use by another application")
+            return
+        
+        # Double-check: cameras should be available if we get here
+        if not (self.cap1 and self.cap1.isOpened() and self.cap2 and self.cap2.isOpened()):
+            self.status_message = "Cameras not available - cannot record"
+            self.status_time = time.time()
+            print(f"ERROR: Camera state mismatch (cameras_available={self.cameras_available}, cap1={self.cap1 is not None}, cap2={self.cap2 is not None})")
+            return
+        
+        try:
+            # Store camera settings BEFORE releasing GUI cameras (so we can apply them to recorder)
+            camera1_settings = {}
+            camera2_settings = {}
+            
+            if self.cap1 and self.cap1.isOpened():
+                for prop_name, prop_const in [
+                    ('brightness', self.PROP_BRIGHTNESS),
+                    ('contrast', self.PROP_CONTRAST),
+                    ('saturation', self.PROP_SATURATION),
+                    ('exposure', self.PROP_EXPOSURE),
+                    ('gain', self.PROP_GAIN),
+                    ('focus', self.PROP_FOCUS),
+                    ('white_balance', self.PROP_WHITE_BALANCE),
+                    ('sharpness', self.PROP_SHARPNESS),
+                    ('gamma', self.PROP_GAMMA),
+                ]:
+                    camera1_settings[prop_const] = self.cap1.get(prop_const)
+            
+            if self.cap2 and self.cap2.isOpened():
+                for prop_name, prop_const in [
+                    ('brightness', self.PROP_BRIGHTNESS),
+                    ('contrast', self.PROP_CONTRAST),
+                    ('saturation', self.PROP_SATURATION),
+                    ('exposure', self.PROP_EXPOSURE),
+                    ('gain', self.PROP_GAIN),
+                    ('focus', self.PROP_FOCUS),
+                    ('white_balance', self.PROP_WHITE_BALANCE),
+                    ('sharpness', self.PROP_SHARPNESS),
+                    ('gamma', self.PROP_GAMMA),
+                ]:
+                    camera2_settings[prop_const] = self.cap2.get(prop_const)
+            
+            # Always release GUI cameras before recorder opens them (can't be open twice on Linux)
+            if self.cap1 and self.cap1.isOpened():
+                try:
+                    self.cap1.release()
+                except:
+                    pass
+            if self.cap2 and self.cap2.isOpened():
+                try:
+                    self.cap2.release()
+                except:
+                    pass
+            
+            # Always create a fresh recorder (old one was cleaned up in stop_recording)
             self.recorder = DualCameraRecorder(
                 camera1_id=self.camera1_id,
                 camera2_id=self.camera2_id
             )
             self.recorder.start_cameras(width=self.width, height=self.height, fps=self.fps)
-        
-        # Apply current camera settings
-        if self.cap1 and self.cap1.isOpened():
-            for prop_name, prop_const in [
-                ('brightness', self.PROP_BRIGHTNESS),
-                ('contrast', self.PROP_CONTRAST),
-                ('saturation', self.PROP_SATURATION),
-                ('exposure', self.PROP_EXPOSURE),
-                ('gain', self.PROP_GAIN),
-                ('focus', self.PROP_FOCUS),
-                ('white_balance', self.PROP_WHITE_BALANCE),
-                ('sharpness', self.PROP_SHARPNESS),
-                ('gamma', self.PROP_GAMMA),
-            ]:
-                value = self.cap1.get(prop_const)
-                self.recorder.camera1.cap.set(prop_const, value)
-        
-        if self.cap2 and self.cap2.isOpened():
-            for prop_name, prop_const in [
-                ('brightness', self.PROP_BRIGHTNESS),
-                ('contrast', self.PROP_CONTRAST),
-                ('saturation', self.PROP_SATURATION),
-                ('exposure', self.PROP_EXPOSURE),
-                ('gain', self.PROP_GAIN),
-                ('focus', self.PROP_FOCUS),
-                ('white_balance', self.PROP_WHITE_BALANCE),
-                ('sharpness', self.PROP_SHARPNESS),
-                ('gamma', self.PROP_GAMMA),
-            ]:
-                value = self.cap2.get(prop_const)
-                self.recorder.camera2.cap.set(prop_const, value)
-        
-        # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"recording_{timestamp}"
-        
-        self.recorder.start_recording(filename)
-        self.is_recording = True
-        self.recording_start_time = time.time()
-        # Store video file paths (constructed from filename like DualCameraRecorder does)
-        self.recording_files = [
-            os.path.join(self.recorder.output_dir, f"{filename}_camera1.mp4"),
-            os.path.join(self.recorder.output_dir, f"{filename}_camera2.mp4")
-        ]
-        
-        self.status_message = "Recording started"
-        self.status_time = time.time()
-        print(f"\nRecording started: {filename}")
+            
+            # Apply stored camera settings to recorder cameras
+            for prop_const, value in camera1_settings.items():
+                try:
+                    self.recorder.camera1.cap.set(prop_const, value)
+                except:
+                    pass  # Some properties may not be settable
+            
+            for prop_const, value in camera2_settings.items():
+                try:
+                    self.recorder.camera2.cap.set(prop_const, value)
+                except:
+                    pass  # Some properties may not be settable
+            
+            # Generate filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"recording_{timestamp}"
+            
+            self.recorder.start_recording(filename)
+            self.is_recording = True
+            self.recording_start_time = time.time()
+            # Store video file paths (constructed from filename like DualCameraRecorder does)
+            self.recording_files = [
+                os.path.join(self.recorder.output_dir, f"{filename}_camera1.mp4"),
+                os.path.join(self.recorder.output_dir, f"{filename}_camera2.mp4")
+            ]
+            
+            self.status_message = "Recording started"
+            self.status_time = time.time()
+            print(f"\nRecording started: {filename}")
+        except ValueError as e:
+            # Camera failed to open
+            self.status_message = f"Failed to start recording: {str(e)}"
+            self.status_time = time.time()
+            print(f"ERROR: Failed to start recording: {e}")
+            self.is_recording = False
+            if self.recorder:
+                try:
+                    self.recorder.stop_cameras()
+                except:
+                    pass
+                self.recorder = None
+        except Exception as e:
+            # Other errors
+            self.status_message = f"Recording error: {str(e)}"
+            self.status_time = time.time()
+            print(f"ERROR: Recording error: {e}")
+            self.is_recording = False
+            if self.recorder:
+                try:
+                    self.recorder.stop_cameras()
+                except:
+                    pass
+                self.recorder = None
     
     def stop_recording(self):
         """Stop recording"""
-        if not self.is_recording or not self.recorder:
+        if not self.is_recording:
             return
         
-        self.recorder.stop_recording()
-        self.is_recording = False
+        if not self.recorder:
+            self.is_recording = False
+            self.status_message = "No active recording"
+            self.status_time = time.time()
+            return
         
-        duration = time.time() - self.recording_start_time if self.recording_start_time else 0
-        self.status_message = f"Recording stopped ({duration:.1f}s)"
-        self.status_time = time.time()
-        
-        print(f"\nRecording stopped. Duration: {duration:.1f}s")
-        print(f"Files saved:")
-        print(f"  {self.recording_files[0]}")
-        print(f"  {self.recording_files[1]}")
-        
-        self.recording_start_time = None
-        
-        # Start analysis automatically
-        if self.recording_files and len(self.recording_files) == 2:
-            self.start_analysis()
+        try:
+            self.recorder.stop_recording()
+            self.recorder.stop_cameras()  # Stop cameras first
+            self.is_recording = False
+            
+            duration = time.time() - self.recording_start_time if self.recording_start_time else 0
+            self.status_message = f"Recording stopped ({duration:.1f}s)"
+            self.status_time = time.time()
+            
+            print(f"\nRecording stopped. Duration: {duration:.1f}s")
+            if self.recording_files:
+                print(f"Files saved:")
+                for f in self.recording_files:
+                    print(f"  {f}")
+            
+            self.recording_start_time = None
+            
+            # Wait a moment for video files to be fully written before reopening cameras
+            time.sleep(0.5)  # Give recorder time to finish writing files
+            
+            # Reopen cameras for GUI preview (only if cameras were available)
+            if self.cameras_available:
+                try:
+                    if sys.platform == 'win32':
+                        self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
+                        self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
+                    else:
+                        self.cap1 = cv2.VideoCapture(self.camera1_id)
+                        self.cap2 = cv2.VideoCapture(self.camera2_id)
+                    
+                    # Reconfigure cameras
+                    if self.cap1 and self.cap1.isOpened():
+                        self.cap1.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                        self.cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                        self.cap1.set(cv2.CAP_PROP_FPS, self.fps)
+                        self.cap1.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    else:
+                        print("WARNING: Failed to reopen Camera 1 after recording")
+                        self.cap1 = None
+                    
+                    if self.cap2 and self.cap2.isOpened():
+                        self.cap2.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                        self.cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                        self.cap2.set(cv2.CAP_PROP_FPS, self.fps)
+                        self.cap2.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    else:
+                        print("WARNING: Failed to reopen Camera 2 after recording")
+                        self.cap2 = None
+                except Exception as e:
+                    print(f"WARNING: Error reopening cameras: {e}")
+                    self.cap1 = None
+                    self.cap2 = None
+            
+            # Wait a bit more before starting analysis to ensure video files are fully written
+            time.sleep(0.5)
+            
+            # Clean up recorder (cameras are already stopped, create fresh recorder for next recording)
+            self.recorder = None
+            
+            # Start analysis automatically
+            if self.recording_files and len(self.recording_files) == 2:
+                self.start_analysis()
+        except Exception as e:
+            self.is_recording = False
+            self.status_message = f"Error stopping recording: {str(e)}"
+            self.status_time = time.time()
+            print(f"ERROR: Error stopping recording: {e}")
+            if self.recorder:
+                try:
+                    self.recorder.stop_cameras()
+                except:
+                    pass
     
     def adjust_property(self, camera_num: int, prop_name: str, delta: int):
         """Adjust a camera property"""
@@ -677,33 +879,63 @@ class TabbedCameraGUI:
             self.cap1 = cv2.VideoCapture(self.camera1_id)
             self.cap2 = cv2.VideoCapture(self.camera2_id)
         
-        if not self.cap1.isOpened():
-            print(f"ERROR: Failed to open Camera 1 (ID: {self.camera1_id})")
-            return False
+        # Check if cameras opened successfully
+        cam1_available = self.cap1.isOpened()
+        cam2_available = self.cap2.isOpened()
+        self.cameras_available = cam1_available and cam2_available
         
-        if not self.cap2.isOpened():
-            print(f"ERROR: Failed to open Camera 2 (ID: {self.camera2_id})")
-            return False
+        if not cam1_available:
+            print(f"WARNING: Failed to open Camera 1 (ID: {self.camera1_id})")
+            print("Camera may be in use by another application. GUI will continue without camera 1.")
+            try:
+                self.cap1.release()  # Clean up failed camera
+            except:
+                pass
+            self.cap1 = None
         
-        # Set camera properties
-        for cap in [self.cap1, self.cap2]:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            cap.set(cv2.CAP_PROP_FPS, self.fps)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode
+        if not cam2_available:
+            print(f"WARNING: Failed to open Camera 2 (ID: {self.camera2_id})")
+            print("Camera may be in use by another application. GUI will continue without camera 2.")
+            try:
+                self.cap2.release()  # Clean up failed camera
+            except:
+                pass
+            self.cap2 = None
         
-        # Get actual properties
-        actual_w1 = int(self.cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_h1 = int(self.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        actual_fps1 = self.cap1.get(cv2.CAP_PROP_FPS)
+        # Continue even if cameras fail - user can still navigate tabs
         
-        actual_w2 = int(self.cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_h2 = int(self.cap2.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        actual_fps2 = self.cap2.get(cv2.CAP_PROP_FPS)
+        # Set camera properties (only if cameras are open)
+        if self.cap1 and self.cap1.isOpened():
+            self.cap1.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            self.cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            self.cap1.set(cv2.CAP_PROP_FPS, self.fps)
+            self.cap1.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            self.cap1.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode
         
-        print(f"Camera 1: {actual_w1}x{actual_h1} @ {actual_fps1:.1f}fps")
-        print(f"Camera 2: {actual_w2}x{actual_h2} @ {actual_fps2:.1f}fps")
+        if self.cap2 and self.cap2.isOpened():
+            self.cap2.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            self.cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            self.cap2.set(cv2.CAP_PROP_FPS, self.fps)
+            self.cap2.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            self.cap2.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode
+        
+        # Get actual properties (only if cameras are open)
+        if self.cap1 and self.cap1.isOpened():
+            actual_w1 = int(self.cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_h1 = int(self.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            actual_fps1 = self.cap1.get(cv2.CAP_PROP_FPS)
+            print(f"Camera 1: {actual_w1}x{actual_h1} @ {actual_fps1:.1f}fps")
+        else:
+            print(f"Camera 1: Not available")
+        
+        if self.cap2 and self.cap2.isOpened():
+            actual_w2 = int(self.cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_h2 = int(self.cap2.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            actual_fps2 = self.cap2.get(cv2.CAP_PROP_FPS)
+            print(f"Camera 2: {actual_w2}x{actual_h2} @ {actual_fps2:.1f}fps")
+        else:
+            print(f"Camera 2: Not available")
+        
         print()
         
         # Create window
@@ -756,43 +988,71 @@ class TabbedCameraGUI:
                 cv2.imshow(self.window_name, frame)
                 
                 # Handle keyboard input
-                key = cv2.waitKey(30) & 0xFF
+                key = cv2.waitKey(30)
+                if key == -1:
+                    key = 0
+                key_code = key & 0xFF
                 
-                if key == ord('q') or key == 27:  # Q or ESC
+                if key_code == ord('q') or key_code == 27:  # Q or ESC
                     if self.is_recording:
                         self.stop_recording()
                     print("\nQuitting...")
                     break
-                elif key == ord('\t') or key == 9:  # Tab key
+                elif key_code == ord('\t') or key_code == 9:  # Tab key
                     self.current_tab = (self.current_tab + 1) % 4
-                elif key == ord('1'):
+                elif key_code == ord('1'):
                     self.current_tab = 0
-                elif key == ord('2'):
+                elif key_code == ord('2'):
                     self.current_tab = 1
-                elif key == ord('3'):
+                elif key_code == ord('3'):
                     self.current_tab = 2
-                elif key == ord('4'):
+                elif key_code == ord('4'):
                     self.current_tab = 3
-                elif key == ord(' ') and self.current_tab == 2:  # Space in recording tab
+                elif key_code == ord(' ') and self.current_tab == 2:  # Space in recording tab
                     if self.is_recording:
                         self.stop_recording()
                     else:
                         self.start_recording()
+                elif self.current_tab == 3:  # Analysis tab - frame navigation
+                    # Arrow keys: check full key value (not key_code)
+                    # Left arrow: 81 (masked) or 65361 (full), Right arrow: 83 (masked) or 65363 (full)
+                    if key_code == ord('a') or key_code == ord('A') or key == 81 or key == 65361:  # A key or left arrow
+                        # Previous frame
+                        if self.analysis_camera1 or self.analysis_camera2:
+                            # Get max frame count from either camera
+                            max_frames = 0
+                            if self.analysis_camera1:
+                                max_frames = max(max_frames, len(self.analysis_camera1.get('sway', [])))
+                            if self.analysis_camera2:
+                                max_frames = max(max_frames, len(self.analysis_camera2.get('shoulder_turn', [])))
+                            if max_frames > 0:
+                                self.analysis_frame_index = max(0, self.analysis_frame_index - 1)
+                    elif key_code == ord('d') or key_code == ord('D') or key == 83 or key == 65363:  # D key or right arrow
+                        # Next frame
+                        if self.analysis_camera1 or self.analysis_camera2:
+                            # Get max frame count from either camera
+                            max_frames = 0
+                            if self.analysis_camera1:
+                                max_frames = max(max_frames, len(self.analysis_camera1.get('sway', [])))
+                            if self.analysis_camera2:
+                                max_frames = max(max_frames, len(self.analysis_camera2.get('shoulder_turn', [])))
+                            if max_frames > 0:
+                                self.analysis_frame_index = min(max_frames - 1, self.analysis_frame_index + 1)
                 elif self.current_tab in [0, 1]:  # Setup tabs
                     camera_num = self.current_tab + 1
-                    if key == ord('w') or key == ord('W'):  # W for up/previous property
+                    if key_code == ord('w') or key_code == ord('W'):  # W for up/previous property
                         self.current_prop_index = (self.current_prop_index - 1) % len(prop_list)
-                    elif key == ord('x') or key == ord('X'):  # X for down/next property
+                    elif key_code == ord('x') or key_code == ord('X'):  # X for down/next property
                         self.current_prop_index = (self.current_prop_index + 1) % len(prop_list)
-                    elif key == ord('+') or key == ord('='):
+                    elif key_code == ord('+') or key_code == ord('='):
                         prop_name = prop_list[self.current_prop_index % len(prop_list)]
                         self.adjust_property(camera_num, prop_name, 1)
-                    elif key == ord('-') or key == ord('_'):
+                    elif key_code == ord('-') or key_code == ord('_'):
                         prop_name = prop_list[self.current_prop_index % len(prop_list)]
                         self.adjust_property(camera_num, prop_name, -1)
-                    elif key == ord('s') or key == ord('S'):  # Save
+                    elif key_code == ord('s') or key_code == ord('S'):  # Save
                         self.save_settings()
-                    elif key == ord('r') or key == ord('R'):  # Reset
+                    elif key_code == ord('r') or key_code == ord('R'):  # Reset
                         self.reset_settings(camera_num)
                 
                 # Check if window closed
@@ -806,9 +1066,15 @@ class TabbedCameraGUI:
         
         except KeyboardInterrupt:
             print("\nInterrupted by user")
-        
+        except Exception as e:
+            print(f"\nError in GUI loop: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
-            self.stop()
+            try:
+                self.stop()
+            except:
+                pass
         
         return True
     
@@ -898,6 +1164,15 @@ class TabbedCameraGUI:
             video1_path = self.recording_files[0]
             video2_path = self.recording_files[1]
             
+            # Wait a moment to ensure video files are fully written and accessible
+            time.sleep(1.0)  # Give files time to be fully written
+            
+            # Verify files exist before attempting analysis
+            if not os.path.exists(video1_path):
+                raise FileNotFoundError(f"Video file not found: {video1_path}")
+            if not os.path.exists(video2_path):
+                raise FileNotFoundError(f"Video file not found: {video2_path}")
+            
             # Get video dimensions for frame_width
             cap1 = cv2.VideoCapture(video1_path)
             if cap1.isOpened():
@@ -971,20 +1246,39 @@ class TabbedCameraGUI:
         """Stop and cleanup"""
         self.running = False
         
-        if self.is_recording:
-            self.stop_recording()
-        
-        if self.recorder:
-            self.recorder.stop_recording()
-            self.recorder.stop_cameras()
-        
-        if self.cap1:
-            self.cap1.release()
-        if self.cap2:
-            self.cap2.release()
-        
-        cv2.destroyAllWindows()
-        print("GUI stopped")
+        try:
+            if self.is_recording:
+                try:
+                    self.stop_recording()
+                except:
+                    pass
+            
+            if self.recorder:
+                try:
+                    self.recorder.stop_recording()
+                    self.recorder.stop_cameras()
+                except:
+                    pass
+            
+            if self.cap1:
+                try:
+                    self.cap1.release()
+                except:
+                    pass
+            if self.cap2:
+                try:
+                    self.cap2.release()
+                except:
+                    pass
+            
+            try:
+                cv2.destroyAllWindows()
+                cv2.waitKey(1)  # Allow windows to close
+            except:
+                pass
+            print("GUI stopped")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
 
 
 def main():

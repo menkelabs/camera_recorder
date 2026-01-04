@@ -142,6 +142,8 @@ class TestRecordingControls(unittest.TestCase):
             mock_recorder.start_recording.return_value = None
             mock_recorder_class.return_value = mock_recorder
             
+            # Ensure cameras are marked as available
+            self.gui.cameras_available = True
             self.gui.recorder = None
             self.gui.current_tab = 2  # Recording tab
             self.gui.start_recording()
@@ -150,6 +152,31 @@ class TestRecordingControls(unittest.TestCase):
             self.assertTrue(self.gui.is_recording)
             mock_recorder.start_cameras.assert_called_once()
             mock_recorder.start_recording.assert_called_once()
+    
+    def test_start_recording_fails_when_cameras_unavailable(self):
+        """Test that start_recording fails gracefully when cameras are unavailable"""
+        with patch('camera_setup_recorder_gui.DualCameraRecorder') as mock_recorder_class:
+            # Set cameras as unavailable (failed to open)
+            self.gui.cameras_available = False
+            self.gui.cap1 = None
+            self.gui.cap2 = None
+            self.gui.recorder = None
+            self.gui.is_recording = False
+            self.gui.status_message = ""
+            self.gui.status_time = 0
+            
+            # Try to start recording
+            self.gui.start_recording()
+            
+            # Verify recording was NOT started
+            self.assertFalse(self.gui.is_recording, 
+                           "Recording should not start when cameras unavailable")
+            self.assertIsNone(self.gui.recorder, 
+                            "Recorder should not be created when cameras unavailable")
+            self.assertIn("not available", self.gui.status_message.lower(),
+                         "Status message should indicate cameras not available")
+            # Verify DualCameraRecorder was never instantiated
+            mock_recorder_class.assert_not_called()
     
     def test_stop_recording(self):
         """Test that stop_recording stops the recording"""
@@ -277,6 +304,11 @@ class TestAnalysisTabRendering(unittest.TestCase):
         with patch('cv2.VideoCapture'):
             self.gui = TabbedCameraGUI()
     
+    def test_analysis_frame_index_exists(self):
+        """Test that analysis_frame_index state variable exists"""
+        self.assertTrue(hasattr(self.gui, 'analysis_frame_index'))
+        self.assertEqual(self.gui.analysis_frame_index, 0)
+    
     def test_draw_analysis_tab_no_results(self):
         """Test analysis tab when no results available"""
         self.gui.analysis_camera1 = None
@@ -357,6 +389,13 @@ def run_gui_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestAnalysisIntegration))
     suite.addTests(loader.loadTestsFromTestCase(TestCameraPropertyAdjustment))
     suite.addTests(loader.loadTestsFromTestCase(TestAnalysisTabRendering))
+    
+    # Add workflow tests if available
+    try:
+        from test_config_to_record_workflow import TestConfigToRecordWorkflow
+        suite.addTests(loader.loadTestsFromTestCase(TestConfigToRecordWorkflow))
+    except ImportError:
+        pass  # Workflow tests optional
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
