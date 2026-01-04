@@ -1,6 +1,6 @@
 """
 Camera Setup & Recording GUI
-Single window with 3 tabs: Camera 1 Setup, Camera 2 Setup, Recording
+Single window with 4 tabs: Camera 1 Setup, Camera 2 Setup, Recording, Analysis
 """
 
 import cv2
@@ -15,6 +15,8 @@ from datetime import datetime
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from dual_camera_recorder import DualCameraRecorder
+from pose_processor import PoseProcessor
+from sway_calculator import SwayCalculator
 
 
 class TabbedCameraGUI:
@@ -45,13 +47,20 @@ class TabbedCameraGUI:
         self.running = False
         
         # Tab management
-        self.current_tab = 0  # 0=Cam1, 1=Cam2, 2=Recording
-        self.tab_names = ["Camera 1 Setup", "Camera 2 Setup", "Recording"]
+        self.current_tab = 0  # 0=Cam1, 1=Cam2, 2=Recording, 3=Analysis
+        self.tab_names = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Analysis"]
         
         # Recording state
         self.is_recording = False
         self.recording_start_time = None
         self.recording_files = None
+        
+        # Analysis state
+        self.is_analyzing = False
+        self.analysis_camera1 = None
+        self.analysis_camera2 = None
+        self.analysis_progress = ""
+        self.analysis_start_time = None
         
         # Property ranges
         self.prop_ranges = {
@@ -265,7 +274,7 @@ class TabbedCameraGUI:
         
         # Instructions at bottom
         inst_y = h - 60
-        cv2.putText(frame, "W/X: Select | +/-: Adjust | S: Save | R: Reset | Tab/1/2/3: Switch tabs", 
+        cv2.putText(frame, "W/X: Select | +/-: Adjust | S: Save | R: Reset | Tab/1/2/3/4: Switch tabs", 
                    (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     
     def draw_recording_tab(self, frame):
@@ -352,7 +361,164 @@ class TabbedCameraGUI:
         
         # Instructions
         inst_y = h - 30
-        cv2.putText(frame, "Press SPACE to start/stop recording | Tab/1/2/3 to switch tabs | Q/ESC to quit", 
+        cv2.putText(frame, "Press SPACE to start/stop recording | Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
+                   (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    
+    def draw_analysis_tab(self, frame):
+        """Draw analysis tab content"""
+        h, w = frame.shape[:2]
+        content_y = self.tab_height + 10
+        
+        # Check if analyzing
+        if self.is_analyzing:
+            # Show progress message
+            text_y = h // 2
+            text_size = cv2.getTextSize(self.analysis_progress, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+            text_x = (w - text_size[0]) // 2
+            cv2.putText(frame, self.analysis_progress, (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+            
+            # Show elapsed time if available
+            if self.analysis_start_time:
+                elapsed = time.time() - self.analysis_start_time
+                elapsed_text = f"Elapsed: {elapsed:.1f}s"
+                elapsed_size = cv2.getTextSize(elapsed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+                elapsed_x = (w - elapsed_size[0]) // 2
+                cv2.putText(frame, elapsed_text, (elapsed_x, text_y + 50), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+            return
+        
+        # Show results if available
+        if self.analysis_camera1 is None and self.analysis_camera2 is None:
+            # No analysis results yet
+            text = "No analysis results available"
+            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+            text_x = (w - text_size[0]) // 2
+            text_y = h // 2
+            cv2.putText(frame, text, (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (150, 150, 150), 2)
+            
+            hint = "Record a video and it will be analyzed automatically"
+            hint_size = cv2.getTextSize(hint, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+            hint_x = (w - hint_size[0]) // 2
+            cv2.putText(frame, hint, (hint_x, text_y + 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 100, 100), 1)
+            return
+        
+        # Display results - summary at top
+        y_pos = content_y + 20
+        title_size = cv2.getTextSize("SWING ANALYSIS RESULTS", cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+        title_x = (w - title_size[0]) // 2
+        cv2.putText(frame, "SWING ANALYSIS RESULTS", (title_x, y_pos), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        y_pos += 40
+        
+        # Combined summary metrics (use camera 2 for rotation, camera 1 for sway)
+        summary_y = y_pos
+        line_height = 30
+        
+        # Get summary data
+        summary1 = self.analysis_camera1.get('summary', {}) if self.analysis_camera1 else {}
+        summary2 = self.analysis_camera2.get('summary', {}) if self.analysis_camera2 else {}
+        
+        # Max Shoulder Turn (from camera 2 - down-the-line)
+        max_shoulder = summary2.get('max_shoulder_turn')
+        if max_shoulder is not None:
+            text = f"Max Shoulder Turn: {max_shoulder:+.1f}°"
+            cv2.putText(frame, text, (20, summary_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            summary_y += line_height
+        
+        # Max Hip Turn (from camera 2)
+        max_hip = summary2.get('max_hip_turn')
+        if max_hip is not None:
+            text = f"Max Hip Turn: {max_hip:+.1f}°"
+            cv2.putText(frame, text, (20, summary_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            summary_y += line_height
+        
+        # Max X-Factor (from camera 2)
+        max_xfactor = summary2.get('max_x_factor')
+        if max_xfactor is not None:
+            text = f"Max X-Factor: {max_xfactor:.1f}°"
+            cv2.putText(frame, text, (20, summary_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            summary_y += line_height
+        
+        # Lateral Sway (from camera 1 - face-on)
+        max_sway_l = summary1.get('max_sway_left')
+        max_sway_r = summary1.get('max_sway_right')
+        if max_sway_l is not None or max_sway_r is not None:
+            sway_text = "Lateral Sway: "
+            if max_sway_l is not None:
+                sway_text += f"Left {abs(max_sway_l):.0f}px, "
+            if max_sway_r is not None:
+                sway_text += f"Right {max_sway_r:.0f}px"
+            cv2.putText(frame, sway_text, (20, summary_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            summary_y += line_height
+        
+        summary_y += 20
+        
+        # Two-column layout for per-camera results
+        col_width = (w - 40) // 2
+        left_col_x = 20
+        right_col_x = col_width + 30
+        
+        # Left column: Camera 1 (Face-on - Sway metrics)
+        cam1_y = summary_y
+        cv2.putText(frame, "Camera 1 (Face-On):", (left_col_x, cam1_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cam1_y += 25
+        
+        if self.analysis_camera1:
+            detection_rate1 = self.analysis_camera1.get('detection_rate', 0)
+            cv2.putText(frame, f"Detection: {detection_rate1:.1f}%", 
+                       (left_col_x, cam1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            cam1_y += 20
+            
+            sway_summary = summary1
+            if sway_summary.get('max_sway_left') is not None:
+                text = f"Max Sway Left: {abs(sway_summary['max_sway_left']):.0f}px"
+                cv2.putText(frame, text, (left_col_x, cam1_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cam1_y += 20
+            if sway_summary.get('max_sway_right') is not None:
+                text = f"Max Sway Right: {sway_summary['max_sway_right']:.0f}px"
+                cv2.putText(frame, text, (left_col_x, cam1_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        # Right column: Camera 2 (Down-the-Line - Rotation metrics)
+        cam2_y = summary_y
+        cv2.putText(frame, "Camera 2 (Down-the-Line):", (right_col_x, cam2_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cam2_y += 25
+        
+        if self.analysis_camera2:
+            detection_rate2 = self.analysis_camera2.get('detection_rate', 0)
+            cv2.putText(frame, f"Detection: {detection_rate2:.1f}%", 
+                       (right_col_x, cam2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            cam2_y += 20
+            
+            rot_summary = summary2
+            if rot_summary.get('max_shoulder_turn') is not None:
+                text = f"Max Shoulder: {rot_summary['max_shoulder_turn']:+.1f}°"
+                cv2.putText(frame, text, (right_col_x, cam2_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cam2_y += 20
+            if rot_summary.get('max_hip_turn') is not None:
+                text = f"Max Hip: {rot_summary['max_hip_turn']:+.1f}°"
+                cv2.putText(frame, text, (right_col_x, cam2_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cam2_y += 20
+            if rot_summary.get('max_x_factor') is not None:
+                text = f"Max X-Factor: {rot_summary['max_x_factor']:.1f}°"
+                cv2.putText(frame, text, (right_col_x, cam2_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        # Instructions
+        inst_y = h - 30
+        cv2.putText(frame, "Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
                    (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     
     def start_recording(self):
@@ -405,9 +571,10 @@ class TabbedCameraGUI:
         self.recorder.start_recording(filename)
         self.is_recording = True
         self.recording_start_time = time.time()
+        # Store video file paths (constructed from filename like DualCameraRecorder does)
         self.recording_files = [
-            self.recorder.video1_path,
-            self.recorder.video2_path
+            os.path.join(self.recorder.output_dir, f"{filename}_camera1.mp4"),
+            os.path.join(self.recorder.output_dir, f"{filename}_camera2.mp4")
         ]
         
         self.status_message = "Recording started"
@@ -432,6 +599,10 @@ class TabbedCameraGUI:
         print(f"  {self.recording_files[1]}")
         
         self.recording_start_time = None
+        
+        # Start analysis automatically
+        if self.recording_files and len(self.recording_files) == 2:
+            self.start_analysis()
     
     def adjust_property(self, camera_num: int, prop_name: str, delta: int):
         """Adjust a camera property"""
@@ -478,9 +649,9 @@ class TabbedCameraGUI:
     def start(self):
         """Start the GUI"""
         print("Starting Camera Setup & Recording GUI...")
-        print("Tabs: [1] Camera 1 Setup | [2] Camera 2 Setup | [3] Recording")
+        print("Tabs: [1] Camera 1 Setup | [2] Camera 2 Setup | [3] Recording | [4] Analysis")
         print("Controls:")
-        print("  - Tab/1/2/3: Switch tabs")
+        print("  - Tab/1/2/3/4: Switch tabs")
         print("  - W/X: Select property (in setup tabs)")
         print("  - +/-: Adjust current property (in setup tabs)")
         print("  - S: Save camera settings")
@@ -558,6 +729,8 @@ class TabbedCameraGUI:
                     self.draw_camera_setup_tab(frame, 2)
                 elif self.current_tab == 2:
                     self.draw_recording_tab(frame)
+                elif self.current_tab == 3:
+                    self.draw_analysis_tab(frame)
                 
                 # Draw status message
                 if self.status_message and (time.time() - self.status_time) < self.status_duration:
@@ -582,13 +755,15 @@ class TabbedCameraGUI:
                     print("\nQuitting...")
                     break
                 elif key == ord('\t') or key == 9:  # Tab key
-                    self.current_tab = (self.current_tab + 1) % 3
+                    self.current_tab = (self.current_tab + 1) % 4
                 elif key == ord('1'):
                     self.current_tab = 0
                 elif key == ord('2'):
                     self.current_tab = 1
                 elif key == ord('3'):
                     self.current_tab = 2
+                elif key == ord('4'):
+                    self.current_tab = 3
                 elif key == ord(' ') and self.current_tab == 2:  # Space in recording tab
                     if self.is_recording:
                         self.stop_recording()
@@ -681,6 +856,107 @@ class TabbedCameraGUI:
         
         self.status_message = f"Camera {camera_num} settings reset"
         self.status_time = time.time()
+    
+    def start_analysis(self):
+        """Start analysis of recorded videos in background thread"""
+        if self.is_analyzing:
+            return
+        
+        if not self.recording_files or len(self.recording_files) != 2:
+            self.status_message = "No videos to analyze"
+            self.status_time = time.time()
+            return
+        
+        # Check if files exist
+        if not os.path.exists(self.recording_files[0]) or not os.path.exists(self.recording_files[1]):
+            self.status_message = "Video files not found"
+            self.status_time = time.time()
+            return
+        
+        self.is_analyzing = True
+        self.analysis_progress = "Starting analysis..."
+        self.analysis_start_time = time.time()
+        self.analysis_camera1 = None
+        self.analysis_camera2 = None
+        
+        # Start analysis in background thread
+        analysis_thread = threading.Thread(target=self._analyze_videos, daemon=True)
+        analysis_thread.start()
+    
+    def _analyze_videos(self):
+        """Analyze both videos in background thread"""
+        try:
+            video1_path = self.recording_files[0]
+            video2_path = self.recording_files[1]
+            
+            # Get video dimensions for frame_width
+            cap1 = cv2.VideoCapture(video1_path)
+            if cap1.isOpened():
+                frame_width1 = int(cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
+                cap1.release()
+            else:
+                frame_width1 = 1280  # Default
+            
+            cap2 = cv2.VideoCapture(video2_path)
+            if cap2.isOpened():
+                frame_width2 = int(cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
+                cap2.release()
+            else:
+                frame_width2 = 1280  # Default
+            
+            # Process Camera 1 (face-on view)
+            self.analysis_progress = "Processing Camera 1 (face-on)..."
+            processor1 = PoseProcessor(model_complexity=2)
+            landmarks_seq1, annotated_frames1 = processor1.process_video(video1_path)
+            processor1.release()
+            
+            # Calculate sway metrics for camera 1
+            calc1 = SwayCalculator()
+            analysis1 = calc1.analyze_sequence(landmarks_seq1, frame_width1)
+            
+            # Calculate detection rate
+            detected1 = sum(1 for lm in landmarks_seq1 if lm is not None)
+            detection_rate1 = (detected1 / len(landmarks_seq1) * 100) if landmarks_seq1 else 0
+            
+            analysis1['detection_rate'] = detection_rate1
+            self.analysis_camera1 = analysis1
+            
+            # Process Camera 2 (down-the-line view)
+            self.analysis_progress = "Processing Camera 2 (down-the-line)..."
+            processor2 = PoseProcessor(model_complexity=2)
+            landmarks_seq2, annotated_frames2 = processor2.process_video(video2_path)
+            processor2.release()
+            
+            # Calculate rotation metrics for camera 2
+            calc2 = SwayCalculator()
+            analysis2 = calc2.analyze_sequence(landmarks_seq2, frame_width2)
+            
+            # Calculate detection rate
+            detected2 = sum(1 for lm in landmarks_seq2 if lm is not None)
+            detection_rate2 = (detected2 / len(landmarks_seq2) * 100) if landmarks_seq2 else 0
+            
+            analysis2['detection_rate'] = detection_rate2
+            self.analysis_camera2 = analysis2
+            
+            # Analysis complete
+            self.is_analyzing = False
+            self.analysis_progress = ""
+            elapsed = time.time() - self.analysis_start_time if self.analysis_start_time else 0
+            self.status_message = f"Analysis complete ({elapsed:.1f}s)"
+            self.status_time = time.time()
+            
+            print(f"\nAnalysis complete in {elapsed:.1f}s")
+            print(f"Camera 1 detection rate: {detection_rate1:.1f}%")
+            print(f"Camera 2 detection rate: {detection_rate2:.1f}%")
+            
+        except Exception as e:
+            self.is_analyzing = False
+            self.analysis_progress = ""
+            self.status_message = f"Analysis failed: {str(e)}"
+            self.status_time = time.time()
+            print(f"\nAnalysis error: {e}")
+            import traceback
+            traceback.print_exc()
     
     def stop(self):
         """Stop and cleanup"""
