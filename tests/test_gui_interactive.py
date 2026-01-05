@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 sys.path.insert(0, os.path.join(project_root, 'scripts'))
 
 from camera_setup_recorder_gui import TabbedCameraGUI
+from test_utils import get_camera_ids
 
 
 def test_gui_initialization():
@@ -23,12 +24,13 @@ def test_gui_initialization():
     print("-" * 60)
     
     try:
-        # Use platform-appropriate cameras (0, 2 on Linux, 0, 2 on Windows)
-        gui = TabbedCameraGUI(camera1_id=0, camera2_id=2)
+        # Use cameras from config file (Windows) or defaults
+        cam1_id, cam2_id = get_camera_ids()
+        gui = TabbedCameraGUI(camera1_id=cam1_id, camera2_id=cam2_id)
         
         # Check initial state
-        assert gui.camera1_id == 0, f"Expected camera1_id=0, got {gui.camera1_id}"
-        assert gui.camera2_id == 2, f"Expected camera2_id=2, got {gui.camera2_id}"
+        assert gui.camera1_id == cam1_id, f"Expected camera1_id={cam1_id}, got {gui.camera1_id}"
+        assert gui.camera2_id == cam2_id, f"Expected camera2_id={cam2_id}, got {gui.camera2_id}"
         assert gui.current_tab == 0, f"Expected current_tab=0, got {gui.current_tab}"
         assert len(gui.tab_names) == 4, f"Expected 4 tabs, got {len(gui.tab_names)}"
         
@@ -84,8 +86,9 @@ def test_camera_opening():
     
     try:
         # Try to open cameras (this will fail if cameras aren't available)
-        cap1 = cv2.VideoCapture(0)
-        cap2 = cv2.VideoCapture(2)
+        cam1_id, cam2_id = get_camera_ids()
+        cap1 = cv2.VideoCapture(cam1_id)
+        cap2 = cv2.VideoCapture(cam2_id)
         
         if cap1.isOpened() and cap2.isOpened():
             print("✓ Both cameras opened successfully")

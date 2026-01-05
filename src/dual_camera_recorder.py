@@ -135,7 +135,7 @@ class DualCameraRecorder:
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
     
-    def start_cameras(self, width: int = 1920, height: int = 1080, fps: int = 60):
+    def start_cameras(self, width: int = 1280, height: int = 720, fps: int = 60):
         """Initialize and start both cameras"""
         self.requested_fps = fps  # Store requested FPS for video writer
         # Adjust sync threshold based on FPS (1 frame time)

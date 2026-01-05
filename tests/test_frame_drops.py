@@ -67,11 +67,11 @@ def main():
     print(f"  Expected frames: {expected_frames}")
     print()
     
-    # Use platform-appropriate camera IDs
-    if sys.platform == 'win32':
-        cam1_id, cam2_id = 0, 2
-    else:
-        cam1_id, cam2_id = 0, 2  # Linux: use 0,2 based on test results
+    # Import test utils for camera IDs
+    from test_utils import get_camera_ids
+    
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
     recorder = DualCameraRecorder(camera1_id=cam1_id, camera2_id=cam2_id)
     
     try:

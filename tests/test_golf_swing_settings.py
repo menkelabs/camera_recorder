@@ -84,7 +84,12 @@ def main():
         (1920, 1080, 30, "1080p @ 30fps - Too slow for golf swings"),
     ]
     
-    cameras = [0, 2]
+    # Import test utils for camera IDs
+    from test_utils import get_camera_ids
+    
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
+    cameras = [cam1_id, cam2_id]
     results = {}
     
     for cam_id in cameras:
@@ -115,14 +120,14 @@ def main():
     print()
     
     # Check 240fps support first (best for golf)
-    cam0_240 = results[0].get((640, 480, 240), {}).get('acceptable', False) if results[0].get((640, 480, 240)) else False
-    cam2_240 = results[2].get((640, 480, 240), {}).get('acceptable', False) if results[2].get((640, 480, 240)) else False
+    cam1_240 = results[cam1_id].get((640, 480, 240), {}).get('acceptable', False) if results[cam1_id].get((640, 480, 240)) else False
+    cam2_240 = results[cam2_id].get((640, 480, 240), {}).get('acceptable', False) if results[cam2_id].get((640, 480, 240)) else False
     
     # Check 120fps support
-    cam0_120 = results[0].get((1280, 720, 120), {}).get('acceptable', False) if results[0].get((1280, 720, 120)) else False
-    cam2_120 = results[2].get((1280, 720, 120), {}).get('acceptable', False) if results[2].get((1280, 720, 120)) else False
+    cam1_120 = results[cam1_id].get((1280, 720, 120), {}).get('acceptable', False) if results[cam1_id].get((1280, 720, 120)) else False
+    cam2_120 = results[cam2_id].get((1280, 720, 120), {}).get('acceptable', False) if results[cam2_id].get((1280, 720, 120)) else False
     
-    if cam0_240 and cam2_240:
+    if cam1_240 and cam2_240:
         print("🎯 BEST RECOMMENDATION for Golf Swings:")
         print()
         print("  640p @ 240 FPS ⭐")
@@ -153,7 +158,7 @@ def main():
         print("    At 30fps:  ~2-4 frames during impact zone (TOO FEW!)")
         print()
         
-    elif cam0_120 and cam2_120:
+    elif cam1_120 and cam2_120:
         print("🎯 BEST RECOMMENDATION for Golf Swings:")
         print()
         print("  720p @ 120 FPS")

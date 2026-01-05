@@ -24,10 +24,12 @@ def main():
     print("MediaPipe-Optimized Dual Camera Recorder")
     print("=" * 70)
     print()
-    print("Settings: 1920x1080 @ 60 FPS")
-    print("  - Maximum detail for landmark detection")
+    print("Settings: 1280x720 @ 60 FPS (optimal for accurate recording)")
+    print("  - Both cameras exceed 60 FPS (103-104 FPS measured)")
+    print("  - VideoWriter supports 60 FPS, zero frame drops")
+    print("  - Good detail for landmark detection")
     print("  - Smooth motion capture")
-    print("  - Optimal for pose/hand/face analysis")
+    print("  - Note: 1080p cannot maintain 60 FPS (only 44-53 FPS measured)")
     print()
     print("Using cameras:")
     print("  Camera 1: Index 0 (HD USB Camera)")
@@ -37,9 +39,10 @@ def main():
     recorder = DualCameraRecorder(camera1_id=0, camera2_id=2)
     
     try:
-        # Start cameras at optimal MediaPipe settings
-        print("Starting cameras at 1080p @ 60fps...")
-        recorder.start_cameras(width=1920, height=1080, fps=60)
+        # Start cameras at optimal settings for accurate recording
+        # 720p @ 60fps: Both cameras exceed 60 FPS, VideoWriter supports it, zero frame drops
+        print("Starting cameras at 720p @ 60fps...")
+        recorder.start_cameras(width=1280, height=720, fps=60)
         print()
         
         # Get output name

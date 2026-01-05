@@ -1,0 +1,56 @@
+{
+  "platform": "windows",
+  "camera1_id": 0,
+  "camera2_id": 2,
+  "recording_settings": {
+    "general": {
+      "width": 1280,
+      "height": 720,
+      "fps": 60,
+      "notes": "Optimal for general recording: Both cameras exceed 60 FPS (103-104 FPS measured), VideoWriter supports 60 FPS, zero frame drops in tests"
+    },
+    "golf_swing": {
+      "width": 1280,
+      "height": 720,
+      "fps": 120,
+      "notes": "Optimal for golf swing recording: Both cameras exceed 120 FPS (232-217 FPS measured), VideoWriter supports 120 FPS, zero frame drops in tests. Perfect for capturing fast golf swings with detailed motion capture."
+    }
+  },
+  "detected_cameras": [
+    {
+      "id": 0,
+      "status": "working",
+      "description": "Opens and can read frames",
+      "resolution": "640x360",
+      "fps": 0.0,
+      "backend": "DSHOW",
+      "is_hd_usb": true,
+      "supports_720p_60fps": true,
+      "measured_fps": 90.48541755090268
+    },
+    {
+      "id": 1,
+      "status": "working",
+      "description": "Opens and can read frames",
+      "resolution": "640x480",
+      "fps": 0.0,
+      "backend": "DSHOW",
+      "is_hd_usb": false,
+      "supports_720p_60fps": false,
+      "measured_fps": 13.923945049978492
+    },
+    {
+      "id": 2,
+      "status": "working",
+      "description": "Opens and can read frames",
+      "resolution": "640x360",
+      "fps": 0.0,
+      "backend": "DSHOW",
+      "is_hd_usb": true,
+      "supports_720p_60fps": true,
+      "measured_fps": 83.87066377323025
+    }
+  ],
+  "detection_date": "2026-01-04",
+  "notes": "Camera detection completed. 3 working camera(s) found, 2 HD USB camera(s)."
+}

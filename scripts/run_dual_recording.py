@@ -27,12 +27,13 @@ def main():
     recorder = DualCameraRecorder(camera1_id=0, camera2_id=2)
     
     try:
-        # Start cameras at optimal resolution for MediaPipe - 1080p @ 60fps
-        # For maximum fidelity, use 1920x1080 @ 60fps
-        # Alternative: 1280x720 @ 60fps for smaller files
-        print("Starting cameras at 1920x1080 @ 60fps (optimal for MediaPipe)...")
-        print("(For smaller files, change to 1280x720 @ 60fps)")
-        recorder.start_cameras(width=1920, height=1080, fps=60)
+        # Start cameras at optimal settings for accurate recording - 720p @ 60fps
+        # Based on test results: Both cameras exceed 60 FPS (103-104 FPS measured)
+        # VideoWriter supports 60 FPS, zero frame drops in tests
+        # Note: 1080p cannot maintain 60 FPS (only 44-53 FPS measured)
+        print("Starting cameras at 1280x720 @ 60fps (optimal for accurate recording)...")
+        print("(Both cameras exceed 60 FPS, VideoWriter supports it, zero frame drops)")
+        recorder.start_cameras(width=1280, height=720, fps=60)
         
         # Get output name
         output_name = input("\nEnter output name (or press Enter for timestamp): ").strip()

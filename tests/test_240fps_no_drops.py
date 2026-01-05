@@ -72,7 +72,12 @@ def main():
     print("  ✓ Synchronized recording works at high speed")
     print()
     
-    recorder = DualCameraRecorder(camera1_id=0, camera2_id=2)
+    # Import test utils for camera IDs
+    from test_utils import get_camera_ids
+    
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
+    recorder = DualCameraRecorder(camera1_id=cam1_id, camera2_id=cam2_id)
     
     try:
         # Start cameras at 240fps

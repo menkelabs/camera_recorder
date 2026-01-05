@@ -34,9 +34,11 @@ Run the GUI application:
 python scripts/camera_setup_recorder_gui.py
 ```
 
-On Windows (default cameras 0 and 2):
+On Windows (cameras auto-detected from config_windows.json):
 ```bash
-python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 2
+python scripts/camera_setup_recorder_gui.py
+# Or with explicit camera IDs:
+python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 1
 ```
 
 On Linux (default cameras 0 and 1):
@@ -102,8 +104,8 @@ The typical workflow supports multiple recording sessions:
 python scripts/camera_setup_recorder_gui.py [OPTIONS]
 
 Options:
-  --camera1 ID    Camera 1 ID (default: 0 on Linux, 0 on Windows)
-  --camera2 ID    Camera 2 ID (default: 1 on Linux, 2 on Windows)
+  --camera1 ID    Camera 1 ID (default: 0 on Linux, from config_windows.json on Windows)
+  --camera2 ID    Camera 2 ID (default: 1 on Linux, from config_windows.json on Windows)
   --width WIDTH   Resolution width (default: 1280)
   --height HEIGHT Resolution height (default: 720)
   --fps FPS       Frame rate (default: 60)
@@ -133,7 +135,9 @@ Analysis results include:
 
 ### Windows
 - Uses DirectShow backend (`cv2.CAP_DSHOW`) for better camera compatibility
-- Default cameras: 0 and 2 (skips built-in camera typically at index 1)
+- Camera configuration is stored in `config_windows.json` (auto-detected)
+- To regenerate camera configuration: `python scripts/detect_windows_cameras.py`
+- Default cameras: Loaded from `config_windows.json` if available, otherwise 0 and 2
 
 ### Linux
 - Uses V4L2 backend (default)
@@ -145,10 +149,12 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform con
 ## Troubleshooting
 
 ### Camera Not Found
+- **Windows**: Run `python scripts/detect_windows_cameras.py` to automatically detect and configure cameras
 - Check camera IDs: Try 0, 1, 2, etc.
 - Ensure cameras are not being used by other applications (OBS, Zoom, etc.)
 - On Windows, check Device Manager for camera availability
 - Run `python tests/test_cameras.py` to find available cameras
+- Check `config_windows.json` for Windows camera configuration
 
 ### High CPU Usage
 - Reduce resolution (try 640x480)

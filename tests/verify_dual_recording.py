@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 
 from dual_camera_recorder import DualCameraRecorder
 
+# Add tests to path for test_utils
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(project_root, 'tests'))
+from test_utils import get_camera_ids
+
 # Fix Windows console encoding
 if sys.platform == 'win32':
     import io
@@ -24,11 +29,8 @@ def main():
     print("=" * 70)
     print()
     
-    # Use platform-appropriate camera IDs
-    if sys.platform == 'win32':
-        cam1_id, cam2_id = 0, 2
-    else:
-        cam1_id, cam2_id = 0, 2  # Linux: use 0,2 based on test results
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
     
     print("Configuration:")
     print(f"  Camera 1: Index {cam1_id} (HD USB Camera)")
@@ -136,8 +138,8 @@ def main():
         if both_working:
             print("✅ CONFIRMED: Both USB cameras recording simultaneously!")
             print()
-            print("  ✓ Camera 1 (Index 0) is capturing")
-            print("  ✓ Camera 2 (Index 2) is capturing")
+            print(f"  ✓ Camera 1 (Index {cam1_id}) is capturing")
+            print(f"  ✓ Camera 2 (Index {cam2_id}) is capturing")
             print("  ✓ Both cameras are synchronized")
             print("  ✓ Frames are being written to video files")
             print("  ✓ Zero frame drops")

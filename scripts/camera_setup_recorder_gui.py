@@ -6,17 +6,38 @@ Single window with 4 tabs: Camera 1 Setup, Camera 2 Setup, Recording, Analysis
 import cv2
 import sys
 import os
+import json
 import threading
 import time
 import numpy as np
 from typing import Optional, Tuple
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from dual_camera_recorder import DualCameraRecorder
 from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
+
+
+def load_windows_config(config_path: str = None) -> dict:
+    """Load Windows-specific camera configuration from JSON file"""
+    if config_path is None:
+        # Default to config_windows.json in project root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(project_root, 'config_windows.json')
+    
+    if not os.path.exists(config_path):
+        return None
+    
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Warning: Could not load Windows config from {config_path}: {e}")
+        return None
 
 
 class TabbedCameraGUI:
@@ -37,7 +58,16 @@ class TabbedCameraGUI:
                  width: int = 1280, height: int = 720, fps: int = 60):
         # Use platform-appropriate defaults if not specified
         if sys.platform == 'win32':
-            # Windows: Use cameras 0 and 2 (skip built-in at 1)
+            # Windows: Load from config file if available, otherwise use defaults
+            config = load_windows_config()
+            if config:
+                # Use config values if camera IDs not explicitly provided
+                if camera1_id is None:
+                    camera1_id = config.get('camera1_id', 0)
+                if camera2_id is None:
+                    camera2_id = config.get('camera2_id', 2)
+                print(f"Using camera IDs from config: Camera 1 = {camera1_id}, Camera 2 = {camera2_id}")
+            # Fallback to defaults if config not available
             self.camera1_id = camera1_id if camera1_id is not None else 0
             self.camera2_id = camera2_id if camera2_id is not None else 2
         else:
@@ -96,6 +126,141 @@ class TabbedCameraGUI:
         self.status_message = ""
         self.status_time = 0
         self.status_duration = 2.0
+        
+        # Font cache for PIL text rendering
+        self._font_cache = {}
+    
+    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
+        """Get or create a cached PIL font for the given pixel size
+        
+        Uses BOLD fonts for thicker, more consistent strokes:
+        - Consolas Bold: Thick uniform strokes, designed for screens
+        - Verdana Bold: Designed for screen clarity
+        - Arial Bold: Wide availability
+        """
+        if size not in self._font_cache:
+            try:
+                if sys.platform == 'win32':
+                    # BOLD fonts for thicker, more consistent strokes
+                    font_paths = [
+                        "C:/Windows/Fonts/consolab.ttf",  # Consolas Bold - thick uniform strokes
+                        "C:/Windows/Fonts/verdanab.ttf",  # Verdana Bold - screen clarity
+                        "C:/Windows/Fonts/tahomabd.ttf",  # Tahoma Bold
+                        "C:/Windows/Fonts/arialbd.ttf",   # Arial Bold - fallback
+                        "C:/Windows/Fonts/arial.ttf",     # Arial regular - last resort
+                    ]
+                    for font_path in font_paths:
+                        if os.path.exists(font_path):
+                            self._font_cache[size] = ImageFont.truetype(font_path, size)
+                            break
+                    else:
+                        self._font_cache[size] = ImageFont.load_default()
+                else:
+                    # Linux/Mac fonts - prefer bold variants
+                    font_paths = [
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                        "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+                        "/System/Library/Fonts/Menlo.ttc",
+                    ]
+                    for font_path in font_paths:
+                        if os.path.exists(font_path):
+                            self._font_cache[size] = ImageFont.truetype(font_path, size)
+                            break
+                    else:
+                        self._font_cache[size] = ImageFont.load_default()
+            except Exception:
+                self._font_cache[size] = ImageFont.load_default()
+        return self._font_cache[size]
+    
+    def _get_text_size_pil(self, text: str, size: float) -> Tuple[int, int]:
+        """Get text size using PIL font metrics"""
+        font_size = int(size * 42)  # Larger base size for bold fonts
+        font = self._get_font(font_size)
+        
+        # Use getbbox for accurate text measurement
+        bbox = font.getbbox(text)
+        if bbox:
+            return (bbox[2] - bbox[0], bbox[3] - bbox[1])
+        return (0, 0)
+    
+    def _put_text_pil(self, frame: np.ndarray, text: str, position: Tuple[int, int], 
+                      size: float = 0.5, color: Tuple[int, int, int] = (255, 255, 255), 
+                      thickness: int = 1) -> np.ndarray:
+        """Render crisp text using PIL with 3x supersampling
+        
+        Renders text at 3x size then downscales with LANCZOS for smooth anti-aliasing.
+        This is the proven technique for sharp, clear text in PIL.
+        """
+        SUPERSAMPLE = 3  # Render at 3x size for maximum smoothness
+        
+        # Calculate font size (with supersampling) - larger for bold fonts
+        font_size = int(size * 42) * SUPERSAMPLE
+        font = self._get_font(font_size)
+        
+        # Get text dimensions at supersampled size
+        bbox = font.getbbox(text)
+        if not bbox:
+            return frame
+        
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Add padding for the text image
+        padding = 4 * SUPERSAMPLE
+        img_width = text_width + padding * 2
+        img_height = text_height + padding * 2
+        
+        # Create transparent image for text at supersampled size
+        text_img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(text_img)
+        
+        # Draw text (RGB color order for PIL)
+        color_rgb = (color[2], color[1], color[0], 255)  # BGR to RGBA
+        draw.text((padding - bbox[0], padding - bbox[1]), text, font=font, fill=color_rgb)
+        
+        # Downscale with LANCZOS for smooth anti-aliasing
+        final_width = img_width // SUPERSAMPLE
+        final_height = img_height // SUPERSAMPLE
+        text_img = text_img.resize((final_width, final_height), Image.LANCZOS)
+        
+        # Calculate position (convert from bottom-left to top-left)
+        x, y_bottom = position
+        actual_text_height = text_height // SUPERSAMPLE
+        y_top = y_bottom - actual_text_height - padding // SUPERSAMPLE
+        
+        # Composite onto frame
+        # Convert frame region to PIL, composite, convert back
+        frame_h, frame_w = frame.shape[:2]
+        
+        # Clamp position to frame bounds
+        x = max(0, min(x, frame_w - final_width))
+        y_top = max(0, min(y_top, frame_h - final_height))
+        
+        # Extract the region from frame
+        x_end = min(x + final_width, frame_w)
+        y_end = min(y_top + final_height, frame_h)
+        
+        if x_end <= x or y_end <= y_top:
+            return frame
+        
+        # Get the frame region
+        region = frame[y_top:y_end, x:x_end].copy()
+        region_rgb = cv2.cvtColor(region, cv2.COLOR_BGR2RGB)
+        region_pil = Image.fromarray(region_rgb).convert('RGBA')
+        
+        # Crop text image to match region size if needed
+        text_crop = text_img.crop((0, 0, x_end - x, y_end - y_top))
+        
+        # Composite text onto region
+        region_pil = Image.alpha_composite(region_pil, text_crop)
+        
+        # Convert back to BGR and put into frame
+        result_rgb = np.array(region_pil.convert('RGB'))
+        result_bgr = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2BGR)
+        frame[y_top:y_end, x:x_end] = result_bgr
+        
+        return frame
         
     def create_trackbars(self, camera_num: int):
         """Create trackbars for camera properties"""
@@ -156,17 +321,19 @@ class TabbedCameraGUI:
                 color = (180, 180, 180)
             
             # Draw tab text
-            text_size = cv2.getTextSize(name, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+            text_size = self._get_text_size_pil(name, 0.6)
             text_x = x1 + (tab_width - text_size[0]) // 2
             text_y = (self.tab_height + text_size[1]) // 2
-            cv2.putText(frame, name, (text_x, text_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+            frame = self._put_text_pil(frame, name, (text_x, text_y), 
+                                      size=0.6, color=color, thickness=2)
             
             # Tab number hint
             hint = f"[{i+1}]"
-            hint_size = cv2.getTextSize(hint, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
-            cv2.putText(frame, hint, (x2 - hint_size[0] - 10, 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+            hint_size = self._get_text_size_pil(hint, 0.4)
+            frame = self._put_text_pil(frame, hint, (x2 - hint_size[0] - 10, 20), 
+                                      size=0.4, color=(150, 150, 150), thickness=1)
+        
+        return frame
     
     def draw_camera_setup_tab(self, frame, camera_num: int):
         """Draw camera setup tab content"""
@@ -186,17 +353,17 @@ class TabbedCameraGUI:
         if cap is None or not cap.isOpened():
             # Draw "Camera not available" message
             text = f"Camera {camera_num} not available"
-            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+            text_size = self._get_text_size_pil(text, 1.0)
             text_x = (w - text_size[0]) // 2
             text_y = h // 2
-            cv2.putText(frame, text, (text_x, text_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-            return
+            frame = self._put_text_pil(frame, text, (text_x, text_y), 
+                                      size=1.0, color=(0, 0, 255), thickness=2)
+            return frame
         
         # Read frame
         ret, cam_frame = cap.read()
         if not ret:
-            return
+            return frame
         
         # Resize preview
         preview = cv2.resize(cam_frame, (self.preview_width, self.preview_height))
@@ -207,19 +374,19 @@ class TabbedCameraGUI:
                      (preview_x+self.preview_width, preview_y+self.preview_height), 
                      (255, 255, 255), 2)
         
-        # Draw camera info
-        info_y = preview_y + self.preview_height + 20
+        # Draw camera info - below preview with enough space for bold font
+        info_y = preview_y + self.preview_height + 35
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         
         info_text = f"Camera {camera_num}: {width}x{height} @ {fps:.1f}fps"
-        cv2.putText(frame, info_text, (preview_x, info_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        frame = self._put_text_pil(frame, info_text, (preview_x, info_y), 
+                                   size=0.5, color=(0, 255, 0), thickness=2)
         
         # Draw controls area (simulated trackbars with text)
         controls_start_y = controls_y + 20
-        line_height = 35
+        line_height = 42  # Increased for larger bold font
         y_pos = controls_start_y
         
         # Get current values
@@ -254,9 +421,9 @@ class TabbedCameraGUI:
         for i, (prop_name, value, min_val, max_val, prop_key) in enumerate(properties):
             # Highlight selected property
             if prop_key == current_prop_key:
-                # Highlight background
-                cv2.rectangle(frame, (controls_x - 5, y_pos - 20), 
-                           (controls_x + controls_w - 5, y_pos + 10), (50, 100, 150), -1)
+                # Highlight background - sized for larger bold font
+                cv2.rectangle(frame, (controls_x - 5, y_pos - 25), 
+                           (controls_x + controls_w - 5, y_pos + 15), (50, 100, 150), -1)
                 text_color = (255, 255, 0)
                 value_color = (0, 255, 255)
             else:
@@ -265,26 +432,28 @@ class TabbedCameraGUI:
             
             # Property name with selection indicator
             prop_text = f"{'>>' if prop_key == current_prop_key else '  '} {prop_name}:"
-            cv2.putText(frame, prop_text, (controls_x, y_pos), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
+            frame = self._put_text_pil(frame, prop_text, (controls_x, y_pos), 
+                                       size=0.5, color=text_color, thickness=2)
             
-            # Value
+            # Value - offset increased for larger bold font
             value_text = str(value)
-            value_x = controls_x + 150
-            cv2.putText(frame, value_text, (value_x, y_pos), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, value_color, 1)
+            value_x = controls_x + 220  # More space to avoid label overlap
+            frame = self._put_text_pil(frame, value_text, (value_x, y_pos), 
+                                       size=0.5, color=value_color, thickness=2)
             
             y_pos += line_height
         
         # Instructions
         inst_y = y_pos + 10
-        cv2.putText(frame, "W/X: Select property | +/-: Adjust value", 
-                   (controls_x, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        frame = self._put_text_pil(frame, "W/X: Select property | +/-: Adjust value", 
+                                   (controls_x, inst_y), size=0.5, color=(200, 200, 200), thickness=1)
         
         # Instructions at bottom
         inst_y = h - 60
-        cv2.putText(frame, "W/X: Select | +/-: Adjust | S: Save | R: Reset | Tab/1/2/3/4: Switch tabs", 
-                   (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        frame = self._put_text_pil(frame, "W/X: Select | +/-: Adjust | S: Save | R: Reset | Tab/1/2/3/4: Switch tabs", 
+                                   (10, inst_y), size=0.5, color=(200, 200, 200), thickness=1)
+        
+        return frame
     
     def draw_recording_tab(self, frame):
         """Draw recording tab content"""
@@ -305,8 +474,8 @@ class TabbedCameraGUI:
                 frame[y1:y1+preview_height, x1:x1+preview_width] = preview1
                 cv2.rectangle(frame, (x1, y1), (x1+preview_width, y1+preview_height), 
                              (255, 255, 255), 2)
-                cv2.putText(frame, "Camera 1", (x1 + 10, y1 + 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                frame = self._put_text_pil(frame, "Camera 1", (x1 + 10, y1 + 35), 
+                                           size=0.5, color=(0, 255, 0), thickness=2)
         
         # Camera 2 preview
         if self.cap2 and self.cap2.isOpened():
@@ -318,8 +487,8 @@ class TabbedCameraGUI:
                 frame[y2:y2+preview_height, x2:x2+preview_width] = preview2
                 cv2.rectangle(frame, (x2, y2), (x2+preview_width, y2+preview_height), 
                              (255, 255, 255), 2)
-                cv2.putText(frame, "Camera 2", (x2 + 10, y2 + 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                frame = self._put_text_pil(frame, "Camera 2", (x2 + 10, y2 + 35), 
+                                           size=0.5, color=(0, 255, 0), thickness=2)
         
         # Recording controls area
         controls_y = content_y + preview_height + 20
@@ -330,48 +499,54 @@ class TabbedCameraGUI:
         if self.is_recording:
             # Red recording indicator
             cv2.circle(frame, (20, status_y), 10, (0, 0, 255), -1)
-            cv2.putText(frame, "RECORDING", (40, status_y + 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            frame = self._put_text_pil(frame, "RECORDING", (40, status_y + 5), 
+                                       size=0.7, color=(0, 0, 255), thickness=2)
             
             # Recording duration
             if self.recording_start_time:
                 duration = time.time() - self.recording_start_time
                 duration_text = f"Duration: {duration:.1f}s"
-                cv2.putText(frame, duration_text, (200, status_y + 5), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                frame = self._put_text_pil(frame, duration_text, (200, status_y + 5), 
+                                           size=0.6, color=(255, 255, 255), thickness=2)
             
             # File paths
             if self.recording_files:
                 file_y = status_y + 35
-                cv2.putText(frame, f"Camera 1: {os.path.basename(self.recording_files[0])}", 
-                           (20, file_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-                cv2.putText(frame, f"Camera 2: {os.path.basename(self.recording_files[1])}", 
-                           (20, file_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                frame = self._put_text_pil(frame, f"Camera 1: {os.path.basename(self.recording_files[0])}", 
+                                           (20, file_y), size=0.5, color=(200, 200, 200), thickness=1)
+                frame = self._put_text_pil(frame, f"Camera 2: {os.path.basename(self.recording_files[1])}", 
+                                           (20, file_y + 25), size=0.5, color=(200, 200, 200), thickness=1)
             
             # Stop button (visual)
             stop_x = w - 200
             stop_y = status_y - 10
-            cv2.rectangle(frame, (stop_x, stop_y), (stop_x + 150, stop_y + 40), (0, 0, 200), -1)
-            cv2.rectangle(frame, (stop_x, stop_y), (stop_x + 150, stop_y + 40), (255, 255, 255), 2)
-            cv2.putText(frame, "STOP [Space]", (stop_x + 20, stop_y + 28), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            btn_width = 220  # Wider for bold font
+            btn_height = 45
+            cv2.rectangle(frame, (stop_x, stop_y), (stop_x + btn_width, stop_y + btn_height), (0, 0, 200), -1)
+            cv2.rectangle(frame, (stop_x, stop_y), (stop_x + btn_width, stop_y + btn_height), (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, "STOP [Space]", (stop_x + 25, stop_y + 32), 
+                                       size=0.5, color=(255, 255, 255), thickness=2)
         else:
             # Ready to record
-            cv2.putText(frame, "Ready to Record", (20, status_y + 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            frame = self._put_text_pil(frame, "Ready to Record", (20, status_y + 5), 
+                                       size=0.7, color=(0, 255, 0), thickness=2)
             
             # Start button (visual)
             start_x = w - 200
             start_y = status_y - 10
-            cv2.rectangle(frame, (start_x, start_y), (start_x + 150, start_y + 40), (0, 200, 0), -1)
-            cv2.rectangle(frame, (start_x, start_y), (start_x + 150, start_y + 40), (255, 255, 255), 2)
-            cv2.putText(frame, "START [Space]", (start_x + 15, start_y + 28), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            btn_width = 220  # Wider for bold font
+            btn_height = 45
+            cv2.rectangle(frame, (start_x, start_y), (start_x + btn_width, start_y + btn_height), (0, 200, 0), -1)
+            cv2.rectangle(frame, (start_x, start_y), (start_x + btn_width, start_y + btn_height), (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, "START [Space]", (start_x + 20, start_y + 32), 
+                                       size=0.5, color=(255, 255, 255), thickness=2)
         
         # Instructions
         inst_y = h - 30
-        cv2.putText(frame, "Press SPACE to start/stop recording | Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
-                   (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        frame = self._put_text_pil(frame, "Press SPACE to start/stop recording | Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
+                                   (10, inst_y), size=0.5, color=(200, 200, 200), thickness=1)
+        
+        return frame
     
     def draw_analysis_tab(self, frame):
         """Draw analysis tab content"""
@@ -382,44 +557,44 @@ class TabbedCameraGUI:
         if self.is_analyzing:
             # Show progress message
             text_y = h // 2
-            text_size = cv2.getTextSize(self.analysis_progress, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+            text_size = self._get_text_size_pil(self.analysis_progress, 1.0)
             text_x = (w - text_size[0]) // 2
-            cv2.putText(frame, self.analysis_progress, (text_x, text_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+            frame = self._put_text_pil(frame, self.analysis_progress, (text_x, text_y), 
+                                       size=1.0, color=(0, 255, 255), thickness=2)
             
             # Show elapsed time if available
             if self.analysis_start_time:
                 elapsed = time.time() - self.analysis_start_time
                 elapsed_text = f"Elapsed: {elapsed:.1f}s"
-                elapsed_size = cv2.getTextSize(elapsed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+                elapsed_size = self._get_text_size_pil(elapsed_text, 0.7)
                 elapsed_x = (w - elapsed_size[0]) // 2
-                cv2.putText(frame, elapsed_text, (elapsed_x, text_y + 50), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
-            return
+                frame = self._put_text_pil(frame, elapsed_text, (elapsed_x, text_y + 50), 
+                                           size=0.7, color=(200, 200, 200), thickness=2)
+            return frame
         
         # Show results if available
         if self.analysis_camera1 is None and self.analysis_camera2 is None:
             # No analysis results yet
             text = "No analysis results available"
-            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+            text_size = self._get_text_size_pil(text, 1.0)
             text_x = (w - text_size[0]) // 2
             text_y = h // 2
-            cv2.putText(frame, text, (text_x, text_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (150, 150, 150), 2)
+            frame = self._put_text_pil(frame, text, (text_x, text_y), 
+                                       size=1.0, color=(150, 150, 150), thickness=2)
             
             hint = "Record a video and it will be analyzed automatically"
-            hint_size = cv2.getTextSize(hint, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+            hint_size = self._get_text_size_pil(hint, 0.6)
             hint_x = (w - hint_size[0]) // 2
-            cv2.putText(frame, hint, (hint_x, text_y + 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 100, 100), 1)
-            return
+            frame = self._put_text_pil(frame, hint, (hint_x, text_y + 50), 
+                                       size=0.6, color=(100, 100, 100), thickness=1)
+            return frame
         
         # Display results - summary at top
         y_pos = content_y + 20
-        title_size = cv2.getTextSize("SWING ANALYSIS RESULTS", cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+        title_size = self._get_text_size_pil("SWING ANALYSIS RESULTS", 0.8)
         title_x = (w - title_size[0]) // 2
-        cv2.putText(frame, "SWING ANALYSIS RESULTS", (title_x, y_pos), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        frame = self._put_text_pil(frame, "SWING ANALYSIS RESULTS", (title_x, y_pos), 
+                                   size=0.8, color=(0, 255, 255), thickness=2)
         y_pos += 40
         
         # Get frame count for navigation
@@ -439,14 +614,14 @@ class TabbedCameraGUI:
         frame_info_y = y_pos
         if max_frames > 0:
             frame_text = f"Frame: {self.analysis_frame_index + 1}/{max_frames}  (A/← Previous, D/→ Next)"
-            cv2.putText(frame, frame_text, (20, frame_info_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            frame = self._put_text_pil(frame, frame_text, (20, frame_info_y), 
+                                       size=0.5, color=(200, 200, 200), thickness=1)
         frame_info_y += 25
         
         # MAX METRICS SECTION (prominently displayed)
         summary_y = frame_info_y + 5
-        cv2.putText(frame, "MAX VALUES:", (20, summary_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
+        frame = self._put_text_pil(frame, "MAX VALUES:", (20, summary_y), 
+                                   size=0.65, color=(0, 255, 255), thickness=2)
         summary_y += 25
         line_height = 28
         
@@ -458,24 +633,24 @@ class TabbedCameraGUI:
         max_shoulder = summary2.get('max_shoulder_turn')
         if max_shoulder is not None:
             text = f"Max Shoulder Turn: {max_shoulder:+.1f}°"
-            cv2.putText(frame, text, (30, summary_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, text, (30, summary_y), 
+                                       size=0.6, color=(255, 255, 255), thickness=2)
             summary_y += line_height
         
         # Max Hip Turn (from camera 2)
         max_hip = summary2.get('max_hip_turn')
         if max_hip is not None:
             text = f"Max Hip Turn: {max_hip:+.1f}°"
-            cv2.putText(frame, text, (30, summary_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, text, (30, summary_y), 
+                                       size=0.6, color=(255, 255, 255), thickness=2)
             summary_y += line_height
         
         # Max X-Factor (from camera 2)
         max_xfactor = summary2.get('max_x_factor')
         if max_xfactor is not None:
             text = f"Max X-Factor: {max_xfactor:.1f}°"
-            cv2.putText(frame, text, (30, summary_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, text, (30, summary_y), 
+                                       size=0.6, color=(255, 255, 255), thickness=2)
             summary_y += line_height
         
         # Lateral Sway (from camera 1 - face-on)
@@ -489,17 +664,17 @@ class TabbedCameraGUI:
                     sway_text += ", "
             if max_sway_r is not None:
                 sway_text += f"Right {max_sway_r:.0f}px"
-            cv2.putText(frame, sway_text, (30, summary_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            frame = self._put_text_pil(frame, sway_text, (30, summary_y), 
+                                       size=0.6, color=(255, 255, 255), thickness=2)
             summary_y += line_height
         
         summary_y += 15
         
         # LIVE METRICS SECTION (current frame values)
         live_y = summary_y
-        cv2.putText(frame, "CURRENT FRAME VALUES:", (20, live_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-        live_y += 25
+        frame = self._put_text_pil(frame, "CURRENT FRAME VALUES:", (20, live_y), 
+                                   size=0.55, color=(0, 255, 0), thickness=2)
+        live_y += 32  # More space for bold font
         
         # Get current frame data
         frame_idx = self.analysis_frame_index if max_frames > 0 else 0
@@ -509,99 +684,101 @@ class TabbedCameraGUI:
             current_shoulder = self.analysis_camera2['shoulder_turn'][frame_idx]
             if current_shoulder is not None:
                 text = f"Shoulder Turn: {current_shoulder:+.1f}°"
-                cv2.putText(frame, text, (30, live_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
-                live_y += 22
+                frame = self._put_text_pil(frame, text, (30, live_y), 
+                                           size=0.45, color=(0, 255, 0), thickness=1)
+                live_y += 28
         
         # Current Hip Turn
         if self.analysis_camera2 and frame_idx < len(self.analysis_camera2.get('hip_turn', [])):
             current_hip = self.analysis_camera2['hip_turn'][frame_idx]
             if current_hip is not None:
                 text = f"Hip Turn: {current_hip:+.1f}°"
-                cv2.putText(frame, text, (30, live_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
-                live_y += 22
+                frame = self._put_text_pil(frame, text, (30, live_y), 
+                                           size=0.45, color=(0, 255, 0), thickness=1)
+                live_y += 28
         
         # Current X-Factor
         if self.analysis_camera2 and frame_idx < len(self.analysis_camera2.get('x_factor', [])):
             current_xfactor = self.analysis_camera2['x_factor'][frame_idx]
             if current_xfactor is not None:
                 text = f"X-Factor: {current_xfactor:.1f}°"
-                cv2.putText(frame, text, (30, live_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
-                live_y += 22
+                frame = self._put_text_pil(frame, text, (30, live_y), 
+                                           size=0.45, color=(0, 255, 0), thickness=1)
+                live_y += 28
         
         # Current Lateral Sway
         if self.analysis_camera1 and frame_idx < len(self.analysis_camera1.get('sway', [])):
             current_sway = self.analysis_camera1['sway'][frame_idx]
             if current_sway is not None:
                 text = f"Lateral Sway: {current_sway:+.0f}px"
-                cv2.putText(frame, text, (30, live_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
-                live_y += 22
+                frame = self._put_text_pil(frame, text, (30, live_y), 
+                                           size=0.45, color=(0, 255, 0), thickness=1)
+                live_y += 28
         
-        live_y += 15
+        live_y += 30  # More space before camera columns
         
         # Two-column layout for per-camera results
         col_width = (w - 40) // 2
         left_col_x = 20
-        right_col_x = col_width + 30
+        right_col_x = col_width + 40  # More space between columns
         
         # Left column: Camera 1 (Face-on - Sway metrics)
-        cam1_y = summary_y
-        cv2.putText(frame, "Camera 1 (Face-On):", (left_col_x, cam1_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        cam1_y += 25
+        cam1_y = live_y  # Start AFTER the current frame values section
+        frame = self._put_text_pil(frame, "Camera 1 (Face-On):", (left_col_x, cam1_y), 
+                                   size=0.55, color=(0, 255, 0), thickness=2)
+        cam1_y += 30  # More space for bold font
         
         if self.analysis_camera1:
             detection_rate1 = self.analysis_camera1.get('detection_rate', 0)
-            cv2.putText(frame, f"Detection: {detection_rate1:.1f}%", 
-                       (left_col_x, cam1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-            cam1_y += 20
+            frame = self._put_text_pil(frame, f"Detection: {detection_rate1:.1f}%", 
+                                       (left_col_x, cam1_y), size=0.45, color=(200, 200, 200), thickness=1)
+            cam1_y += 28
             
             sway_summary = summary1
             if sway_summary.get('max_sway_left') is not None:
                 text = f"Max Sway Left: {abs(sway_summary['max_sway_left']):.0f}px"
-                cv2.putText(frame, text, (left_col_x, cam1_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                cam1_y += 20
+                frame = self._put_text_pil(frame, text, (left_col_x, cam1_y), 
+                                           size=0.45, color=(255, 255, 255), thickness=1)
+                cam1_y += 28
             if sway_summary.get('max_sway_right') is not None:
                 text = f"Max Sway Right: {sway_summary['max_sway_right']:.0f}px"
-                cv2.putText(frame, text, (left_col_x, cam1_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                frame = self._put_text_pil(frame, text, (left_col_x, cam1_y), 
+                                           size=0.45, color=(255, 255, 255), thickness=1)
         
         # Right column: Camera 2 (Down-the-Line - Rotation metrics)
-        cam2_y = summary_y
-        cv2.putText(frame, "Camera 2 (Down-the-Line):", (right_col_x, cam2_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        cam2_y += 25
+        cam2_y = live_y  # Same starting point as Camera 1
+        frame = self._put_text_pil(frame, "Camera 2 (Down-the-Line):", (right_col_x, cam2_y), 
+                                   size=0.55, color=(0, 255, 0), thickness=2)
+        cam2_y += 30  # More space for bold font
         
         if self.analysis_camera2:
             detection_rate2 = self.analysis_camera2.get('detection_rate', 0)
-            cv2.putText(frame, f"Detection: {detection_rate2:.1f}%", 
-                       (right_col_x, cam2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-            cam2_y += 20
+            frame = self._put_text_pil(frame, f"Detection: {detection_rate2:.1f}%", 
+                                       (right_col_x, cam2_y), size=0.45, color=(200, 200, 200), thickness=1)
+            cam2_y += 28
             
             rot_summary = summary2
             if rot_summary.get('max_shoulder_turn') is not None:
                 text = f"Max Shoulder: {rot_summary['max_shoulder_turn']:+.1f}°"
-                cv2.putText(frame, text, (right_col_x, cam2_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                cam2_y += 20
+                frame = self._put_text_pil(frame, text, (right_col_x, cam2_y), 
+                                           size=0.45, color=(255, 255, 255), thickness=1)
+                cam2_y += 28
             if rot_summary.get('max_hip_turn') is not None:
                 text = f"Max Hip: {rot_summary['max_hip_turn']:+.1f}°"
-                cv2.putText(frame, text, (right_col_x, cam2_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                frame = self._put_text_pil(frame, text, (right_col_x, cam2_y), 
+                                           size=0.45, color=(255, 255, 255), thickness=1)
                 cam2_y += 20
             if rot_summary.get('max_x_factor') is not None:
                 text = f"Max X-Factor: {rot_summary['max_x_factor']:.1f}°"
-                cv2.putText(frame, text, (right_col_x, cam2_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                frame = self._put_text_pil(frame, text, (right_col_x, cam2_y), 
+                                           size=0.5, color=(255, 255, 255), thickness=1)
         
         # Instructions
         inst_y = h - 30
-        cv2.putText(frame, "Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
-                   (10, inst_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        frame = self._put_text_pil(frame, "Tab/1/2/3/4 to switch tabs | Q/ESC to quit", 
+                                   (10, inst_y), size=0.5, color=(200, 200, 200), thickness=1)
+        
+        return frame
     
     def start_recording(self):
         """Start recording"""
@@ -961,28 +1138,28 @@ class TabbedCameraGUI:
                 frame = np.zeros((self.window_height, self.window_width, 3), dtype=np.uint8)
                 
                 # Draw tabs
-                self.draw_tabs(frame)
+                frame = self.draw_tabs(frame)
                 
                 # Draw current tab content
                 if self.current_tab == 0:
-                    self.draw_camera_setup_tab(frame, 1)
+                    frame = self.draw_camera_setup_tab(frame, 1)
                 elif self.current_tab == 1:
-                    self.draw_camera_setup_tab(frame, 2)
+                    frame = self.draw_camera_setup_tab(frame, 2)
                 elif self.current_tab == 2:
-                    self.draw_recording_tab(frame)
+                    frame = self.draw_recording_tab(frame)
                 elif self.current_tab == 3:
-                    self.draw_analysis_tab(frame)
+                    frame = self.draw_analysis_tab(frame)
                 
                 # Draw status message
                 if self.status_message and (time.time() - self.status_time) < self.status_duration:
                     h, w = frame.shape[:2]
-                    text_size = cv2.getTextSize(self.status_message, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+                    text_size = self._get_text_size_pil(self.status_message, 0.7)
                     text_x = (w - text_size[0]) // 2
                     text_y = h // 2
                     cv2.rectangle(frame, (text_x - 20, text_y - 30), 
                                  (text_x + text_size[0] + 20, text_y + 10), (0, 0, 0), -1)
-                    cv2.putText(frame, self.status_message, (text_x, text_y), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                    frame = self._put_text_pil(frame, self.status_message, (text_x, text_y), 
+                                               size=0.7, color=(0, 255, 255), thickness=2)
                 
                 # Show frame
                 cv2.imshow(self.window_name, frame)
@@ -1286,8 +1463,15 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Camera Setup & Recording GUI')
-    # Platform-appropriate defaults: Windows uses 0,2 (skip built-in at 1), Linux uses 0,1
-    default_cam1, default_cam2 = (0, 2) if sys.platform == 'win32' else (0, 1)
+    # Platform-appropriate defaults: Windows uses config file if available, otherwise 0,2; Linux uses 0,1
+    if sys.platform == 'win32':
+        config = load_windows_config()
+        if config:
+            default_cam1, default_cam2 = config.get('camera1_id', 0), config.get('camera2_id', 2)
+        else:
+            default_cam1, default_cam2 = 0, 2
+    else:
+        default_cam1, default_cam2 = 0, 1
     parser.add_argument('--camera1', type=int, default=default_cam1, 
                        help=f'Camera 1 ID (default: {default_cam1})')
     parser.add_argument('--camera2', type=int, default=default_cam2, 

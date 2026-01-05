@@ -74,13 +74,13 @@ def main():
     print("=" * 70)
     print()
     
-    # Test both cameras (use platform-appropriate defaults)
-    if sys.platform == 'win32':
-        cam2_id = 2  # Windows: skip built-in at 1
-    else:
-        cam2_id = 2  # Linux: use 2 if available (test showed 0,2 are available)
+    # Import test utils for camera IDs
+    from test_utils import get_camera_ids
     
-    cam1_ok = test_camera_fps(0, 60)
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
+    
+    cam1_ok = test_camera_fps(cam1_id, 60)
     print()
     cam2_ok = test_camera_fps(cam2_id, 60)
     

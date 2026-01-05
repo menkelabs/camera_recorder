@@ -80,7 +80,12 @@ def main():
         (640, 480, 60, "480p @ 60fps - Lower detail, very smooth"),
     ]
     
-    cameras = [0, 2]
+    # Import test utils for camera IDs
+    from test_utils import get_camera_ids
+    
+    # Use camera IDs from config file (Windows) or defaults
+    cam1_id, cam2_id = get_camera_ids()
+    cameras = [cam1_id, cam2_id]
     results = {}
     
     for cam_id in cameras:
@@ -111,10 +116,10 @@ def main():
     working_configs = []
     for config in test_configs:
         width, height, fps, desc = config
-        cam0_ok = results[0].get((width, height, fps), {}).get('works', False) if results[0].get((width, height, fps)) else False
-        cam2_ok = results[2].get((width, height, fps), {}).get('works', False) if results[2].get((width, height, fps)) else False
+        cam1_ok = results[cam1_id].get((width, height, fps), {}).get('works', False) if results[cam1_id].get((width, height, fps)) else False
+        cam2_ok = results[cam2_id].get((width, height, fps), {}).get('works', False) if results[cam2_id].get((width, height, fps)) else False
         
-        if cam0_ok and cam2_ok:
+        if cam1_ok and cam2_ok:
             working_configs.append((width, height, fps, desc))
     
     if working_configs:

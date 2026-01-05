@@ -1,42 +1,112 @@
 """
 MediaPipe pose processing module
 Extracts body landmarks from video frames
+
+Note: MediaPipe 0.10.30+ requires downloading model files separately.
+Models can be downloaded from: https://github.com/google/mediapipe/tree/master/mediapipe/modules/pose_landmarker
 """
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
+import os
+import urllib.request
+
+
+def get_model_path(model_complexity=2, models_dir=None):
+    """
+    Get path to MediaPipe pose model file, downloading if necessary
+    
+    Args:
+        model_complexity: 0=lite, 1=full, 2=heavy
+        models_dir: Directory to store models (default: models/ in project root)
+        
+    Returns:
+        Path to model file (.task)
+    """
+    # Model URLs from MediaPipe repository
+    MODEL_URLS = {
+        0: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        1: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+        2: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
+    }
+    
+    MODEL_NAMES = {
+        0: "pose_landmarker_lite.task",
+        1: "pose_landmarker_full.task",
+        2: "pose_landmarker_heavy.task",
+    }
+    
+    if models_dir is None:
+        # Default to models/ directory in project root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        models_dir = os.path.join(project_root, "models")
+    
+    os.makedirs(models_dir, exist_ok=True)
+    
+    model_name = MODEL_NAMES.get(model_complexity, MODEL_NAMES[2])
+    model_path = os.path.join(models_dir, model_name)
+    
+    # Download model if it doesn't exist
+    if not os.path.exists(model_path):
+        print(f"Downloading MediaPipe pose model ({model_name})...")
+        print(f"This is a one-time download (~30MB)")
+        try:
+            url = MODEL_URLS.get(model_complexity, MODEL_URLS[2])
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            with urllib.request.urlopen(req, timeout=30) as response:
+                with open(model_path, 'wb') as f:
+                    f.write(response.read())
+            print(f"Model downloaded to: {model_path}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download MediaPipe model: {e}")
+    
+    return model_path
 
 
 class PoseProcessor:
     """Processes video frames to extract pose landmarks using MediaPipe"""
     
+    # Default model paths (users need to download these)
+    MODEL_PATHS = {
+        0: None,  # Lite model - download from MediaPipe repository
+        1: None,  # Full model - download from MediaPipe repository  
+        2: None,  # Heavy model - download from MediaPipe repository
+    }
+    
     def __init__(self, model_complexity=2, 
                  min_detection_confidence=0.5,
-                 min_tracking_confidence=0.5):
+                 min_tracking_confidence=0.5,
+                 model_path: Optional[str] = None):
         """
         Initialize MediaPipe Pose
         
         Args:
-            model_complexity: 0=lite, 1=full, 2=heavy (more accurate)
-            min_detection_confidence: Minimum confidence for detection
-            min_tracking_confidence: Minimum confidence for tracking
+            model_complexity: 0=lite, 1=full, 2=heavy (not used in 0.10.30+ API)
+            min_detection_confidence: Minimum confidence for detection (not used in default model)
+            min_tracking_confidence: Minimum confidence for tracking (not used in default model)
+            model_path: Path to MediaPipe pose model file (.task file)
+                       If None, will automatically download the model based on model_complexity
         """
-        self.mp_pose = mp.solutions.pose
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
+        # MediaPipe 0.10.30+ requires explicit model paths
+        if model_path is None:
+            # Automatically get/download model
+            model_path = get_model_path(model_complexity)
         
-        self.pose = self.mp_pose.Pose(
-            model_complexity=model_complexity,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
-            smooth_landmarks=True
-        )
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+        # Use create_from_model_path for simplicity
+        # Note: This uses default options (min_detection_confidence and min_tracking_confidence are ignored)
+        self.pose_landmarker = vision.PoseLandmarker.create_from_model_path(model_path)
         
         # Store processed results
         self.landmarks_sequence = []
-        
+    
     def process_frame(self, frame):
         """
         Process a single frame
@@ -45,24 +115,49 @@ class PoseProcessor:
             frame: BGR image from OpenCV
             
         Returns:
-            results: MediaPipe pose results
+            results: MediaPipe pose results (PoseLandmarkerResult)
             annotated_frame: Frame with landmarks drawn
         """
         # Convert BGR to RGB
         image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w = image_rgb.shape[:2]
+        
+        # Convert to MediaPipe Image
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         
         # Process with MediaPipe
-        results = self.pose.process(image_rgb)
+        detection_result = self.pose_landmarker.detect(mp_image)
         
         # Draw landmarks on frame
         annotated_frame = frame.copy()
-        if results.pose_landmarks:
-            self.mp_drawing.draw_landmarks(
-                annotated_frame,
-                results.pose_landmarks,
-                self.mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
-            )
+        pose_landmarks_list = detection_result.pose_landmarks if detection_result.pose_landmarks else []
+        
+        if pose_landmarks_list:
+            for pose_landmarks in pose_landmarks_list:
+                # Draw landmarks
+                for landmark in pose_landmarks:
+                    x = int(landmark.x * w)
+                    y = int(landmark.y * h)
+                    cv2.circle(annotated_frame, (x, y), 5, (0, 255, 0), -1)
+                
+                # Draw connections
+                connections = vision.PoseLandmarksConnections.POSE_CONNECTIONS
+                for connection in connections:
+                    start_idx = connection.start
+                    end_idx = connection.end
+                    if start_idx < len(pose_landmarks) and end_idx < len(pose_landmarks):
+                        start_landmark = pose_landmarks[start_idx]
+                        end_landmark = pose_landmarks[end_idx]
+                        start_point = (int(start_landmark.x * w), int(start_landmark.y * h))
+                        end_point = (int(end_landmark.x * w), int(end_landmark.y * h))
+                        cv2.line(annotated_frame, start_point, end_point, (0, 255, 0), 2)
+        
+        # Create a results object similar to the old API for compatibility
+        class Results:
+            def __init__(self, pose_landmarks):
+                self.pose_landmarks = pose_landmarks[0] if pose_landmarks else None
+        
+        results = Results(pose_landmarks_list)
         
         return results, annotated_frame
     
@@ -121,7 +216,7 @@ class PoseProcessor:
         Extract landmark coordinates into a dictionary
         
         Args:
-            pose_landmarks: MediaPipe pose landmarks
+            pose_landmarks: MediaPipe pose landmarks list
             
         Returns:
             Dictionary with landmark names and coordinates
@@ -142,13 +237,14 @@ class PoseProcessor:
         }
         
         for idx, name in landmark_names.items():
-            landmark = pose_landmarks.landmark[idx]
-            landmarks[name] = {
-                'x': landmark.x,
-                'y': landmark.y,
-                'z': landmark.z,
-                'visibility': landmark.visibility
-            }
+            if idx < len(pose_landmarks):
+                landmark = pose_landmarks[idx]
+                landmarks[name] = {
+                    'x': landmark.x,
+                    'y': landmark.y,
+                    'z': landmark.z,
+                    'visibility': landmark.visibility if hasattr(landmark, 'visibility') else 1.0
+                }
         
         return landmarks
     
@@ -177,5 +273,5 @@ class PoseProcessor:
     
     def release(self):
         """Release MediaPipe resources"""
-        self.pose.close()
-
+        if hasattr(self, 'pose_landmarker'):
+            self.pose_landmarker.close()
