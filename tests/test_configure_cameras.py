@@ -49,10 +49,11 @@ class TestConfigureCameras(unittest.TestCase):
         result = configure_cameras.test_camera(0, configure_cameras.cv2.CAP_ANY)
         self.assertIsNone(result)
 
+    @patch('configure_cameras.ConfigManager')
     @patch('configure_cameras.scan_cameras')
     @patch('builtins.input')
     @patch('builtins.print')
-    def test_interactive_configure(self, mock_print, mock_input, mock_scan):
+    def test_interactive_configure(self, mock_print, mock_input, mock_scan, mock_config_manager):
         # Mock finding two cameras
         mock_scan.return_value = [
             {'id': 0, 'status': 'working', 'description': 'Cam 1', 'is_hd': True},
@@ -62,24 +63,18 @@ class TestConfigureCameras(unittest.TestCase):
         # User selects 1 then 2
         mock_input.side_effect = ['1', '2']
         
-        # Use temporary file for config
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            configure_cameras.config_path = tmp.name
+        # Mock save to return True
+        mock_config_manager.save.return_value = True
         
-        try:
-            ret = configure_cameras.interactive_configure()
-            
-            self.assertEqual(ret, 0)
-            
-            # Verify file content
-            with open(configure_cameras.config_path, 'r') as f:
-                config = json.load(f)
-                self.assertEqual(config['camera1_id'], 0)
-                self.assertEqual(config['camera2_id'], 1)
-                
-        finally:
-            if os.path.exists(configure_cameras.config_path):
-                os.remove(configure_cameras.config_path)
+        ret = configure_cameras.interactive_configure()
+        
+        self.assertEqual(ret, 0)
+        
+        # Verify save was called with correct data
+        mock_config_manager.save.assert_called_once()
+        saved_config = mock_config_manager.save.call_args[0][0]
+        self.assertEqual(saved_config['camera1_id'], 0)
+        self.assertEqual(saved_config['camera2_id'], 1)
 
 if __name__ == '__main__':
     unittest.main()

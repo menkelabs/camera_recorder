@@ -12,14 +12,15 @@ import time
 from datetime import datetime
 import platform
 
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from config_manager import ConfigManager
+
 # Fix Windows console encoding
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-# Project root
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-config_path = os.path.join(project_root, 'camera_config.json')
 
 def get_platform_backend():
     """Get the appropriate OpenCV backend for the current platform"""
@@ -181,15 +182,13 @@ def interactive_configure():
     }
     
     # Save
-    try:
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
-        print(f"\nConfiguration saved to {config_path}")
+    if ConfigManager.save(config):
+        print(f"\nConfiguration saved to {ConfigManager.get_config_path()}")
         print(f"Camera 1: {cam1['id']}")
         print(f"Camera 2: {cam2['id']}")
         return 0
-    except Exception as e:
-        print(f"Failed to save config: {e}")
+    else:
+        print(f"Failed to save config.")
         return 1
 
 if __name__ == "__main__":

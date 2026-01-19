@@ -20,37 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from dual_camera_recorder import DualCameraRecorder, CameraCapture
 from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
+from config_manager import ConfigManager
 
-# -----------------------------------------------------------------------------
-# Configuration & Utils
-# -----------------------------------------------------------------------------
-
-def load_camera_config(config_path: str = None) -> dict:
-    """Load camera configuration from JSON file"""
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    # Priority 1: Provided path
-    if config_path and os.path.exists(config_path):
-        try:
-            with open(config_path, 'r') as f: return json.load(f)
-        except: pass
-
-    # Priority 2: camera_config.json (Cross-platform)
-    config_path = os.path.join(project_root, 'camera_config.json')
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r') as f: return json.load(f)
-        except: pass
-        
-    # Priority 3: config_windows.json (Legacy Windows)
-    if sys.platform == 'win32':
-        config_path = os.path.join(project_root, 'config_windows.json')
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f: return json.load(f)
-            except: pass
-            
-    return None
 
 # -----------------------------------------------------------------------------
 # Camera Thread
@@ -274,7 +245,7 @@ class DashboardWindow(QMainWindow):
         self.cam2_thread = None
         
         # Load Config
-        self.config = load_camera_config() or {}
+        self.config = ConfigManager.load()
         self.cam1_id = self.config.get('camera1_id', 0)
         self.cam2_id = self.config.get('camera2_id', 1 if sys.platform != 'win32' else 2)
         
@@ -433,9 +404,19 @@ class DashboardWindow(QMainWindow):
         if thread:
             thread.set_property(prop_id, value)
 
+
     def save_settings(self):
-        # Implementation for saving settings to JSON
-        QMessageBox.information(self, "Settings", "Settings saved successfully!")
+        # Create settings dict with current camera configs
+        # Note: This is a placeholder. To do this properly, we should read
+        # current properties from cameras and update the config dict.
+        # For now, we'll just re-save the current ID mapping.
+        
+        # In a real implementation, we would want to store exposure/focus values too.
+        if ConfigManager.save(self.config):
+             QMessageBox.information(self, "Settings", "Settings saved successfully!")
+        else:
+             QMessageBox.warning(self, "Settings", "Failed to save settings.")
+
 
     def reset_settings(self, cam_num):
         # Implementation for resetting settings
