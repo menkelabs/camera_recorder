@@ -25,21 +25,32 @@ from sway_calculator import SwayCalculator
 # Configuration & Utils
 # -----------------------------------------------------------------------------
 
-def load_windows_config(config_path: str = None) -> dict:
-    """Load Windows-specific camera configuration from JSON file"""
-    if config_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def load_camera_config(config_path: str = None) -> dict:
+    """Load camera configuration from JSON file"""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Priority 1: Provided path
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f: return json.load(f)
+        except: pass
+
+    # Priority 2: camera_config.json (Cross-platform)
+    config_path = os.path.join(project_root, 'camera_config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f: return json.load(f)
+        except: pass
+        
+    # Priority 3: config_windows.json (Legacy Windows)
+    if sys.platform == 'win32':
         config_path = os.path.join(project_root, 'config_windows.json')
-    
-    if not os.path.exists(config_path):
-        return None
-    
-    try:
-        with open(config_path, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Warning: Could not load config: {e}")
-        return None
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f: return json.load(f)
+            except: pass
+            
+    return None
 
 # -----------------------------------------------------------------------------
 # Camera Thread
@@ -62,6 +73,9 @@ class CameraThread(QThread):
         self.running = True
         
         # Open camera
+        # Use simple logic: if on Windows, try DSHOW first, otherwise default
+        # Ideally, we should respect 'backend' from config if present, 
+        # but let's stick to platform defaults for robustness unless specified.
         if sys.platform == 'win32':
             self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_DSHOW)
         else:
@@ -260,7 +274,7 @@ class DashboardWindow(QMainWindow):
         self.cam2_thread = None
         
         # Load Config
-        self.config = load_windows_config() or {}
+        self.config = load_camera_config() or {}
         self.cam1_id = self.config.get('camera1_id', 0)
         self.cam2_id = self.config.get('camera2_id', 1 if sys.platform != 'win32' else 2)
         
