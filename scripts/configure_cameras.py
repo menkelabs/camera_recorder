@@ -125,6 +125,10 @@ def interactive_configure():
     
     if not working:
         print("\nNo working cameras found! configuration cannot continue.")
+        if sys.platform == 'linux':
+            print("Tip: On Linux, ensure you are in the 'video' group:")
+            print("  sudo usermod -a -G video $USER")
+            print("  (You will need to log out and back in)")
         return 1
         
     print(f"\nFound {len(working)} working camera(s):")
