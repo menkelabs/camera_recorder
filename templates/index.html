@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Camera Setup &amp; Recording</title>
+    <style>
+        /* ===== Reset & Base ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:          #0d1117;
+            --bg-card:     #161b22;
+            --bg-card-alt: #1c2333;
+            --bg-input:    #0d1117;
+            --border:      #30363d;
+            --text:        #e6edf3;
+            --text-dim:    #8b949e;
+            --text-bright: #ffffff;
+            --accent:      #58a6ff;
+            --accent-dim:  #1f6feb;
+            --green:       #3fb950;
+            --green-dim:   #238636;
+            --red:         #f85149;
+            --red-dim:     #da3633;
+            --cyan:        #79c0ff;
+            --yellow:      #d29922;
+            --orange:      #f0883e;
+            --radius:      8px;
+            --shadow:      0 2px 8px rgba(0,0,0,.3);
+            --font:        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono:   "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+        .header .badge {
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .badge-ok    { background: var(--green-dim); color: var(--green); }
+        .badge-warn  { background: #3d2800;         color: var(--yellow); }
+        .badge-rec   { background: var(--red-dim);   color: #fff; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+        /* ===== Tabs ===== */
+        .tab-bar {
+            display: flex;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dim);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            border-bottom: 2px solid transparent;
+            transition: color .15s, border-color .15s;
+            font-family: var(--font);
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        .tab-btn .shortcut {
+            font-size: 11px;
+            color: var(--text-dim);
+            opacity: .5;
+            margin-left: 4px;
+        }
+
+        /* ===== Main Content ===== */
+        .main { flex: 1; padding: 20px 24px; overflow-y: auto; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ===== Camera Setup Tab ===== */
+        .setup-layout {
+            display: grid;
+            grid-template-columns: minmax(480px, 1fr) minmax(320px, 420px);
+            gap: 24px;
+            max-width: 1200px;
+        }
+        .preview-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .preview-card img {
+            width: 100%;
+            display: block;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            background: #000;
+        }
+        .preview-info {
+            padding: 10px 14px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--green);
+            border-top: 1px solid var(--border);
+        }
+        .controls-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .controls-card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--cyan);
+            margin-bottom: 2px;
+        }
+
+        /* Property Sliders */
+        .prop-group { display: flex; flex-direction: column; gap: 10px; }
+        .prop-row {
+            display: grid;
+            grid-template-columns: 110px 1fr 60px;
+            align-items: center;
+            gap: 10px;
+        }
+        .prop-label {
+            font-size: 13px;
+            color: var(--text-dim);
+            text-transform: capitalize;
+        }
+        .prop-value {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--cyan);
+            text-align: right;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg);
+            box-shadow: 0 0 4px rgba(88,166,255,.4);
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg);
+        }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: 8px; margin-top: 4px; }
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card-alt);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            font-family: var(--font);
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+        }
+        .btn:hover {
+            background: var(--border);
+            border-color: var(--text-dim);
+        }
+        .btn-primary {
+            background: var(--accent-dim);
+            border-color: var(--accent-dim);
+            color: #fff;
+        }
+        .btn-primary:hover { background: var(--accent); }
+        .btn-danger {
+            background: var(--red-dim);
+            border-color: var(--red-dim);
+            color: #fff;
+        }
+        .btn-danger:hover { background: var(--red); }
+        .btn-success {
+            background: var(--green-dim);
+            border-color: var(--green-dim);
+            color: #fff;
+        }
+        .btn-success:hover { background: var(--green); }
+        .btn-lg {
+            padding: 14px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        /* ===== Recording Tab ===== */
+        .rec-layout {
+            max-width: 1200px;
+        }
+        .dual-preview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .dual-preview .preview-card img {
+            aspect-ratio: 16/9;
+        }
+        .rec-controls {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+        }
+        .rec-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .rec-dot {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--green);
+            flex-shrink: 0;
+        }
+        .rec-dot.recording {
+            background: var(--red);
+            animation: pulse 1s infinite;
+        }
+        .rec-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .rec-info .label {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .rec-info .detail {
+            font-size: 13px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+        }
+        .rec-settings {
+            margin-top: 16px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+        .rec-settings strong { color: var(--text); }
+
+        /* ===== Analysis Tab ===== */
+        .analysis-layout { max-width: 1200px; }
+        .analysis-empty {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-dim);
+        }
+        .analysis-empty h2 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+        .analysis-progress {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .analysis-progress .spinner {
+            display: inline-block;
+            width: 36px; height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .analysis-progress .msg {
+            font-size: 16px;
+            color: var(--cyan);
+        }
+        .analysis-progress .elapsed {
+            font-size: 14px;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .frame-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .frame-nav .frame-label {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            color: var(--text);
+            min-width: 140px;
+        }
+        .frame-nav input[type="range"] {
+            flex: 1;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+        }
+        .metric-card h3 {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 12px;
+        }
+        .metric-card h3.cyan  { color: var(--cyan); }
+        .metric-card h3.green { color: var(--green); }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 4px 0;
+            font-size: 14px;
+        }
+        .metric-row .name  { color: var(--text-dim); }
+        .metric-row .value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+
+        .camera-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .cam-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+        }
+        .cam-summary h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--green);
+            margin-bottom: 10px;
+        }
+        .cam-summary .detail-row {
+            font-size: 13px;
+            padding: 3px 0;
+            color: var(--text-dim);
+        }
+        .cam-summary .detail-row span {
+            color: var(--text);
+            font-family: var(--font-mono);
+        }
+
+        /* ===== Status Bar ===== */
+        .status-bar {
+            padding: 8px 24px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-bar .msg { color: var(--cyan); }
+        .status-bar .hint { opacity: .6; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 900px) {
+            .setup-layout,
+            .dual-preview,
+            .metrics-grid,
+            .camera-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>Camera Setup &amp; Recording</h1>
+    <div>
+        <span id="status-badge" class="badge badge-ok">Ready</span>
+    </div>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <button class="tab-btn active" data-tab="camera1" onclick="switchTab('camera1')">
+        Camera 1 Setup <span class="shortcut">[1]</span>
+    </button>
+    <button class="tab-btn" data-tab="camera2" onclick="switchTab('camera2')">
+        Camera 2 Setup <span class="shortcut">[2]</span>
+    </button>
+    <button class="tab-btn" data-tab="recording" onclick="switchTab('recording')">
+        Recording <span class="shortcut">[3]</span>
+    </button>
+    <button class="tab-btn" data-tab="analysis" onclick="switchTab('analysis')">
+        Analysis <span class="shortcut">[4]</span>
+    </button>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+    <!-- ===== Camera 1 Setup ===== -->
+    <div id="tab-camera1" class="tab-panel active">
+        <div class="setup-layout">
+            <div>
+                <div class="preview-card">
+                    <img id="cam1-preview" src="/video_feed/1" alt="Camera 1 Preview">
+                    <div class="preview-info" id="cam1-info">Camera 1: Loading...</div>
+                </div>
+            </div>
+            <div class="controls-card">
+                <h3>Camera 1 Properties</h3>
+                <div id="cam1-props" class="prop-group">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                    <button class="btn" onclick="resetCamera(1)">Reset Defaults</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Camera 2 Setup ===== -->
+    <div id="tab-camera2" class="tab-panel">
+        <div class="setup-layout">
+            <div>
+                <div class="preview-card">
+                    <img id="cam2-preview" src="/video_feed/2" alt="Camera 2 Preview">
+                    <div class="preview-info" id="cam2-info">Camera 2: Loading...</div>
+                </div>
+            </div>
+            <div class="controls-card">
+                <h3>Camera 2 Properties</h3>
+                <div id="cam2-props" class="prop-group">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                    <button class="btn" onclick="resetCamera(2)">Reset Defaults</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Recording Tab ===== -->
+    <div id="tab-recording" class="tab-panel">
+        <div class="rec-layout">
+            <div class="dual-preview">
+                <div class="preview-card">
+                    <img src="/video_feed/1" alt="Camera 1">
+                    <div class="preview-info">Camera 1 (Face-On)</div>
+                </div>
+                <div class="preview-card">
+                    <img src="/video_feed/2" alt="Camera 2">
+                    <div class="preview-info">Camera 2 (Down-the-Line)</div>
+                </div>
+            </div>
+            <div class="rec-controls">
+                <div class="rec-status">
+                    <div id="rec-dot" class="rec-dot"></div>
+                    <div class="rec-info">
+                        <div id="rec-label" class="label">Ready to Record</div>
+                        <div id="rec-detail" class="detail">Press Space or click Start</div>
+                    </div>
+                </div>
+                <div>
+                    <button id="rec-btn" class="btn btn-success btn-lg" onclick="toggleRecording()">
+                        Start Recording
+                    </button>
+                </div>
+            </div>
+            <div class="rec-settings">
+                <strong>Settings:</strong>
+                <span id="rec-settings-text">1280x720 @ 120fps</span>
+                &nbsp;&middot;&nbsp;
+                <strong>Keyboard:</strong> Space to start/stop &middot; 1/2/3/4 switch tabs &middot; Q quit
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Analysis Tab ===== -->
+    <div id="tab-analysis" class="tab-panel">
+        <div class="analysis-layout">
+            <!-- Empty state -->
+            <div id="analysis-empty" class="analysis-empty">
+                <h2>No Analysis Results</h2>
+                <p>Record a video and analysis will run automatically.</p>
+            </div>
+            <!-- Progress state -->
+            <div id="analysis-progress" class="analysis-progress" style="display:none">
+                <div class="spinner"></div>
+                <div class="msg" id="analysis-progress-msg">Processing...</div>
+                <div class="elapsed" id="analysis-elapsed"></div>
+            </div>
+            <!-- Results state -->
+            <div id="analysis-results" style="display:none">
+                <!-- Frame navigation -->
+                <div class="frame-nav">
+                    <button class="btn" onclick="prevFrame()" title="Previous frame (A / Left Arrow)">&#9664; Prev</button>
+                    <span class="frame-label" id="frame-label">Frame: 1 / 100</span>
+                    <input type="range" id="frame-slider" min="0" max="99" value="0"
+                           oninput="seekFrame(this.value)">
+                    <button class="btn" onclick="nextFrame()" title="Next frame (D / Right Arrow)">Next &#9654;</button>
+                </div>
+                <!-- Max values + Current frame -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3 class="cyan">Max Values</h3>
+                        <div id="max-metrics">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <h3 class="green">Current Frame</h3>
+                        <div id="current-metrics">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                <!-- Per-camera breakdown -->
+                <div class="camera-columns">
+                    <div class="cam-summary">
+                        <h4>Camera 1 (Face-On)</h4>
+                        <div id="cam1-summary">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="cam-summary">
+                        <h4>Camera 2 (Down-the-Line)</h4>
+                        <div id="cam2-summary">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+    <span id="status-msg" class="msg"></span>
+    <span class="hint">Keys: 1/2/3/4 tabs &middot; Space record &middot; A/D frame nav</span>
+</div>
+
+<script>
+// ===================================================================
+// State
+// ===================================================================
+let currentTab = 'camera1';
+let isRecording = false;
+let analysisData = null;
+let statusPollTimer = null;
+let propPollTimer = null;
+
+// ===================================================================
+// Tab switching
+// ===================================================================
+function switchTab(tabName) {
+    currentTab = tabName;
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+    });
+    // Refresh properties when switching to a camera setup tab
+    if (tabName === 'camera1') refreshProperties(1);
+    if (tabName === 'camera2') refreshProperties(2);
+    if (tabName === 'analysis') refreshAnalysis();
+}
+
+// ===================================================================
+// Camera properties
+// ===================================================================
+function buildPropertySliders(containerId, camNum, props) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Property display order
+    const order = ['brightness','contrast','saturation','exposure','gain',
+                   'focus','white_balance','sharpness','gamma'];
+
+    // Only rebuild if empty
+    if (container.children.length === 0) {
+        container.innerHTML = '';
+        for (const name of order) {
+            const p = props[name];
+            if (!p) continue;
+            const row = document.createElement('div');
+            row.className = 'prop-row';
+            row.innerHTML = `
+                <span class="prop-label">${name.replace('_',' ')}</span>
+                <input type="range" id="prop-${camNum}-${name}"
+                       min="${p.min}" max="${p.max}" step="${p.step}" value="${p.value}"
+                       oninput="onPropChange(${camNum},'${name}',this.value)">
+                <span class="prop-value" id="propval-${camNum}-${name}">${formatPropValue(name, p.value)}</span>
+            `;
+            container.appendChild(row);
+        }
+    } else {
+        // Just update values
+        for (const name of order) {
+            const p = props[name];
+            if (!p) continue;
+            const slider = document.getElementById(`prop-${camNum}-${name}`);
+            const valEl = document.getElementById(`propval-${camNum}-${name}`);
+            if (slider && !slider.matches(':active')) {
+                slider.value = p.value;
+            }
+            if (valEl) valEl.textContent = formatPropValue(name, p.value);
+        }
+    }
+}
+
+function formatPropValue(name, val) {
+    if (name === 'exposure') return parseFloat(val).toFixed(1);
+    if (name === 'white_balance') return Math.round(val) + 'K';
+    return Math.round(val);
+}
+
+let propChangeTimeout = {};
+function onPropChange(camNum, name, value) {
+    // Update display immediately
+    const valEl = document.getElementById(`propval-${camNum}-${name}`);
+    if (valEl) valEl.textContent = formatPropValue(name, value);
+
+    // Debounce the API call
+    clearTimeout(propChangeTimeout[`${camNum}-${name}`]);
+    propChangeTimeout[`${camNum}-${name}`] = setTimeout(() => {
+        fetch(`/api/camera/${camNum}/property`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, value: parseFloat(value)})
+        });
+    }, 50);
+}
+
+function refreshProperties(camNum) {
+    fetch(`/api/camera/${camNum}/properties`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                const containerId = camNum === 1 ? 'cam1-props' : 'cam2-props';
+                document.getElementById(containerId).innerHTML =
+                    '<div style="color:var(--red);padding:10px">Camera not available</div>';
+                return;
+            }
+            const containerId = camNum === 1 ? 'cam1-props' : 'cam2-props';
+            buildPropertySliders(containerId, camNum, data);
+
+            // Update camera info
+            if (data._info) {
+                const infoId = camNum === 1 ? 'cam1-info' : 'cam2-info';
+                document.getElementById(infoId).textContent =
+                    `Camera ${camNum}: ${data._info.width}x${data._info.height} @ ${data._info.fps.toFixed(1)}fps`;
+            }
+        })
+        .catch(() => {});
+}
+
+function resetCamera(camNum) {
+    fetch(`/api/camera/${camNum}/reset`, {method: 'POST'})
+        .then(() => refreshProperties(camNum));
+}
+
+function saveSettings() {
+    fetch('/api/settings/save', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) showStatus('Settings saved: ' + data.filename);
+            else showStatus('Failed to save settings');
+        });
+}
+
+// ===================================================================
+// Recording
+// ===================================================================
+function toggleRecording() {
+    if (isRecording) {
+        fetch('/api/recording/stop', {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) showStatus(`Recording stopped (${data.duration.toFixed(1)}s)`);
+                else showStatus('Error: ' + (data.error || 'Unknown'));
+            });
+    } else {
+        fetch('/api/recording/start', {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) showStatus('Recording started');
+                else showStatus('Error: ' + (data.error || 'Unknown'));
+            });
+    }
+}
+
+function updateRecordingUI(status) {
+    const wasRecording = isRecording;
+    isRecording = status.is_recording;
+
+    const dot = document.getElementById('rec-dot');
+    const label = document.getElementById('rec-label');
+    const detail = document.getElementById('rec-detail');
+    const btn = document.getElementById('rec-btn');
+    const badge = document.getElementById('status-badge');
+
+    if (isRecording) {
+        dot.className = 'rec-dot recording';
+        label.textContent = 'RECORDING';
+        label.style.color = 'var(--red)';
+        const dur = status.recording_duration || 0;
+        let files = '';
+        if (status.recording_files && status.recording_files.length > 0) {
+            files = status.recording_files.join(', ');
+        }
+        detail.textContent = `Duration: ${dur.toFixed(1)}s` + (files ? ` | ${files}` : '');
+        btn.textContent = 'Stop Recording';
+        btn.className = 'btn btn-danger btn-lg';
+        badge.textContent = 'Recording';
+        badge.className = 'badge badge-rec';
+    } else {
+        dot.className = 'rec-dot';
+        label.textContent = 'Ready to Record';
+        label.style.color = '';
+        detail.textContent = 'Press Space or click Start';
+        btn.textContent = 'Start Recording';
+        btn.className = 'btn btn-success btn-lg';
+
+        if (status.is_analyzing) {
+            badge.textContent = 'Analyzing';
+            badge.className = 'badge badge-warn';
+        } else if (status.cameras_available) {
+            badge.textContent = 'Ready';
+            badge.className = 'badge badge-ok';
+        } else {
+            badge.textContent = 'No Cameras';
+            badge.className = 'badge badge-warn';
+        }
+    }
+
+    // Update settings display
+    document.getElementById('rec-settings-text').textContent =
+        `${status.width}x${status.height} @ ${status.fps}fps`;
+}
+
+// ===================================================================
+// Analysis
+// ===================================================================
+function refreshAnalysis() {
+    fetch('/api/analysis/results')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            analysisData = data;
+            renderAnalysis(data);
+        })
+        .catch(() => {});
+}
+
+function renderAnalysis(data) {
+    const emptyEl = document.getElementById('analysis-empty');
+    const progEl = document.getElementById('analysis-progress');
+    const resultsEl = document.getElementById('analysis-results');
+
+    if (data.is_analyzing) {
+        emptyEl.style.display = 'none';
+        progEl.style.display = 'block';
+        resultsEl.style.display = 'none';
+        document.getElementById('analysis-progress-msg').textContent = data.progress || 'Processing...';
+        return;
+    }
+
+    if (!data.camera1 && !data.camera2) {
+        emptyEl.style.display = 'block';
+        progEl.style.display = 'none';
+        resultsEl.style.display = 'none';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    progEl.style.display = 'none';
+    resultsEl.style.display = 'block';
+
+    // Frame navigation
+    const slider = document.getElementById('frame-slider');
+    slider.max = Math.max(0, data.max_frames - 1);
+    if (!slider.matches(':active')) slider.value = data.frame_index;
+    document.getElementById('frame-label').textContent =
+        `Frame: ${data.frame_index + 1} / ${data.max_frames}`;
+
+    // Max values
+    let maxHtml = '';
+    if (data.camera2 && data.camera2.summary) {
+        const s = data.camera2.summary;
+        if (s.max_shoulder_turn != null)
+            maxHtml += metricRow('Max Shoulder Turn', fmtDeg(s.max_shoulder_turn));
+        if (s.max_hip_turn != null)
+            maxHtml += metricRow('Max Hip Turn', fmtDeg(s.max_hip_turn));
+        if (s.max_x_factor != null)
+            maxHtml += metricRow('Max X-Factor', fmtAbs(s.max_x_factor) + '\u00b0');
+    }
+    if (data.camera1 && data.camera1.summary) {
+        const s = data.camera1.summary;
+        let swayText = '';
+        if (s.max_sway_left != null) swayText += `Left ${Math.abs(s.max_sway_left).toFixed(0)}px`;
+        if (s.max_sway_left != null && s.max_sway_right != null) swayText += ', ';
+        if (s.max_sway_right != null) swayText += `Right ${s.max_sway_right.toFixed(0)}px`;
+        if (swayText) maxHtml += metricRow('Max Lateral Sway', swayText);
+    }
+    document.getElementById('max-metrics').innerHTML = maxHtml || '<div style="color:var(--text-dim)">No data</div>';
+
+    // Current frame values
+    let curHtml = '';
+    if (data.camera2 && data.camera2.current) {
+        const c = data.camera2.current;
+        if (c.shoulder_turn != null) curHtml += metricRow('Shoulder Turn', fmtDeg(c.shoulder_turn));
+        if (c.hip_turn != null) curHtml += metricRow('Hip Turn', fmtDeg(c.hip_turn));
+        if (c.x_factor != null) curHtml += metricRow('X-Factor', fmtAbs(c.x_factor) + '\u00b0');
+    }
+    if (data.camera1 && data.camera1.current) {
+        const c = data.camera1.current;
+        if (c.sway != null) curHtml += metricRow('Lateral Sway', fmtSigned(c.sway, 0) + 'px');
+    }
+    document.getElementById('current-metrics').innerHTML = curHtml || '<div style="color:var(--text-dim)">No data</div>';
+
+    // Camera 1 summary
+    let cam1Html = '';
+    if (data.camera1) {
+        cam1Html += `<div class="detail-row">Detection: <span>${data.camera1.detection_rate.toFixed(1)}%</span></div>`;
+        const s = data.camera1.summary || {};
+        if (s.max_sway_left != null)
+            cam1Html += `<div class="detail-row">Max Sway Left: <span>${Math.abs(s.max_sway_left).toFixed(0)}px</span></div>`;
+        if (s.max_sway_right != null)
+            cam1Html += `<div class="detail-row">Max Sway Right: <span>${s.max_sway_right.toFixed(0)}px</span></div>`;
+    } else {
+        cam1Html = '<div class="detail-row" style="color:var(--text-dim)">No data</div>';
+    }
+    document.getElementById('cam1-summary').innerHTML = cam1Html;
+
+    // Camera 2 summary
+    let cam2Html = '';
+    if (data.camera2) {
+        cam2Html += `<div class="detail-row">Detection: <span>${data.camera2.detection_rate.toFixed(1)}%</span></div>`;
+        const s = data.camera2.summary || {};
+        if (s.max_shoulder_turn != null)
+            cam2Html += `<div class="detail-row">Max Shoulder: <span>${fmtDeg(s.max_shoulder_turn)}</span></div>`;
+        if (s.max_hip_turn != null)
+            cam2Html += `<div class="detail-row">Max Hip: <span>${fmtDeg(s.max_hip_turn)}</span></div>`;
+        if (s.max_x_factor != null)
+            cam2Html += `<div class="detail-row">Max X-Factor: <span>${fmtAbs(s.max_x_factor)}&deg;</span></div>`;
+    } else {
+        cam2Html = '<div class="detail-row" style="color:var(--text-dim)">No data</div>';
+    }
+    document.getElementById('cam2-summary').innerHTML = cam2Html;
+}
+
+function metricRow(name, value) {
+    return `<div class="metric-row"><span class="name">${name}</span><span class="value">${value}</span></div>`;
+}
+function fmtDeg(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '\u00b0'; }
+function fmtAbs(v) { return Math.abs(v).toFixed(1); }
+function fmtSigned(v, d) { return (v >= 0 ? '+' : '') + v.toFixed(d); }
+
+function seekFrame(index) {
+    fetch('/api/analysis/frame', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index: parseInt(index)})
+    }).then(r => r.json()).then(data => {
+        if (!data.error) { analysisData = data; renderAnalysis(data); }
+    });
+}
+function prevFrame() {
+    if (!analysisData || analysisData.max_frames <= 0) return;
+    seekFrame(Math.max(0, analysisData.frame_index - 1));
+}
+function nextFrame() {
+    if (!analysisData || analysisData.max_frames <= 0) return;
+    seekFrame(Math.min(analysisData.max_frames - 1, analysisData.frame_index + 1));
+}
+
+// ===================================================================
+// Status
+// ===================================================================
+function showStatus(msg) {
+    document.getElementById('status-msg').textContent = msg;
+    setTimeout(() => {
+        const el = document.getElementById('status-msg');
+        if (el.textContent === msg) el.textContent = '';
+    }, 5000);
+}
+
+function pollStatus() {
+    fetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            updateRecordingUI(data);
+            if (data.status_message) showStatus(data.status_message);
+            // Auto-refresh analysis when on that tab
+            if (currentTab === 'analysis' && (data.is_analyzing || analysisData === null)) {
+                refreshAnalysis();
+            }
+        })
+        .catch(() => {});
+}
+
+// ===================================================================
+// Keyboard shortcuts
+// ===================================================================
+document.addEventListener('keydown', (e) => {
+    // Don't capture when typing in inputs
+    if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+
+    switch (e.key) {
+        case '1': switchTab('camera1'); break;
+        case '2': switchTab('camera2'); break;
+        case '3': switchTab('recording'); break;
+        case '4': switchTab('analysis'); break;
+        case ' ':
+            if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
+            break;
+        case 'a': case 'A': case 'ArrowLeft':
+            if (currentTab === 'analysis') { e.preventDefault(); prevFrame(); }
+            break;
+        case 'd': case 'D': case 'ArrowRight':
+            if (currentTab === 'analysis') { e.preventDefault(); nextFrame(); }
+            break;
+    }
+});
+
+// ===================================================================
+// Init
+// ===================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Initial property fetch
+    refreshProperties(1);
+    refreshProperties(2);
+    pollStatus();
+
+    // Poll status every 500ms
+    statusPollTimer = setInterval(pollStatus, 500);
+
+    // Poll active camera properties every 2s
+    propPollTimer = setInterval(() => {
+        if (currentTab === 'camera1') refreshProperties(1);
+        else if (currentTab === 'camera2') refreshProperties(2);
+    }, 2000);
+});
+</script>
+
+</body>
+</html>

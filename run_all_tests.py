@@ -39,6 +39,7 @@ def run_unittest_tests(python_exe):
     # Unittest test files (these contain unittest.TestCase classes)
     unittest_test_files = [
         'test_gui',
+        'test_flask_gui',
         'test_config_to_record_workflow',
         'test_analysis_workflow',
         'test_analysis_navigation'
