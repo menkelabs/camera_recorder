@@ -82,7 +82,7 @@ class CameraManager:
     }
 
     # Tab names (mirrors the original GUI)
-    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Analysis"]
+    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Recordings", "Analysis", "Compare"]
 
     def __init__(self, camera1_id: int = None, camera2_id: int = None,
                  width: int = 1280, height: int = 720, fps: int = 120):
@@ -628,6 +628,9 @@ class CameraManager:
             self.status_time = time.time()
             print(f"Analysis complete in {elapsed:.1f}s")
 
+            # Auto-save analysis results to JSON alongside the recordings
+            self._save_analysis_json()
+
         except Exception as e:
             self.is_analyzing = False
             self.analysis_progress = ""
@@ -651,14 +654,23 @@ class CameraManager:
                 'camera2': None,
             }
 
-        # Determine max frame count
-        max_frames = 0
-        if self.analysis_camera1:
-            max_frames = max(max_frames, len(self.analysis_camera1.get('sway', [])))
-        if self.analysis_camera2:
-            max_frames = max(max_frames, len(self.analysis_camera2.get('shoulder_turn', [])))
+        # All per-frame metric keys we expose
+        METRIC_KEYS = [
+            'sway', 'shoulder_turn', 'hip_turn', 'x_factor',
+            'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
+            'spine_angle', 'lead_arm_angle',
+        ]
 
-        # Clamp frame index *before* building results
+        # Determine max frame count across both cameras
+        max_frames = 0
+        for cam_data in (self.analysis_camera1, self.analysis_camera2):
+            if cam_data:
+                for key in METRIC_KEYS:
+                    arr = cam_data.get(key, [])
+                    if len(arr) > max_frames:
+                        max_frames = len(arr)
+
+        # Clamp frame index
         if max_frames > 0:
             self.analysis_frame_index = max(0, min(max_frames - 1, self.analysis_frame_index))
         frame_idx = self.analysis_frame_index
@@ -673,36 +685,86 @@ class CameraManager:
             'camera2': None,
         }
 
-        # Camera 1 results
-        if self.analysis_camera1:
-            summary1 = self.analysis_camera1.get('summary', {})
-            current_sway = None
-            sway_list = self.analysis_camera1.get('sway', [])
-            if frame_idx < len(sway_list):
-                current_sway = sway_list[frame_idx]
-            results['camera1'] = {
-                'summary': summary1,
-                'detection_rate': self.analysis_camera1.get('detection_rate', 0),
-                'current': {'sway': current_sway},
+        def _build_camera_block(cam_data):
+            """Build the camera result block with current values, time-series, and summary."""
+            if cam_data is None:
+                return None
+            summary = cam_data.get('summary', {})
+            # Current values for the selected frame
+            current = {}
+            for key in METRIC_KEYS:
+                arr = cam_data.get(key, [])
+                current[key] = arr[frame_idx] if frame_idx < len(arr) else None
+            # Phase label for this frame
+            phases = cam_data.get('phases', [])
+            current['phase'] = phases[frame_idx] if frame_idx < len(phases) else None
+            # Tempo (single value)
+            current['tempo'] = cam_data.get('tempo')
+            # Full time-series for the chart (None values kept for gaps)
+            timeseries = {}
+            for key in METRIC_KEYS:
+                timeseries[key] = cam_data.get(key, [])
+            timeseries['phases'] = cam_data.get('phases', [])
+            return {
+                'summary': summary,
+                'detection_rate': cam_data.get('detection_rate', 0),
+                'current': current,
+                'timeseries': timeseries,
             }
 
-        # Camera 2 results
-        if self.analysis_camera2:
-            summary2 = self.analysis_camera2.get('summary', {})
-            shoulder_list = self.analysis_camera2.get('shoulder_turn', [])
-            hip_list = self.analysis_camera2.get('hip_turn', [])
-            xfactor_list = self.analysis_camera2.get('x_factor', [])
-            results['camera2'] = {
-                'summary': summary2,
-                'detection_rate': self.analysis_camera2.get('detection_rate', 0),
-                'current': {
-                    'shoulder_turn': shoulder_list[frame_idx] if frame_idx < len(shoulder_list) else None,
-                    'hip_turn': hip_list[frame_idx] if frame_idx < len(hip_list) else None,
-                    'x_factor': xfactor_list[frame_idx] if frame_idx < len(xfactor_list) else None,
-                },
-            }
+        results['camera1'] = _build_camera_block(self.analysis_camera1)
+        results['camera2'] = _build_camera_block(self.analysis_camera2)
 
         return results
+
+    # ------------------------------------------------------------------
+    # Save / load analysis results to JSON (for swing comparison)
+    # ------------------------------------------------------------------
+
+    def _analysis_json_path(self) -> Optional[str]:
+        """Return the path for the analysis JSON based on current recording files."""
+        if not self.recording_files or len(self.recording_files) < 1:
+            return None
+        # Derive timestamp from filename: recording_YYYYMMDD_HHMMSS_camera1.mp4
+        base = os.path.basename(self.recording_files[0])
+        m = re.match(r'recording_(\d{8}_\d{6})_camera', base)
+        if not m:
+            return None
+        ts = m.group(1)
+        rec_dir = _get_recordings_dir()
+        return os.path.join(rec_dir, f'analysis_{ts}.json')
+
+    def _save_analysis_json(self):
+        """Persist current analysis results to a JSON file next to the recordings."""
+        path = self._analysis_json_path()
+        if not path:
+            return
+        # Build a serialisable snapshot
+        def _serialise_cam(cam_data):
+            if cam_data is None:
+                return None
+            KEYS = ['sway','shoulder_turn','hip_turn','x_factor',
+                    'head_sway','spine_tilt','knee_flex','weight_shift',
+                    'spine_angle','lead_arm_angle','phases']
+            out = {}
+            for k in KEYS:
+                out[k] = cam_data.get(k, [])
+            out['tempo'] = cam_data.get('tempo')
+            out['summary'] = cam_data.get('summary', {})
+            out['detection_rate'] = cam_data.get('detection_rate', 0)
+            return out
+
+        payload = {
+            'timestamp': os.path.basename(path).replace('analysis_','').replace('.json',''),
+            'camera1': _serialise_cam(self.analysis_camera1),
+            'camera2': _serialise_cam(self.analysis_camera2),
+        }
+        try:
+            with open(path, 'w') as f:
+                json.dump(payload, f)
+            print(f"Analysis saved to {path}")
+        except Exception as e:
+            print(f"Failed to save analysis JSON: {e}")
 
     # ------------------------------------------------------------------
     # Re-initialize cameras (e.g. after plugging in)
@@ -1369,6 +1431,109 @@ def api_recordings_cleanup():
         'results': results,
         'deleted_count': deleted_count,
         'cutoff_date': cutoff.strftime('%Y-%m-%d %H:%M:%S'),
+    })
+
+
+# ======================================================================
+# Swing comparison helpers and routes
+# ======================================================================
+
+_ANALYSIS_PATTERN = re.compile(r'^analysis_(\d{8}_\d{6})\.json$')
+
+
+def _list_saved_analyses() -> List[Dict]:
+    """Scan recordings/ for analysis_*.json files, return metadata sorted newest-first."""
+    rec_dir = _get_recordings_dir()
+    if not os.path.isdir(rec_dir):
+        return []
+    results = []
+    for fname in os.listdir(rec_dir):
+        m = _ANALYSIS_PATTERN.match(fname)
+        if not m:
+            continue
+        ts = m.group(1)
+        fpath = os.path.join(rec_dir, fname)
+        try:
+            dt = datetime.strptime(ts, '%Y%m%d_%H%M%S')
+            date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            date_str = ts
+        results.append({'timestamp': ts, 'date': date_str, 'path': fpath})
+    results.sort(key=lambda r: r['timestamp'], reverse=True)
+    return results
+
+
+def _load_analysis(ts: str) -> Optional[Dict]:
+    """Load a saved analysis JSON by timestamp."""
+    rec_dir = _get_recordings_dir()
+    path = os.path.join(rec_dir, f'analysis_{ts}.json')
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+@app.route('/api/analyses')
+def api_list_analyses():
+    """List all saved analysis results."""
+    analyses = _list_saved_analyses()
+    # Strip internal path from response
+    for a in analyses:
+        a.pop('path', None)
+    return jsonify({'analyses': analyses, 'count': len(analyses)})
+
+
+@app.route('/api/compare')
+def api_compare():
+    """Compare two swings.  Query: ?a=YYYYMMDD_HHMMSS&b=YYYYMMDD_HHMMSS"""
+    ts_a = request.args.get('a')
+    ts_b = request.args.get('b')
+    if not ts_a or not ts_b:
+        return jsonify({'error': 'Provide ?a=<timestamp>&b=<timestamp>'}), 400
+
+    data_a = _load_analysis(ts_a)
+    data_b = _load_analysis(ts_b)
+    if data_a is None:
+        return jsonify({'error': f'Analysis not found for {ts_a}'}), 404
+    if data_b is None:
+        return jsonify({'error': f'Analysis not found for {ts_b}'}), 404
+
+    # Build comparison: summary deltas for each camera
+    METRIC_SUMMARY_KEYS = [
+        'max_shoulder_turn', 'max_hip_turn', 'max_x_factor',
+        'max_sway_left', 'max_sway_right',
+        'max_head_sway_left', 'max_head_sway_right',
+        'min_spine_tilt', 'max_spine_tilt',
+        'address_spine_angle', 'max_spine_angle_change',
+        'min_lead_arm_angle', 'address_knee_flex', 'max_knee_flex_change',
+        'max_weight_shift_forward', 'tempo_ratio',
+    ]
+
+    def _cam_deltas(cam_a, cam_b):
+        if cam_a is None or cam_b is None:
+            return None
+        sa = cam_a.get('summary', {})
+        sb = cam_b.get('summary', {})
+        deltas = {}
+        for k in METRIC_SUMMARY_KEYS:
+            va = sa.get(k)
+            vb = sb.get(k)
+            if va is not None and vb is not None:
+                deltas[k] = {'a': va, 'b': vb, 'delta': round(vb - va, 2)}
+            else:
+                deltas[k] = {'a': va, 'b': vb, 'delta': None}
+        return deltas
+
+    return jsonify({
+        'swing_a': data_a,
+        'swing_b': data_b,
+        'deltas': {
+            'camera1': _cam_deltas(data_a.get('camera1'), data_b.get('camera1')),
+            'camera2': _cam_deltas(data_a.get('camera2'), data_b.get('camera2')),
+        },
     })
 
 
