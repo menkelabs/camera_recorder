@@ -225,15 +225,21 @@ class PoseProcessor:
         
         # Key landmarks we care about for golf swing
         landmark_names = {
-            11: 'left_shoulder',
-            12: 'right_shoulder',
-            23: 'left_hip',
-            24: 'right_hip',
-            15: 'left_wrist',
-            16: 'right_wrist',
             0: 'nose',
             7: 'left_ear',
-            8: 'right_ear'
+            8: 'right_ear',
+            11: 'left_shoulder',
+            12: 'right_shoulder',
+            13: 'left_elbow',
+            14: 'right_elbow',
+            15: 'left_wrist',
+            16: 'right_wrist',
+            23: 'left_hip',
+            24: 'right_hip',
+            25: 'left_knee',
+            26: 'right_knee',
+            27: 'left_ankle',
+            28: 'right_ankle',
         }
         
         for idx, name in landmark_names.items():

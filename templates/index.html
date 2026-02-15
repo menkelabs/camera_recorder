@@ -298,7 +298,7 @@
         .rec-settings strong { color: var(--text); }
 
         /* ===== Analysis Tab ===== */
-        .analysis-layout { max-width: 1200px; }
+        .analysis-layout { max-width: 1400px; }
         .analysis-empty {
             text-align: center;
             padding: 80px 20px;
@@ -366,6 +366,7 @@
             margin-top: 8px;
         }
 
+        /* Frame navigation bar */
         .frame-nav {
             display: flex;
             align-items: center;
@@ -382,45 +383,127 @@
             color: var(--text);
             min-width: 140px;
         }
-        .frame-nav input[type="range"] {
-            flex: 1;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .metric-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 16px 18px;
-        }
-        .metric-card h3 {
-            font-size: 13px;
+        .frame-nav input[type="range"] { flex: 1; }
+        .phase-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: .5px;
+            white-space: nowrap;
+        }
+        .phase-address        { background: #1c2333; color: var(--text-dim); }
+        .phase-backswing      { background: #1f3a5f; color: var(--accent); }
+        .phase-top            { background: #3d2800; color: var(--yellow); }
+        .phase-downswing      { background: #1a3a1a; color: var(--green); }
+        .phase-impact         { background: #4a1a1a; color: var(--red); }
+        .phase-follow-through { background: #2a1a3a; color: #b392f0; }
+
+        /* Metric cards dashboard */
+        .metrics-dashboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        .m-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color .15s;
+        }
+        .m-card:hover { border-color: var(--text-dim); }
+        .m-card .m-name {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: var(--text-dim);
+        }
+        .m-card .m-value {
+            font-family: var(--font-mono);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-bright);
+            line-height: 1.2;
+        }
+        .m-card .m-bar-wrap {
+            width: 100%;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .m-card .m-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width .2s;
+        }
+        .m-card .m-summary {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+        }
+        .m-bar-green  { background: var(--green); }
+        .m-bar-yellow { background: var(--yellow); }
+        .m-bar-red    { background: var(--red); }
+        .m-bar-accent { background: var(--accent); }
+
+        /* Time-series chart */
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             margin-bottom: 12px;
         }
-        .metric-card h3.cyan  { color: var(--cyan); }
-        .metric-card h3.green { color: var(--green); }
-        .metric-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            padding: 4px 0;
-            font-size: 14px;
-        }
-        .metric-row .name  { color: var(--text-dim); }
-        .metric-row .value {
-            font-family: var(--font-mono);
+        .chart-header h3 {
+            font-size: 13px;
             font-weight: 600;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .chart-toggles {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .chart-toggle {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-family: var(--font);
+            transition: background .15s, color .15s;
+        }
+        .chart-toggle.active {
+            background: var(--bg-card-alt);
             color: var(--text-bright);
         }
+        #timeseries-canvas {
+            width: 100%;
+            height: 200px;
+            display: block;
+        }
 
+        /* Collapsible camera summaries */
         .camera-columns {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -430,20 +513,38 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 16px 18px;
         }
-        .cam-summary h4 {
+        .cam-summary-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .cam-summary-header h4 {
             font-size: 13px;
             font-weight: 600;
             color: var(--green);
-            margin-bottom: 10px;
+            margin: 0;
         }
-        .cam-summary .detail-row {
+        .cam-summary-header .chevron {
+            font-size: 12px;
+            color: var(--text-dim);
+            transition: transform .2s;
+        }
+        .cam-summary-header.open .chevron { transform: rotate(180deg); }
+        .cam-summary-body {
+            padding: 0 16px 14px;
+            display: none;
+        }
+        .cam-summary-body.open { display: block; }
+        .detail-row {
             font-size: 13px;
             padding: 3px 0;
             color: var(--text-dim);
         }
-        .cam-summary .detail-row span {
+        .detail-row span {
             color: var(--text);
             font-family: var(--font-mono);
         }
@@ -527,6 +628,110 @@
         }
         .recordings-empty h2 { color: var(--text); margin-bottom: 8px; font-size: 18px; }
 
+        /* ===== Compare Tab ===== */
+        .compare-layout { max-width: 1400px; }
+        .compare-selectors {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            flex-wrap: wrap;
+        }
+        .compare-select-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            min-width: 200px;
+        }
+        .compare-select-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .compare-select {
+            padding: 8px 12px;
+            font-size: 14px;
+            font-family: var(--font-mono);
+            background: var(--bg-input);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .compare-select option { background: var(--bg-card); color: var(--text); }
+        .compare-vs {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-dim);
+            padding-bottom: 8px;
+        }
+        .compare-empty {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-dim);
+        }
+        .compare-empty h2 { font-size: 20px; margin-bottom: 8px; color: var(--text); }
+        .compare-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .cmp-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .cmp-card .cmp-name {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: var(--text-dim);
+        }
+        .cmp-card .cmp-values {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+        .cmp-card .cmp-val {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .cmp-card .cmp-val.a-val { color: var(--accent); }
+        .cmp-card .cmp-val.b-val { color: var(--green); }
+        .cmp-card .cmp-arrow { font-size: 14px; color: var(--text-dim); }
+        .cmp-card .cmp-delta {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .cmp-delta.positive { background: rgba(63,185,80,.15); color: var(--green); }
+        .cmp-delta.negative { background: rgba(248,81,73,.15); color: var(--red); }
+        .cmp-delta.neutral  { background: rgba(139,148,158,.1); color: var(--text-dim); }
+        #compare-canvas {
+            width: 100%;
+            height: 220px;
+            display: block;
+        }
+        @media (max-width: 1100px) { .compare-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 900px)  { .compare-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px)  { .compare-grid { grid-template-columns: 1fr; } }
+
         /* ===== Status Bar ===== */
         .status-bar {
             padding: 8px 24px;
@@ -542,11 +747,23 @@
         .status-bar .hint { opacity: .6; }
 
         /* ===== Responsive ===== */
+        @media (max-width: 1100px) {
+            .metrics-dashboard {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
         @media (max-width: 900px) {
             .setup-layout,
             .dual-preview,
-            .metrics-grid,
             .camera-columns {
+                grid-template-columns: 1fr;
+            }
+            .metrics-dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 600px) {
+            .metrics-dashboard {
                 grid-template-columns: 1fr;
             }
         }
@@ -586,6 +803,9 @@
     </button>
     <button class="tab-btn" data-tab="analysis" onclick="switchTab('analysis')">
         Analysis <span class="shortcut">[5]</span>
+    </button>
+    <button class="tab-btn" data-tab="compare" onclick="switchTab('compare')">
+        Compare <span class="shortcut">[6]</span>
     </button>
 </div>
 
@@ -740,43 +960,91 @@
             </div>
             <!-- Results state -->
             <div id="analysis-results" style="display:none">
-                <!-- Frame navigation -->
+                <!-- 1. Frame navigation + phase badge -->
                 <div class="frame-nav">
                     <button class="btn" onclick="prevFrame()" title="Previous frame (A / Left Arrow)">&#9664; Prev</button>
                     <span class="frame-label" id="frame-label">Frame: 1 / 100</span>
                     <input type="range" id="frame-slider" min="0" max="99" value="0"
                            oninput="seekFrame(this.value)">
                     <button class="btn" onclick="nextFrame()" title="Next frame (D / Right Arrow)">Next &#9654;</button>
+                    <span id="phase-badge" class="phase-badge phase-address">Address</span>
                 </div>
-                <!-- Max values + Current frame -->
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <h3 class="cyan">Max Values</h3>
-                        <div id="max-metrics">
+
+                <!-- 2. Metrics dashboard cards -->
+                <div class="metrics-dashboard" id="metrics-dashboard">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- 3. Time-series chart -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Time-Series</h3>
+                        <div class="chart-toggles" id="chart-toggles">
                             <!-- Populated by JS -->
                         </div>
                     </div>
-                    <div class="metric-card">
-                        <h3 class="green">Current Frame</h3>
-                        <div id="current-metrics">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
+                    <canvas id="timeseries-canvas"></canvas>
                 </div>
-                <!-- Per-camera breakdown -->
+
+                <!-- 4. Per-camera summary (collapsible) -->
                 <div class="camera-columns">
                     <div class="cam-summary">
-                        <h4>Camera 1 (Face-On)</h4>
-                        <div id="cam1-summary">
-                            <!-- Populated by JS -->
+                        <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
+                            <h4>Camera 1 (Face-On)</h4>
+                            <span class="chevron">&#9660;</span>
                         </div>
+                        <div class="cam-summary-body open" id="cam1-summary"></div>
                     </div>
                     <div class="cam-summary">
-                        <h4>Camera 2 (Down-the-Line)</h4>
-                        <div id="cam2-summary">
-                            <!-- Populated by JS -->
+                        <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
+                            <h4>Camera 2 (Down-the-Line)</h4>
+                            <span class="chevron">&#9660;</span>
                         </div>
+                        <div class="cam-summary-body open" id="cam2-summary"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Compare Tab ===== -->
+    <div id="tab-compare" class="tab-panel">
+        <div class="compare-layout">
+            <!-- Swing selectors -->
+            <div class="compare-selectors">
+                <div class="compare-select-group">
+                    <label>Swing A</label>
+                    <select id="compare-a" class="compare-select" onchange="loadComparison()">
+                        <option value="">-- Select a swing --</option>
+                    </select>
+                </div>
+                <div class="compare-vs">vs</div>
+                <div class="compare-select-group">
+                    <label>Swing B</label>
+                    <select id="compare-b" class="compare-select" onchange="loadComparison()">
+                        <option value="">-- Select a swing --</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="refreshCompareList()">Refresh</button>
+            </div>
+            <!-- Empty state -->
+            <div id="compare-empty" class="compare-empty">
+                <h2>Compare Two Swings</h2>
+                <p>Record and analyze at least two swings, then select them above to compare.</p>
+            </div>
+            <!-- Results -->
+            <div id="compare-results" style="display:none">
+                <!-- Delta cards grid -->
+                <div class="compare-grid" id="compare-grid">
+                    <!-- Populated by JS -->
+                </div>
+                <!-- Overlay chart -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Overlay Chart</h3>
+                        <div class="chart-toggles" id="compare-chart-toggles"></div>
+                    </div>
+                    <canvas id="compare-canvas"></canvas>
                 </div>
             </div>
         </div>
@@ -787,7 +1055,7 @@
 <!-- Status Bar -->
 <div class="status-bar">
     <span id="status-msg" class="msg"></span>
-    <span class="hint">Keys: 1/2/3/4 tabs &middot; Space record &middot; A/D frame nav</span>
+    <span class="hint">Keys: 1-6 tabs &middot; Space record &middot; A/D frame nav</span>
 </div>
 
 <script>
@@ -816,6 +1084,7 @@ function switchTab(tabName) {
     if (tabName === 'camera2') refreshProperties(2);
     if (tabName === 'recordings') refreshRecordings();
     if (tabName === 'analysis') refreshAnalysis();
+    if (tabName === 'compare') refreshCompareList();
 }
 
 // ===================================================================
@@ -1142,6 +1411,64 @@ function cleanupRecordings() {
 // ===================================================================
 // Analysis
 // ===================================================================
+
+// ---------- Metric definitions ----------
+// Each metric describes where to source its value, formatting, and rating ranges.
+const METRIC_DEFS = [
+    // Row 1: Rotation
+    { key: 'shoulder_turn', label: 'Shoulder Turn', cam: 2, unit: '\u00b0', fmt: v => fmtDeg(v),
+      summaryKey: 'max_shoulder_turn', summaryLabel: 'Max', minRange: 0, maxRange: 100,
+      good: [60,100], ok: [40,60], color: 'accent' },
+    { key: 'hip_turn', label: 'Hip Turn', cam: 2, unit: '\u00b0', fmt: v => fmtDeg(v),
+      summaryKey: 'max_hip_turn', summaryLabel: 'Max', minRange: 0, maxRange: 60,
+      good: [30,50], ok: [20,30], color: 'accent' },
+    { key: 'x_factor', label: 'X-Factor', cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0',
+      summaryKey: 'max_x_factor', summaryLabel: 'Max', minRange: 0, maxRange: 60,
+      good: [30,55], ok: [20,30], color: 'accent' },
+    { key: 'tempo', label: 'Tempo', cam: 1, unit: ':1', isScalar: true,
+      fmt: v => v != null ? v.toFixed(1) + ':1' : '--',
+      summaryKey: 'tempo_ratio', summaryLabel: 'Ratio', minRange: 1, maxRange: 5,
+      good: [2.5,3.5], ok: [2,4], color: 'accent' },
+    // Row 2: Position
+    { key: 'sway', label: 'Lateral Sway', cam: 1, unit: 'px', fmt: v => fmtSigned(v, 0) + 'px',
+      summaryKey: 'max_sway_right', summaryLabel: 'Max R', minRange: -80, maxRange: 80,
+      good: [-20,20], ok: [-40,40], color: 'accent' },
+    { key: 'head_sway', label: 'Head Sway', cam: 1, unit: 'px', fmt: v => fmtSigned(v, 0) + 'px',
+      summaryKey: 'max_head_sway_right', summaryLabel: 'Max R', minRange: -50, maxRange: 50,
+      good: [-10,10], ok: [-25,25], color: 'accent' },
+    { key: 'spine_angle', label: 'Spine Angle', cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0',
+      summaryKey: 'address_spine_angle', summaryLabel: 'Addr', minRange: 0, maxRange: 60,
+      good: [25,40], ok: [15,50], color: 'accent' },
+    { key: 'spine_tilt', label: 'Spine Tilt', cam: 1, unit: '\u00b0', fmt: v => fmtDeg(v),
+      summaryKey: 'max_spine_tilt', summaryLabel: 'Max', minRange: -30, maxRange: 30,
+      good: [-10,15], ok: [-20,20], color: 'accent' },
+    // Row 3: Body
+    { key: 'lead_arm_angle', label: 'Lead Arm', cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0',
+      summaryKey: 'min_lead_arm_angle', summaryLabel: 'Min', minRange: 90, maxRange: 180,
+      good: [160,180], ok: [140,160], color: 'accent' },
+    { key: 'knee_flex', label: 'Knee Flex', cam: 1, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0',
+      summaryKey: 'address_knee_flex', summaryLabel: 'Addr', minRange: 100, maxRange: 180,
+      good: [150,175], ok: [130,150], color: 'accent' },
+    { key: 'weight_shift', label: 'Weight Shift', cam: 1, unit: '%', fmt: v => v.toFixed(0) + '%',
+      summaryKey: 'max_weight_shift_forward', summaryLabel: 'Max Fwd', minRange: 0, maxRange: 100,
+      good: [55,80], ok: [40,55], color: 'accent' },
+];
+
+// Chart state
+const CHART_COLORS = {
+    shoulder_turn:  '#58a6ff',
+    hip_turn:       '#79c0ff',
+    x_factor:       '#f0883e',
+    sway:           '#3fb950',
+    head_sway:      '#b392f0',
+    spine_tilt:     '#d29922',
+    spine_angle:    '#f85149',
+    lead_arm_angle: '#ff7b72',
+    knee_flex:      '#a5d6ff',
+    weight_shift:   '#7ee787',
+};
+let activeChartMetrics = new Set(['shoulder_turn', 'sway', 'x_factor']);
+
 function refreshAnalysis() {
     fetch('/api/analysis/results')
         .then(r => r.json())
@@ -1197,78 +1524,291 @@ function renderAnalysis(data) {
     document.getElementById('frame-label').textContent =
         `Frame: ${data.frame_index + 1} / ${data.max_frames}`;
 
-    // Max values
-    let maxHtml = '';
-    if (data.camera2 && data.camera2.summary) {
-        const s = data.camera2.summary;
-        if (s.max_shoulder_turn != null)
-            maxHtml += metricRow('Max Shoulder Turn', fmtDeg(s.max_shoulder_turn));
-        if (s.max_hip_turn != null)
-            maxHtml += metricRow('Max Hip Turn', fmtDeg(s.max_hip_turn));
-        if (s.max_x_factor != null)
-            maxHtml += metricRow('Max X-Factor', fmtAbs(s.max_x_factor) + '\u00b0');
-    }
-    if (data.camera1 && data.camera1.summary) {
-        const s = data.camera1.summary;
-        let swayText = '';
-        if (s.max_sway_left != null) swayText += `Left ${Math.abs(s.max_sway_left).toFixed(0)}px`;
-        if (s.max_sway_left != null && s.max_sway_right != null) swayText += ', ';
-        if (s.max_sway_right != null) swayText += `Right ${s.max_sway_right.toFixed(0)}px`;
-        if (swayText) maxHtml += metricRow('Max Lateral Sway', swayText);
-    }
-    document.getElementById('max-metrics').innerHTML = maxHtml || '<div style="color:var(--text-dim)">No data</div>';
+    // Phase badge
+    const phase = _currentPhase(data);
+    const pBadge = document.getElementById('phase-badge');
+    pBadge.textContent = phase;
+    pBadge.className = 'phase-badge phase-' + phase.toLowerCase().replace(/[^a-z]/g, '-');
 
-    // Current frame values
-    let curHtml = '';
-    if (data.camera2 && data.camera2.current) {
-        const c = data.camera2.current;
-        if (c.shoulder_turn != null) curHtml += metricRow('Shoulder Turn', fmtDeg(c.shoulder_turn));
-        if (c.hip_turn != null) curHtml += metricRow('Hip Turn', fmtDeg(c.hip_turn));
-        if (c.x_factor != null) curHtml += metricRow('X-Factor', fmtAbs(c.x_factor) + '\u00b0');
-    }
-    if (data.camera1 && data.camera1.current) {
-        const c = data.camera1.current;
-        if (c.sway != null) curHtml += metricRow('Lateral Sway', fmtSigned(c.sway, 0) + 'px');
-    }
-    document.getElementById('current-metrics').innerHTML = curHtml || '<div style="color:var(--text-dim)">No data</div>';
+    // ---------- Metric dashboard cards ----------
+    renderDashboard(data);
 
-    // Camera 1 summary
+    // ---------- Chart ----------
+    renderChartToggles(data);
+    drawTimeseriesChart(data);
+
+    // ---------- Camera summaries ----------
+    renderCameraSummaries(data);
+}
+
+// ---------- Helpers ----------
+function _cam(data, num) { return num === 1 ? data.camera1 : data.camera2; }
+function _currentPhase(data) {
+    const cam = data.camera1 || data.camera2;
+    return cam && cam.current && cam.current.phase ? cam.current.phase : 'Address';
+}
+
+function fmtDeg(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '\u00b0'; }
+function fmtAbs(v) { return Math.abs(v).toFixed(1); }
+function fmtSigned(v, d) { return (v >= 0 ? '+' : '') + v.toFixed(d); }
+
+function _ratingColor(def, val) {
+    if (val == null) return 'accent';
+    const v = Math.abs(val);
+    if (def.good && v >= def.good[0] && v <= def.good[1]) return 'green';
+    if (def.ok && v >= def.ok[0] && v <= def.ok[1]) return 'yellow';
+    if (def.good && v >= def.good[0] && v <= def.good[1]) return 'green';
+    return 'red';
+}
+
+function _barPercent(def, val) {
+    if (val == null) return 0;
+    const v = Math.abs(val);
+    const range = def.maxRange - def.minRange;
+    if (range === 0) return 50;
+    return Math.max(0, Math.min(100, ((v - def.minRange) / range) * 100));
+}
+
+// ---------- Dashboard ----------
+function renderDashboard(data) {
+    const container = document.getElementById('metrics-dashboard');
+    let html = '';
+    for (const def of METRIC_DEFS) {
+        const cam = _cam(data, def.cam);
+        let curVal = null;
+        let summVal = null;
+        if (cam && cam.current) {
+            curVal = def.isScalar ? cam.current[def.key] : cam.current[def.key];
+            if (curVal === undefined) curVal = null;
+        }
+        if (cam && cam.summary && def.summaryKey) {
+            summVal = cam.summary[def.summaryKey];
+        }
+        // For tempo, use scalar from current
+        if (def.key === 'tempo' && cam && cam.current) {
+            curVal = cam.current.tempo;
+        }
+        const displayVal = curVal != null ? def.fmt(curVal) : '--';
+        const color = _ratingColor(def, curVal);
+        const pct = _barPercent(def, curVal);
+        const summDisplay = summVal != null ? def.fmt(summVal) : '--';
+
+        html += `<div class="m-card">
+            <div class="m-name">${def.label}</div>
+            <div class="m-value">${displayVal}</div>
+            <div class="m-bar-wrap"><div class="m-bar m-bar-${color}" style="width:${pct}%"></div></div>
+            <div class="m-summary">${def.summaryLabel}: ${summDisplay}</div>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+// ---------- Chart toggles ----------
+function renderChartToggles(data) {
+    const container = document.getElementById('chart-toggles');
+    // Only rebuild once
+    if (container.children.length > 0) {
+        // Just update active states
+        container.querySelectorAll('.chart-toggle').forEach(btn => {
+            btn.classList.toggle('active', activeChartMetrics.has(btn.dataset.metric));
+        });
+        return;
+    }
+    const metricsForChart = ['shoulder_turn','hip_turn','x_factor','sway','head_sway',
+                             'spine_tilt','spine_angle','lead_arm_angle','knee_flex','weight_shift'];
+    const labels = {shoulder_turn:'Shoulder',hip_turn:'Hip',x_factor:'X-Factor',
+                    sway:'Sway',head_sway:'Head',spine_tilt:'Sp.Tilt',
+                    spine_angle:'Sp.Angle',lead_arm_angle:'Arm',
+                    knee_flex:'Knee',weight_shift:'Weight'};
+    for (const m of metricsForChart) {
+        const btn = document.createElement('button');
+        btn.className = 'chart-toggle' + (activeChartMetrics.has(m) ? ' active' : '');
+        btn.dataset.metric = m;
+        btn.style.borderColor = CHART_COLORS[m];
+        if (activeChartMetrics.has(m)) btn.style.color = CHART_COLORS[m];
+        btn.textContent = labels[m] || m;
+        btn.onclick = () => {
+            if (activeChartMetrics.has(m)) activeChartMetrics.delete(m);
+            else activeChartMetrics.add(m);
+            btn.classList.toggle('active');
+            btn.style.color = activeChartMetrics.has(m) ? CHART_COLORS[m] : '';
+            if (analysisData) drawTimeseriesChart(analysisData);
+        };
+        container.appendChild(btn);
+    }
+}
+
+// ---------- Canvas chart ----------
+function drawTimeseriesChart(data) {
+    const canvas = document.getElementById('timeseries-canvas');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const W = rect.width - 32;  // padding
+    const H = 200;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    if (data.max_frames < 2) return;
+
+    const padL = 50, padR = 16, padT = 12, padB = 24;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const frameCount = data.max_frames;
+
+    // Gather all visible series and compute global Y range
+    const series = [];
+    for (const m of activeChartMetrics) {
+        // Try cam1 first, then cam2
+        let arr = null;
+        if (data.camera1 && data.camera1.timeseries && data.camera1.timeseries[m])
+            arr = data.camera1.timeseries[m];
+        if ((!arr || arr.length === 0) && data.camera2 && data.camera2.timeseries && data.camera2.timeseries[m])
+            arr = data.camera2.timeseries[m];
+        if (arr && arr.length > 0) series.push({ key: m, data: arr });
+    }
+
+    if (series.length === 0) {
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Select metrics above to display', W / 2, H / 2);
+        return;
+    }
+
+    let yMin = Infinity, yMax = -Infinity;
+    for (const s of series) {
+        for (const v of s.data) {
+            if (v != null) { yMin = Math.min(yMin, v); yMax = Math.max(yMax, v); }
+        }
+    }
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const yPad = (yMax - yMin) * 0.1;
+    yMin -= yPad; yMax += yPad;
+
+    const xScale = v => padL + (v / (frameCount - 1)) * plotW;
+    const yScale = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+    // Grid lines
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (plotH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        const val = yMax - ((yMax - yMin) / 4) * i;
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(1), padL - 6, y + 3);
+    }
+
+    // Draw series
+    for (const s of series) {
+        ctx.strokeStyle = CHART_COLORS[s.key] || '#58a6ff';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < s.data.length && i < frameCount; i++) {
+            if (s.data[i] == null) { started = false; continue; }
+            const x = xScale(i), y = yScale(s.data[i]);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    // Phase background colors (subtle)
+    const phaseColors = {
+        'Address': 'rgba(28,35,51,0.4)', 'Backswing': 'rgba(31,58,95,0.25)',
+        'Top': 'rgba(61,40,0,0.3)', 'Downswing': 'rgba(26,58,26,0.25)',
+        'Impact': 'rgba(74,26,26,0.35)', 'Follow-through': 'rgba(42,26,58,0.25)',
+    };
+    // Get phases from either camera
+    let phases = null;
+    if (data.camera1 && data.camera1.timeseries) phases = data.camera1.timeseries.phases;
+    if (!phases && data.camera2 && data.camera2.timeseries) phases = data.camera2.timeseries.phases;
+    if (phases && phases.length > 0) {
+        let prevPhase = phases[0];
+        let startI = 0;
+        for (let i = 1; i <= frameCount; i++) {
+            const p = i < phases.length ? phases[i] : null;
+            if (p !== prevPhase || i === frameCount) {
+                const x0 = xScale(startI), x1 = xScale(Math.min(i, frameCount - 1));
+                ctx.fillStyle = phaseColors[prevPhase] || 'transparent';
+                ctx.fillRect(x0, padT, x1 - x0, plotH);
+                prevPhase = p;
+                startI = i;
+            }
+        }
+    }
+
+    // Current frame vertical line
+    const frameX = xScale(data.frame_index);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(frameX, padT); ctx.lineTo(frameX, padT + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Frame axis label
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Frame ' + (data.frame_index + 1), frameX, H - 4);
+    ctx.textAlign = 'left';
+    ctx.fillText('0', padL, H - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(frameCount), W - padR, H - 4);
+}
+
+// ---------- Camera summaries ----------
+function renderCameraSummaries(data) {
+    // Camera 1
     let cam1Html = '';
     if (data.camera1) {
-        cam1Html += `<div class="detail-row">Detection: <span>${data.camera1.detection_rate.toFixed(1)}%</span></div>`;
         const s = data.camera1.summary || {};
-        if (s.max_sway_left != null)
-            cam1Html += `<div class="detail-row">Max Sway Left: <span>${Math.abs(s.max_sway_left).toFixed(0)}px</span></div>`;
-        if (s.max_sway_right != null)
-            cam1Html += `<div class="detail-row">Max Sway Right: <span>${s.max_sway_right.toFixed(0)}px</span></div>`;
+        cam1Html += `<div class="detail-row">Detection: <span>${data.camera1.detection_rate.toFixed(1)}%</span></div>`;
+        if (s.max_sway_left != null)  cam1Html += `<div class="detail-row">Max Sway Left: <span>${Math.abs(s.max_sway_left).toFixed(0)}px</span></div>`;
+        if (s.max_sway_right != null) cam1Html += `<div class="detail-row">Max Sway Right: <span>${s.max_sway_right.toFixed(0)}px</span></div>`;
+        if (s.max_head_sway_left != null)  cam1Html += `<div class="detail-row">Max Head Sway L: <span>${Math.abs(s.max_head_sway_left).toFixed(0)}px</span></div>`;
+        if (s.max_head_sway_right != null) cam1Html += `<div class="detail-row">Max Head Sway R: <span>${s.max_head_sway_right.toFixed(0)}px</span></div>`;
+        if (s.min_spine_tilt != null) cam1Html += `<div class="detail-row">Spine Tilt Range: <span>${fmtDeg(s.min_spine_tilt)} to ${fmtDeg(s.max_spine_tilt)}</span></div>`;
+        if (s.address_knee_flex != null) cam1Html += `<div class="detail-row">Knee Flex (addr): <span>${fmtAbs(s.address_knee_flex)}&deg;</span></div>`;
+        if (s.max_knee_flex_change != null) cam1Html += `<div class="detail-row">Max Knee Change: <span>${fmtAbs(s.max_knee_flex_change)}&deg;</span></div>`;
+        if (s.max_weight_shift_forward != null) cam1Html += `<div class="detail-row">Max Weight Fwd: <span>${s.max_weight_shift_forward.toFixed(0)}%</span></div>`;
+        if (s.tempo_ratio != null) cam1Html += `<div class="detail-row">Tempo Ratio: <span>${s.tempo_ratio.toFixed(1)}:1</span></div>`;
     } else {
         cam1Html = '<div class="detail-row" style="color:var(--text-dim)">No data</div>';
     }
     document.getElementById('cam1-summary').innerHTML = cam1Html;
 
-    // Camera 2 summary
+    // Camera 2
     let cam2Html = '';
     if (data.camera2) {
-        cam2Html += `<div class="detail-row">Detection: <span>${data.camera2.detection_rate.toFixed(1)}%</span></div>`;
         const s = data.camera2.summary || {};
-        if (s.max_shoulder_turn != null)
-            cam2Html += `<div class="detail-row">Max Shoulder: <span>${fmtDeg(s.max_shoulder_turn)}</span></div>`;
-        if (s.max_hip_turn != null)
-            cam2Html += `<div class="detail-row">Max Hip: <span>${fmtDeg(s.max_hip_turn)}</span></div>`;
-        if (s.max_x_factor != null)
-            cam2Html += `<div class="detail-row">Max X-Factor: <span>${fmtAbs(s.max_x_factor)}&deg;</span></div>`;
+        cam2Html += `<div class="detail-row">Detection: <span>${data.camera2.detection_rate.toFixed(1)}%</span></div>`;
+        if (s.max_shoulder_turn != null) cam2Html += `<div class="detail-row">Max Shoulder: <span>${fmtDeg(s.max_shoulder_turn)}</span></div>`;
+        if (s.max_hip_turn != null)      cam2Html += `<div class="detail-row">Max Hip: <span>${fmtDeg(s.max_hip_turn)}</span></div>`;
+        if (s.max_x_factor != null)      cam2Html += `<div class="detail-row">Max X-Factor: <span>${fmtAbs(s.max_x_factor)}&deg;</span></div>`;
+        if (s.address_spine_angle != null) cam2Html += `<div class="detail-row">Spine Angle (addr): <span>${fmtAbs(s.address_spine_angle)}&deg;</span></div>`;
+        if (s.max_spine_angle_change != null) cam2Html += `<div class="detail-row">Max Posture Loss: <span>${fmtAbs(s.max_spine_angle_change)}&deg;</span></div>`;
+        if (s.min_lead_arm_angle != null) cam2Html += `<div class="detail-row">Min Lead Arm: <span>${fmtAbs(s.min_lead_arm_angle)}&deg;</span></div>`;
+        if (s.tempo_ratio != null) cam2Html += `<div class="detail-row">Tempo Ratio: <span>${s.tempo_ratio.toFixed(1)}:1</span></div>`;
     } else {
         cam2Html = '<div class="detail-row" style="color:var(--text-dim)">No data</div>';
     }
     document.getElementById('cam2-summary').innerHTML = cam2Html;
 }
 
-function metricRow(name, value) {
-    return `<div class="metric-row"><span class="name">${name}</span><span class="value">${value}</span></div>`;
+function toggleCamSummary(headerEl) {
+    headerEl.classList.toggle('open');
+    const body = headerEl.nextElementSibling;
+    body.classList.toggle('open');
 }
-function fmtDeg(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '\u00b0'; }
-function fmtAbs(v) { return Math.abs(v).toFixed(1); }
-function fmtSigned(v, d) { return (v >= 0 ? '+' : '') + v.toFixed(d); }
 
 function seekFrame(index) {
     fetch('/api/analysis/frame', {
@@ -1286,6 +1826,261 @@ function prevFrame() {
 function nextFrame() {
     if (!analysisData || analysisData.max_frames <= 0) return;
     seekFrame(Math.min(analysisData.max_frames - 1, analysisData.frame_index + 1));
+}
+
+// ===================================================================
+// Compare
+// ===================================================================
+let compareData = null;
+let activeCompareMetrics = new Set(['shoulder_turn', 'sway', 'x_factor']);
+
+function refreshCompareList() {
+    fetch('/api/analyses')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            const selA = document.getElementById('compare-a');
+            const selB = document.getElementById('compare-b');
+            const prevA = selA.value;
+            const prevB = selB.value;
+            const opts = '<option value="">-- Select a swing --</option>' +
+                (data.analyses || []).map(a =>
+                    `<option value="${a.timestamp}">${a.date}</option>`
+                ).join('');
+            selA.innerHTML = opts;
+            selB.innerHTML = opts;
+            // Restore selections
+            if (prevA) selA.value = prevA;
+            if (prevB) selB.value = prevB;
+            // If only 2 available and nothing selected, auto-select
+            if (!prevA && !prevB && data.analyses && data.analyses.length >= 2) {
+                selA.value = data.analyses[1].timestamp;  // older
+                selB.value = data.analyses[0].timestamp;  // newer
+                loadComparison();
+            }
+        })
+        .catch(() => {});
+}
+
+function loadComparison() {
+    const tsA = document.getElementById('compare-a').value;
+    const tsB = document.getElementById('compare-b').value;
+    const emptyEl = document.getElementById('compare-empty');
+    const resultsEl = document.getElementById('compare-results');
+    if (!tsA || !tsB) {
+        emptyEl.style.display = 'block';
+        resultsEl.style.display = 'none';
+        return;
+    }
+    if (tsA === tsB) {
+        emptyEl.innerHTML = '<h2>Same Swing</h2><p>Select two different swings to compare.</p>';
+        emptyEl.style.display = 'block';
+        resultsEl.style.display = 'none';
+        return;
+    }
+    fetch(`/api/compare?a=${tsA}&b=${tsB}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                emptyEl.innerHTML = `<h2>Error</h2><p>${data.error}</p>`;
+                emptyEl.style.display = 'block';
+                resultsEl.style.display = 'none';
+                return;
+            }
+            compareData = data;
+            emptyEl.style.display = 'none';
+            resultsEl.style.display = 'block';
+            renderCompareCards(data);
+            renderCompareChartToggles(data);
+            drawCompareChart(data);
+        })
+        .catch(() => {});
+}
+
+// Metric definitions for comparison cards
+const COMPARE_METRICS = [
+    { key: 'max_shoulder_turn',   label: 'Shoulder Turn',  cam: 2, unit: '\u00b0', fmt: v => fmtDeg(v) },
+    { key: 'max_hip_turn',        label: 'Hip Turn',       cam: 2, unit: '\u00b0', fmt: v => fmtDeg(v) },
+    { key: 'max_x_factor',        label: 'X-Factor',       cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0' },
+    { key: 'tempo_ratio',         label: 'Tempo',          cam: 1, unit: ':1',     fmt: v => v != null ? v.toFixed(1) + ':1' : '--' },
+    { key: 'max_sway_right',      label: 'Sway (R)',       cam: 1, unit: 'px',     fmt: v => v != null ? v.toFixed(0) + 'px' : '--' },
+    { key: 'max_head_sway_right', label: 'Head Sway (R)',  cam: 1, unit: 'px',     fmt: v => v != null ? v.toFixed(0) + 'px' : '--' },
+    { key: 'address_spine_angle',  label: 'Spine Angle',   cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0' },
+    { key: 'max_spine_tilt',      label: 'Spine Tilt',     cam: 1, unit: '\u00b0', fmt: v => fmtDeg(v) },
+    { key: 'min_lead_arm_angle',  label: 'Lead Arm (min)', cam: 2, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0' },
+    { key: 'max_knee_flex_change',label: 'Knee Change',    cam: 1, unit: '\u00b0', fmt: v => fmtAbs(v) + '\u00b0' },
+    { key: 'max_weight_shift_forward', label: 'Wt Shift Fwd', cam: 1, unit: '%', fmt: v => v != null ? v.toFixed(0) + '%' : '--' },
+];
+
+function renderCompareCards(data) {
+    const grid = document.getElementById('compare-grid');
+    let html = '';
+    for (const def of COMPARE_METRICS) {
+        const camKey = def.cam === 1 ? 'camera1' : 'camera2';
+        const d = data.deltas && data.deltas[camKey] ? data.deltas[camKey][def.key] : null;
+        const valA = d && d.a != null ? def.fmt(d.a) : '--';
+        const valB = d && d.b != null ? def.fmt(d.b) : '--';
+        let deltaHtml = '';
+        if (d && d.delta != null) {
+            const sign = d.delta > 0 ? '+' : '';
+            const cls = d.delta > 0.5 ? 'positive' : d.delta < -0.5 ? 'negative' : 'neutral';
+            deltaHtml = `<span class="cmp-delta ${cls}">${sign}${d.delta.toFixed(1)}</span>`;
+        } else {
+            deltaHtml = '<span class="cmp-delta neutral">--</span>';
+        }
+        html += `<div class="cmp-card">
+            <div class="cmp-name">${def.label}</div>
+            <div class="cmp-values">
+                <span class="cmp-val a-val">${valA}</span>
+                <span class="cmp-arrow">\u2192</span>
+                <span class="cmp-val b-val">${valB}</span>
+                ${deltaHtml}
+            </div>
+        </div>`;
+    }
+    grid.innerHTML = html;
+}
+
+function renderCompareChartToggles(data) {
+    const container = document.getElementById('compare-chart-toggles');
+    if (container.children.length > 0) {
+        container.querySelectorAll('.chart-toggle').forEach(btn => {
+            btn.classList.toggle('active', activeCompareMetrics.has(btn.dataset.metric));
+        });
+        return;
+    }
+    const metricsForChart = ['shoulder_turn','hip_turn','x_factor','sway','head_sway',
+                             'spine_tilt','spine_angle','lead_arm_angle','knee_flex','weight_shift'];
+    const labels = {shoulder_turn:'Shoulder',hip_turn:'Hip',x_factor:'X-Factor',
+                    sway:'Sway',head_sway:'Head',spine_tilt:'Sp.Tilt',
+                    spine_angle:'Sp.Angle',lead_arm_angle:'Arm',
+                    knee_flex:'Knee',weight_shift:'Weight'};
+    for (const m of metricsForChart) {
+        const btn = document.createElement('button');
+        btn.className = 'chart-toggle' + (activeCompareMetrics.has(m) ? ' active' : '');
+        btn.dataset.metric = m;
+        btn.style.borderColor = CHART_COLORS[m];
+        if (activeCompareMetrics.has(m)) btn.style.color = CHART_COLORS[m];
+        btn.textContent = labels[m] || m;
+        btn.onclick = () => {
+            if (activeCompareMetrics.has(m)) activeCompareMetrics.delete(m);
+            else activeCompareMetrics.add(m);
+            btn.classList.toggle('active');
+            btn.style.color = activeCompareMetrics.has(m) ? CHART_COLORS[m] : '';
+            if (compareData) drawCompareChart(compareData);
+        };
+        container.appendChild(btn);
+    }
+}
+
+function drawCompareChart(data) {
+    const canvas = document.getElementById('compare-canvas');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const W = rect.width - 32;
+    const H = 220;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 50, padR = 16, padT = 12, padB = 24;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // Helper to get timeseries from a swing object
+    function getTS(swing, metric) {
+        for (const camKey of ['camera1', 'camera2']) {
+            const cam = swing[camKey];
+            if (cam && cam[metric] && cam[metric].length > 0) return cam[metric];
+        }
+        return null;
+    }
+
+    // Gather series
+    const series = [];
+    for (const m of activeCompareMetrics) {
+        const arrA = getTS(data.swing_a, m);
+        const arrB = getTS(data.swing_b, m);
+        if (arrA) series.push({ key: m, data: arrA, swing: 'A' });
+        if (arrB) series.push({ key: m, data: arrB, swing: 'B' });
+    }
+
+    if (series.length === 0) {
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Select metrics above to overlay', W / 2, H / 2);
+        return;
+    }
+
+    // Use normalised x-axis (0-100%) so swings of different lengths can be overlaid
+    let yMin = Infinity, yMax = -Infinity;
+    for (const s of series) {
+        for (const v of s.data) {
+            if (v != null) { yMin = Math.min(yMin, v); yMax = Math.max(yMax, v); }
+        }
+    }
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const yPad = (yMax - yMin) * 0.1;
+    yMin -= yPad; yMax += yPad;
+
+    const yScale = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+    // Grid
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (plotH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        const val = yMax - ((yMax - yMin) / 4) * i;
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(1), padL - 6, y + 3);
+    }
+
+    // Draw each series
+    for (const s of series) {
+        const n = s.data.length;
+        if (n < 2) continue;
+        const baseColor = CHART_COLORS[s.key] || '#58a6ff';
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = s.swing === 'A' ? 2 : 2;
+        ctx.globalAlpha = s.swing === 'A' ? 0.6 : 1.0;
+        if (s.swing === 'A') ctx.setLineDash([6, 3]);
+        else ctx.setLineDash([]);
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < n; i++) {
+            if (s.data[i] == null) { started = false; continue; }
+            const x = padL + (i / (n - 1)) * plotW;
+            const y = yScale(s.data[i]);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        ctx.setLineDash([]);
+    }
+
+    // Legend
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#58a6ff';
+    ctx.fillText('--- Swing A (dashed)', padL + 4, H - 4);
+    ctx.fillStyle = '#3fb950';
+    ctx.fillText('\u2014 Swing B (solid)', padL + 150, H - 4);
+    // Percentage axis
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('0%', padL, H - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText('100%', W - padR, H - 4);
 }
 
 // ===================================================================
@@ -1395,6 +2190,7 @@ document.addEventListener('keydown', (e) => {
         case '3': switchTab('recording'); break;
         case '4': switchTab('recordings'); break;
         case '5': switchTab('analysis'); break;
+        case '6': switchTab('compare'); break;
         case ' ':
             if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
             break;

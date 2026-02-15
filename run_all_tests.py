@@ -42,7 +42,10 @@ def run_unittest_tests(python_exe):
         'test_flask_gui',
         'test_config_to_record_workflow',
         'test_analysis_workflow',
-        'test_analysis_navigation'
+        'test_analysis_navigation',
+        'test_sway_calculator',
+        'test_swing_comparison',
+        'test_recording_management',
     ]
     
     # Use subprocess to run in the venv Python context

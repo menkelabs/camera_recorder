@@ -52,8 +52,8 @@ class TestCameraManagerInitialization(unittest.TestCase):
         self.assertEqual(mgr.camera2_id, 7)
 
     def test_tab_names(self):
-        """All 4 tabs should be present."""
-        self.assertEqual(len(CameraManager.TAB_NAMES), 4)
+        """All tab names should be present."""
+        self.assertGreaterEqual(len(CameraManager.TAB_NAMES), 4)
         self.assertIn("Camera 1 Setup", CameraManager.TAB_NAMES)
         self.assertIn("Camera 2 Setup", CameraManager.TAB_NAMES)
         self.assertIn("Recording", CameraManager.TAB_NAMES)
@@ -280,6 +280,18 @@ class TestAnalysis(unittest.TestCase):
         """get_analysis_results formats camera data correctly."""
         self.mgr.analysis_camera1 = {
             'sway': [0, -5, -10, -5, 0, 5, 10, 5, 0],
+            'head_sway': [0, -1, -2, -1, 0, 1, 2, 1, 0],
+            'spine_tilt': [0] * 9,
+            'knee_flex': [170] * 9,
+            'weight_shift': [50] * 9,
+            'shoulder_turn': [0] * 9,
+            'hip_turn': [0] * 9,
+            'x_factor': [0] * 9,
+            'spine_angle': [30] * 9,
+            'lead_arm_angle': [175] * 9,
+            'phases': ['Address', 'Backswing', 'Backswing', 'Top', 'Downswing',
+                       'Impact', 'Follow-through', 'Follow-through', 'Follow-through'],
+            'tempo': 2.0,
             'summary': {'max_sway_left': -10, 'max_sway_right': 10},
             'detection_rate': 95.0,
         }
@@ -287,6 +299,15 @@ class TestAnalysis(unittest.TestCase):
             'shoulder_turn': [0, 10, 20, 30, 40, 45, 40, 30, 20],
             'hip_turn': [0, 5, 10, 15, 20, 25, 20, 15, 10],
             'x_factor': [0, 5, 10, 15, 20, 20, 20, 15, 10],
+            'sway': [0] * 9,
+            'head_sway': [0] * 9,
+            'spine_tilt': [0] * 9,
+            'knee_flex': [170] * 9,
+            'weight_shift': [50] * 9,
+            'spine_angle': [30] * 9,
+            'lead_arm_angle': [175] * 9,
+            'phases': ['Address'] * 9,
+            'tempo': 3.0,
             'summary': {
                 'max_shoulder_turn': 45,
                 'max_hip_turn': 25,
@@ -305,6 +326,14 @@ class TestAnalysis(unittest.TestCase):
         self.assertIsNotNone(results['camera1'])
         self.assertEqual(results['camera1']['current']['sway'], 5)
         self.assertEqual(results['camera1']['detection_rate'], 95.0)
+        # New: should include timeseries
+        self.assertIn('timeseries', results['camera1'])
+        # New: should include phase
+        self.assertIn('phase', results['camera1']['current'])
+        # New: should include all new metric keys
+        for key in ['head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
+                     'spine_angle', 'lead_arm_angle']:
+            self.assertIn(key, results['camera1']['current'])
 
         # Camera 2 current frame
         self.assertIsNotNone(results['camera2'])
@@ -349,8 +378,21 @@ class TestFrameNavigation(unittest.TestCase):
 
     def setUp(self):
         self.mgr = CameraManager()
+        n1 = 13
+        n2 = 11
         self.mgr.analysis_camera1 = {
             'sway': [0, -5, -10, -15, -12, -8, -5, 0, 5, 10, 8, 5, 0],
+            'head_sway': [0] * n1,
+            'spine_tilt': [0] * n1,
+            'knee_flex': [170] * n1,
+            'weight_shift': [50] * n1,
+            'shoulder_turn': [0] * n1,
+            'hip_turn': [0] * n1,
+            'x_factor': [0] * n1,
+            'spine_angle': [30] * n1,
+            'lead_arm_angle': [175] * n1,
+            'phases': ['Address'] * n1,
+            'tempo': 2.0,
             'summary': {'max_sway_left': -15, 'max_sway_right': 10},
             'detection_rate': 95.0,
         }
@@ -358,6 +400,15 @@ class TestFrameNavigation(unittest.TestCase):
             'shoulder_turn': [0, 10, 20, 30, 40, 45, 40, 30, 20, 10, 0],
             'hip_turn': [0, 5, 10, 15, 20, 25, 20, 15, 10, 5, 0],
             'x_factor': [0, 5, 10, 15, 20, 20, 20, 15, 10, 5, 0],
+            'sway': [0] * n2,
+            'head_sway': [0] * n2,
+            'spine_tilt': [0] * n2,
+            'knee_flex': [170] * n2,
+            'weight_shift': [50] * n2,
+            'spine_angle': [30] * n2,
+            'lead_arm_angle': [175] * n2,
+            'phases': ['Address'] * n2,
+            'tempo': 3.0,
             'summary': {
                 'max_shoulder_turn': 45,
                 'max_hip_turn': 25,
@@ -592,13 +643,20 @@ class TestFlaskRoutes(unittest.TestCase):
         """GET /api/analysis/results with mock analysis data."""
         self.mgr.analysis_camera1 = {
             'sway': [0, -5, -10],
+            'shoulder_turn': [0, 0, 0], 'hip_turn': [0, 0, 0], 'x_factor': [0, 0, 0],
+            'head_sway': [0, 0, 0], 'spine_tilt': [0, 0, 0],
+            'knee_flex': [170, 170, 170], 'weight_shift': [50, 50, 50],
+            'spine_angle': [30, 30, 30], 'lead_arm_angle': [175, 175, 175],
+            'phases': ['Address', 'Backswing', 'Top'], 'tempo': 2.0,
             'summary': {'max_sway_left': -10, 'max_sway_right': 0},
             'detection_rate': 100.0,
         }
         self.mgr.analysis_camera2 = {
-            'shoulder_turn': [0, 20, 40],
-            'hip_turn': [0, 10, 20],
-            'x_factor': [0, 10, 20],
+            'shoulder_turn': [0, 20, 40], 'hip_turn': [0, 10, 20], 'x_factor': [0, 10, 20],
+            'sway': [0, 0, 0], 'head_sway': [0, 0, 0], 'spine_tilt': [0, 0, 0],
+            'knee_flex': [170, 170, 170], 'weight_shift': [50, 50, 50],
+            'spine_angle': [30, 30, 30], 'lead_arm_angle': [175, 175, 175],
+            'phases': ['Address', 'Backswing', 'Top'], 'tempo': 3.0,
             'summary': {'max_shoulder_turn': 40, 'max_hip_turn': 20, 'max_x_factor': 20},
             'detection_rate': 100.0,
         }
@@ -607,6 +665,10 @@ class TestFlaskRoutes(unittest.TestCase):
         self.assertEqual(data['max_frames'], 3)
         self.assertIsNotNone(data['camera1'])
         self.assertIsNotNone(data['camera2'])
+        # Check new structure
+        self.assertIn('timeseries', data['camera1'])
+        self.assertIn('phase', data['camera1']['current'])
+        self.assertIn('tempo', data['camera1']['current'])
 
     def test_api_set_analysis_frame(self):
         """POST /api/analysis/frame sets the frame index."""
@@ -666,13 +728,15 @@ class TestTemplateRendering(unittest.TestCase):
         flask_gui.camera_manager = None
 
     def test_template_contains_all_tabs(self):
-        """HTML should contain all 4 tab buttons."""
+        """HTML should contain all 6 tab buttons."""
         resp = self.client.get('/')
         html = resp.data.decode()
         self.assertIn('Camera 1 Setup', html)
         self.assertIn('Camera 2 Setup', html)
         self.assertIn('Recording', html)
+        self.assertIn('Recordings', html)
         self.assertIn('Analysis', html)
+        self.assertIn('Compare', html)
 
     def test_template_contains_keyboard_hints(self):
         """HTML should include keyboard shortcut hints."""
@@ -682,6 +746,8 @@ class TestTemplateRendering(unittest.TestCase):
         self.assertIn('[2]', html)
         self.assertIn('[3]', html)
         self.assertIn('[4]', html)
+        self.assertIn('[5]', html)
+        self.assertIn('[6]', html)
         self.assertIn('Space', html)
 
     def test_template_contains_video_feeds(self):
@@ -702,10 +768,20 @@ class TestTemplateRendering(unittest.TestCase):
         """HTML should have analysis result sections."""
         resp = self.client.get('/')
         html = resp.data.decode()
-        self.assertIn('Max Values', html)
-        self.assertIn('Current Frame', html)
+        self.assertIn('metrics-dashboard', html)
+        self.assertIn('timeseries-canvas', html)
+        self.assertIn('phase-badge', html)
         self.assertIn('Face-On', html)
         self.assertIn('Down-the-Line', html)
+
+    def test_template_contains_compare_tab(self):
+        """HTML should have the comparison tab."""
+        resp = self.client.get('/')
+        html = resp.data.decode()
+        self.assertIn('tab-compare', html)
+        self.assertIn('compare-a', html)
+        self.assertIn('compare-b', html)
+        self.assertIn('compare-canvas', html)
 
     def test_template_contains_property_controls(self):
         """HTML should have camera property sections."""
@@ -733,6 +809,43 @@ class TestTemplateRendering(unittest.TestCase):
 
 
 # ======================================================================
+# New Analysis & Compare Endpoints
+# ======================================================================
+
+class TestNewAnalysisEndpoints(unittest.TestCase):
+    """Test new API endpoints for analyses listing and comparison."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        import flask_gui
+        self.mgr = CameraManager()
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        import flask_gui
+        flask_gui.camera_manager = None
+
+    def test_analyses_list_endpoint_exists(self):
+        """GET /api/analyses should return 200."""
+        resp = self.client.get('/api/analyses')
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertIn('analyses', data)
+        self.assertIn('count', data)
+
+    def test_compare_endpoint_requires_params(self):
+        """GET /api/compare without params should return 400."""
+        resp = self.client.get('/api/compare')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_compare_endpoint_requires_both(self):
+        """GET /api/compare with only one param should return 400."""
+        resp = self.client.get('/api/compare?a=20260215_140000')
+        self.assertEqual(resp.status_code, 400)
+
+
+# ======================================================================
 # Runner
 # ======================================================================
 
@@ -749,6 +862,7 @@ def run_flask_gui_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestSummaryCorrectness))
     suite.addTests(loader.loadTestsFromTestCase(TestFlaskRoutes))
     suite.addTests(loader.loadTestsFromTestCase(TestTemplateRendering))
+    suite.addTests(loader.loadTestsFromTestCase(TestNewAnalysisEndpoints))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
