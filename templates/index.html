@@ -309,6 +309,39 @@
             margin-bottom: 8px;
             color: var(--text);
         }
+        .analysis-error {
+            text-align: center;
+            padding: 40px 20px;
+            display: none;
+        }
+        .analysis-error .error-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+        .analysis-error h2 {
+            font-size: 18px;
+            color: var(--red);
+            margin-bottom: 10px;
+        }
+        .analysis-error .error-detail {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--text-dim);
+            background: var(--bg-card);
+            border: 1px solid var(--red-dim);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: left;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        .analysis-error .error-hint {
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
         .analysis-progress {
             text-align: center;
             padding: 60px 20px;
@@ -415,6 +448,85 @@
             font-family: var(--font-mono);
         }
 
+        /* ===== Recordings Tab ===== */
+        .recordings-layout { max-width: 1200px; }
+        .recordings-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 14px;
+        }
+        .recordings-stats .stat-label { color: var(--text-dim); }
+        .recordings-stats .stat-value { color: var(--text-bright); font-family: var(--font-mono); font-weight: 600; margin-left: 6px; }
+        .recordings-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .recordings-toolbar .cleanup-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+        }
+        .recordings-toolbar input[type="number"] {
+            width: 60px;
+            padding: 5px 8px;
+            font-size: 13px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 4px;
+        }
+        .rec-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .rec-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: var(--bg-card-alt);
+            color: var(--text-dim);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .rec-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+        .rec-table tr:hover td { background: var(--bg-card); }
+        .rec-table .mono { font-family: var(--font-mono); }
+        .rec-table .dim { color: var(--text-dim); }
+        .rec-table .size { color: var(--cyan); }
+        .rec-table .duration { color: var(--green); }
+        .rec-table .del-btn {
+            background: transparent;
+            border: 1px solid var(--red-dim);
+            color: var(--red);
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: var(--font);
+        }
+        .rec-table .del-btn:hover { background: var(--red-dim); color: #fff; }
+        .recordings-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+        .recordings-empty h2 { color: var(--text); margin-bottom: 8px; font-size: 18px; }
+
         /* ===== Status Bar ===== */
         .status-bar {
             padding: 8px 24px;
@@ -445,7 +557,15 @@
 <!-- Header -->
 <div class="header">
     <h1>Camera Setup &amp; Recording</h1>
-    <div>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span id="camera-status-text" style="font-size: 13px; color: var(--text-dim); margin-right: 8px;"></span>
+        <label style="font-size: 12px;">Cam 1:</label>
+        <input type="number" id="camera1-id" min="0" max="15" value="0" style="width: 48px; padding: 4px; font-size: 13px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+        <label style="font-size: 12px;">Cam 2:</label>
+        <input type="number" id="camera2-id" min="0" max="15" value="2" style="width: 48px; padding: 4px; font-size: 13px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+        <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px;" onclick="reinitWithIndices()" title="Re-open cameras using the indices above">Reinit</button>
+        <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px;" onclick="detectCameras()" title="Find which camera indices are available">Detect</button>
+        <button type="button" class="btn" style="padding: 4px 12px; font-size: 13px;" onclick="reinitCameras()" title="Re-open cameras (same indices)">Re-initialize</button>
         <span id="status-badge" class="badge badge-ok">Ready</span>
     </div>
 </div>
@@ -461,8 +581,11 @@
     <button class="tab-btn" data-tab="recording" onclick="switchTab('recording')">
         Recording <span class="shortcut">[3]</span>
     </button>
+    <button class="tab-btn" data-tab="recordings" onclick="switchTab('recordings')">
+        Recordings <span class="shortcut">[4]</span>
+    </button>
     <button class="tab-btn" data-tab="analysis" onclick="switchTab('analysis')">
-        Analysis <span class="shortcut">[4]</span>
+        Analysis <span class="shortcut">[5]</span>
     </button>
 </div>
 
@@ -549,6 +672,51 @@
         </div>
     </div>
 
+    <!-- ===== Recordings Tab ===== -->
+    <div id="tab-recordings" class="tab-panel">
+        <div class="recordings-layout">
+            <!-- Stats bar -->
+            <div class="recordings-stats">
+                <span><span class="stat-label">Recordings:</span> <span class="stat-value" id="rec-count">0</span></span>
+                <span><span class="stat-label">Disk Usage:</span> <span class="stat-value" id="rec-disk">0 B</span></span>
+                <span><span class="stat-label">Oldest:</span> <span class="stat-value" id="rec-oldest">—</span></span>
+                <span><span class="stat-label">Newest:</span> <span class="stat-value" id="rec-newest">—</span></span>
+            </div>
+            <!-- Toolbar -->
+            <div class="recordings-toolbar">
+                <button class="btn" onclick="refreshRecordings()">Refresh</button>
+                <button class="btn btn-danger" id="bulk-delete-btn" onclick="bulkDeleteRecordings()" disabled>Delete Selected</button>
+                <div class="cleanup-group">
+                    <label style="font-size:13px;color:var(--text-dim)">Delete older than</label>
+                    <input type="number" id="cleanup-days" min="1" max="365" value="30">
+                    <label style="font-size:13px;color:var(--text-dim)">days</label>
+                    <button class="btn btn-danger" onclick="cleanupRecordings()" style="font-size:12px;padding:5px 10px;">Clean Up</button>
+                </div>
+            </div>
+            <!-- Table -->
+            <div id="recordings-table-wrap">
+                <div class="recordings-empty" id="recordings-empty">
+                    <h2>No Recordings</h2>
+                    <p>Record a video to see it listed here.</p>
+                </div>
+                <table class="rec-table" id="recordings-table" style="display:none">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="rec-select-all" onchange="toggleSelectAll(this)"></th>
+                            <th>Date / Time</th>
+                            <th>Duration</th>
+                            <th>Camera 1</th>
+                            <th>Camera 2</th>
+                            <th>Total Size</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordings-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== Analysis Tab ===== -->
     <div id="tab-analysis" class="tab-panel">
         <div class="analysis-layout">
@@ -562,6 +730,13 @@
                 <div class="spinner"></div>
                 <div class="msg" id="analysis-progress-msg">Processing...</div>
                 <div class="elapsed" id="analysis-elapsed"></div>
+            </div>
+            <!-- Error state -->
+            <div id="analysis-error" class="analysis-error">
+                <div class="error-icon">&#9888;</div>
+                <h2>Analysis Failed</h2>
+                <div class="error-detail" id="analysis-error-detail"></div>
+                <div class="error-hint">Check that both cameras captured valid video. Try recording again.</div>
             </div>
             <!-- Results state -->
             <div id="analysis-results" style="display:none">
@@ -639,6 +814,7 @@ function switchTab(tabName) {
     // Refresh properties when switching to a camera setup tab
     if (tabName === 'camera1') refreshProperties(1);
     if (tabName === 'camera2') refreshProperties(2);
+    if (tabName === 'recordings') refreshRecordings();
     if (tabName === 'analysis') refreshAnalysis();
 }
 
@@ -712,13 +888,17 @@ function refreshProperties(camNum) {
     fetch(`/api/camera/${camNum}/properties`)
         .then(r => r.json())
         .then(data => {
+            const containerId = camNum === 1 ? 'cam1-props' : 'cam2-props';
             if (data.error) {
-                const containerId = camNum === 1 ? 'cam1-props' : 'cam2-props';
                 document.getElementById(containerId).innerHTML =
                     '<div style="color:var(--red);padding:10px">Camera not available</div>';
                 return;
             }
-            const containerId = camNum === 1 ? 'cam1-props' : 'cam2-props';
+            // Clear error state so sliders rebuild
+            const container = document.getElementById(containerId);
+            if (container && container.querySelector('[style*="color:var(--red)"]')) {
+                container.innerHTML = '';
+            }
             buildPropertySliders(containerId, camNum, data);
 
             // Update camera info
@@ -813,6 +993,150 @@ function updateRecordingUI(status) {
     // Update settings display
     document.getElementById('rec-settings-text').textContent =
         `${status.width}x${status.height} @ ${status.fps}fps`;
+
+    // Camera indices and per-camera status
+    if (status.camera1_id !== undefined) {
+        const el1 = document.getElementById('camera1-id');
+        if (el1 && el1.value !== String(status.camera1_id)) el1.value = status.camera1_id;
+    }
+    if (status.camera2_id !== undefined) {
+        const el2 = document.getElementById('camera2-id');
+        if (el2 && el2.value !== String(status.camera2_id)) el2.value = status.camera2_id;
+    }
+    const c1 = status.camera1_available ? 'OK' : 'Not available';
+    const c2 = status.camera2_available ? 'OK' : 'Not available';
+    const id1 = status.camera1_id !== undefined ? status.camera1_id : '?';
+    const id2 = status.camera2_id !== undefined ? status.camera2_id : '?';
+    const statusEl = document.getElementById('camera-status-text');
+    if (statusEl) statusEl.textContent = `Cam 1 (${id1}): ${c1} · Cam 2 (${id2}): ${c2}`;
+}
+
+// ===================================================================
+// Recordings management
+// ===================================================================
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+let recordingsData = [];
+
+function refreshRecordings() {
+    fetch('/api/recordings')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            recordingsData = data.recordings || [];
+            renderRecordings(data);
+        })
+        .catch(() => {});
+}
+
+function renderRecordings(data) {
+    document.getElementById('rec-count').textContent = data.count || 0;
+    document.getElementById('rec-disk').textContent = formatBytes(data.total_size || 0);
+    document.getElementById('rec-oldest').textContent = data.oldest || '\u2014';
+    document.getElementById('rec-newest').textContent = data.newest || '\u2014';
+
+    const emptyEl = document.getElementById('recordings-empty');
+    const tableEl = document.getElementById('recordings-table');
+    const tbody = document.getElementById('recordings-tbody');
+
+    if (!data.recordings || data.recordings.length === 0) {
+        emptyEl.style.display = 'block';
+        tableEl.style.display = 'none';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    tableEl.style.display = 'table';
+
+    tbody.innerHTML = '';
+    for (const rec of data.recordings) {
+        const tr = document.createElement('tr');
+        const dur = rec.duration != null ? rec.duration + 's' : '\u2014';
+        tr.innerHTML = `
+            <td><input type="checkbox" class="rec-check" data-ts="${rec.timestamp}" onchange="updateBulkBtn()"></td>
+            <td class="mono">${rec.date}</td>
+            <td class="duration">${dur}</td>
+            <td class="size">${formatBytes(rec.camera1_size)}</td>
+            <td class="size">${formatBytes(rec.camera2_size)}</td>
+            <td class="size">${formatBytes(rec.total_size)}</td>
+            <td><button class="del-btn" onclick="deleteRecording('${rec.timestamp}')">Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+    document.getElementById('rec-select-all').checked = false;
+    updateBulkBtn();
+}
+
+function updateBulkBtn() {
+    const checked = document.querySelectorAll('.rec-check:checked').length;
+    const btn = document.getElementById('bulk-delete-btn');
+    btn.disabled = checked === 0;
+    btn.textContent = checked > 0 ? `Delete Selected (${checked})` : 'Delete Selected';
+}
+
+function toggleSelectAll(el) {
+    document.querySelectorAll('.rec-check').forEach(cb => { cb.checked = el.checked; });
+    updateBulkBtn();
+}
+
+function deleteRecording(ts) {
+    if (!confirm('Delete recording ' + ts + '? This cannot be undone.')) return;
+    fetch('/api/recordings/' + ts, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus(data.error); return; }
+            showStatus('Deleted ' + (data.deleted || []).join(', '));
+            refreshRecordings();
+        })
+        .catch(() => showStatus('Delete failed'));
+}
+
+function bulkDeleteRecordings() {
+    const timestamps = [];
+    document.querySelectorAll('.rec-check:checked').forEach(cb => {
+        timestamps.push(cb.dataset.ts);
+    });
+    if (timestamps.length === 0) return;
+    if (!confirm('Delete ' + timestamps.length + ' recording(s)? This cannot be undone.')) return;
+    fetch('/api/recordings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timestamps: timestamps })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus(data.error); return; }
+            showStatus('Deleted ' + (data.deleted_count || 0) + ' recording(s).');
+            refreshRecordings();
+        })
+        .catch(() => showStatus('Bulk delete failed'));
+}
+
+function cleanupRecordings() {
+    const days = parseInt(document.getElementById('cleanup-days').value, 10);
+    if (isNaN(days) || days < 1) {
+        showStatus('Enter a valid number of days (>= 1).');
+        return;
+    }
+    if (!confirm('Delete all recordings older than ' + days + ' days? This cannot be undone.')) return;
+    fetch('/api/recordings/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_age_days: days })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus(data.error); return; }
+            showStatus('Cleaned up ' + (data.deleted_count || 0) + ' recording(s) older than ' + days + ' days.');
+            refreshRecordings();
+        })
+        .catch(() => showStatus('Cleanup failed'));
 }
 
 // ===================================================================
@@ -832,25 +1156,38 @@ function refreshAnalysis() {
 function renderAnalysis(data) {
     const emptyEl = document.getElementById('analysis-empty');
     const progEl = document.getElementById('analysis-progress');
+    const errorEl = document.getElementById('analysis-error');
     const resultsEl = document.getElementById('analysis-results');
 
     if (data.is_analyzing) {
         emptyEl.style.display = 'none';
         progEl.style.display = 'block';
+        errorEl.style.display = 'none';
         resultsEl.style.display = 'none';
         document.getElementById('analysis-progress-msg').textContent = data.progress || 'Processing...';
+        return;
+    }
+
+    if (data.analysis_error) {
+        emptyEl.style.display = 'none';
+        progEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        resultsEl.style.display = 'none';
+        document.getElementById('analysis-error-detail').textContent = data.analysis_error;
         return;
     }
 
     if (!data.camera1 && !data.camera2) {
         emptyEl.style.display = 'block';
         progEl.style.display = 'none';
+        errorEl.style.display = 'none';
         resultsEl.style.display = 'none';
         return;
     }
 
     emptyEl.style.display = 'none';
     progEl.style.display = 'none';
+    errorEl.style.display = 'none';
     resultsEl.style.display = 'block';
 
     // Frame navigation
@@ -962,6 +1299,74 @@ function showStatus(msg) {
     }, 5000);
 }
 
+function reinitCameras() {
+    const btn = document.querySelector('.header button[onclick="reinitCameras()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch('/api/cameras/reinit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) showStatus(data.error);
+            else showStatus(data.cameras_available ? 'Cameras re-initialized.' : 'Re-initialized; one or both cameras not available.');
+            pollStatus();
+        })
+        .catch(() => showStatus('Re-initialize failed'))
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.textContent = 'Re-initialize'; }
+        });
+}
+
+function reinitWithIndices() {
+    const id1 = parseInt(document.getElementById('camera1-id').value, 10);
+    const id2 = parseInt(document.getElementById('camera2-id').value, 10);
+    if (isNaN(id1) || isNaN(id2)) {
+        showStatus('Enter valid camera indices (0–15).');
+        return;
+    }
+    const btn = document.querySelector('.header button[onclick="reinitWithIndices()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch('/api/cameras/reinit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ camera1_id: id1, camera2_id: id2 })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) showStatus(data.error);
+            else showStatus(data.cameras_available ? `Using indices ${data.camera1_id} and ${data.camera2_id}.` : `Reinit done; Cam 2 (${data.camera2_id}) may be wrong index. Try Detect.`);
+            pollStatus();
+        })
+        .catch(() => showStatus('Reinit failed'))
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.textContent = 'Reinit'; }
+        });
+}
+
+function detectCameras() {
+    const btn = document.querySelector('.header button[onclick="detectCameras()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch('/api/cameras/detect', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                showStatus(data.error);
+                return;
+            }
+            const list = (data.available_indices || []).join(', ');
+            if (data.available_indices && data.available_indices.length >= 2) {
+                document.getElementById('camera1-id').value = data.available_indices[0];
+                document.getElementById('camera2-id').value = data.available_indices[1];
+                showStatus('Available: ' + list + ' — Cam 1=' + data.available_indices[0] + ', Cam 2=' + data.available_indices[1] + '. Click Reinit to apply.');
+            } else {
+                showStatus('Available indices: ' + (list || 'none'));
+            }
+            pollStatus();
+        })
+        .catch(() => showStatus('Detect failed'))
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.textContent = 'Detect'; }
+        });
+}
+
 function pollStatus() {
     fetch('/api/status')
         .then(r => r.json())
@@ -988,7 +1393,8 @@ document.addEventListener('keydown', (e) => {
         case '1': switchTab('camera1'); break;
         case '2': switchTab('camera2'); break;
         case '3': switchTab('recording'); break;
-        case '4': switchTab('analysis'); break;
+        case '4': switchTab('recordings'); break;
+        case '5': switchTab('analysis'); break;
         case ' ':
             if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
             break;

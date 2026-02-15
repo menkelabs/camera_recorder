@@ -1,20 +1,31 @@
 # Dual USB Camera Recorder with Golf Swing Analysis
 
-A Python application for capturing synchronized video from two USB cameras with integrated biomechanical analysis for golf swing evaluation. Features a GUI for camera configuration, recording control, and automated analysis.
+A Python application for capturing synchronized video from two USB cameras with integrated biomechanical analysis for golf swing evaluation. Features a Flask web-based GUI for camera configuration, recording control, analysis, and recording management.
 
 ## Features
 
 - **Dual Camera Capture**: Simultaneously capture from 2 USB cameras with synchronized recording
-- **GUI Interface**: Tabbed interface for camera setup, recording control, and analysis visualization
+- **Web-Based GUI**: Flask-powered browser interface with tabbed layout — no desktop GUI dependencies needed
+  - Live MJPEG camera preview streams
+  - Camera property sliders (brightness, contrast, exposure, etc.)
+  - One-click recording with real-time duration display
+  - Auto-detection and re-initialization of cameras from the browser
 - **Golf Swing Analysis**: Integrated MediaPipe pose detection and biomechanical analysis
   - Lateral sway tracking (face-on view)
   - Shoulder turn, hip turn, and X-factor measurement (down-the-line view)
   - Frame-by-frame navigation through analysis results
   - Maximum metrics tracking and display
-- **Multiple Recording Sessions**: Support for sequential recording sessions (configure → record → analyze → record again)
+  - Error details displayed in the GUI when analysis fails
+- **Recording Management**: Browse, inspect, and delete recordings from the GUI
+  - View all recordings with date, duration, and file sizes
+  - Delete individual recordings or bulk-select and delete
+  - Age-based cleanup (delete recordings older than N days)
+- **Multiple Recording Sessions**: Configure, record, analyze, and record again without restarting
 - **Platform Support**: Windows and Linux with platform-appropriate camera backends and defaults
-- **Low CPU Usage**: 
-  - Threaded capture to prevent blocking
+  - Auto-detection of camera indices with fallback search
+  - Separate capture threads per camera for reliable dual-cam streaming on Linux
+- **120 FPS Recording Target**: Optimized for high frame-rate capture
+  - Threaded per-camera capture
   - Efficient video codecs (H.264, XVID)
   - Minimal buffering to reduce memory overhead
 
@@ -27,93 +38,96 @@ A Python application for capturing synchronized video from two USB cameras with 
 pip install -r requirements.txt
 ```
 
+Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
+
 ## Quick Start
 
-Run the GUI application:
+Run the Flask GUI:
 ```bash
-python scripts/camera_setup_recorder_gui.py
+python scripts/flask_gui.py
 ```
 
-On Windows (cameras auto-detected from config_windows.json):
+Then open **http://localhost:5000** in your browser.
+
+### With explicit camera IDs:
 ```bash
-python scripts/camera_setup_recorder_gui.py
-# Or with explicit camera IDs:
-python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 1
+# Linux (find your camera indices with the Detect button in the GUI)
+python scripts/flask_gui.py --camera1 0 --camera2 2
+
+# Windows (auto-detected from config_windows.json, or specify manually)
+python scripts/flask_gui.py --camera1 0 --camera2 2
 ```
 
-On Linux (default cameras 0 and 1):
+### Command Line Options
+
 ```bash
-python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 1
+python scripts/flask_gui.py [OPTIONS]
+
+Options:
+  --camera1 ID    Camera 1 index (default: 0 on Linux, from config on Windows)
+  --camera2 ID    Camera 2 index (default: 1 on Linux, from config on Windows)
+  --width WIDTH   Resolution width (default: 1280)
+  --height HEIGHT Resolution height (default: 720)
+  --fps FPS       Recording FPS target (default: 120)
+  --host HOST     Host to bind (default: 0.0.0.0)
+  --port PORT     Port (default: 5000)
 ```
 
 ## Usage
 
 ### GUI Overview
 
-The application provides a tabbed interface with 4 tabs:
+The application provides a tabbed web interface with 5 tabs:
 
-1. **Camera 1 Setup**: Configure camera properties (brightness, contrast, exposure, etc.)
-2. **Camera 2 Setup**: Configure camera properties for the second camera
-3. **Recording**: Start/stop recording with live preview
-4. **Analysis**: View analysis results with frame navigation
+1. **Camera 1 Setup [1]**: Live preview + property sliders (brightness, contrast, exposure, etc.)
+2. **Camera 2 Setup [2]**: Same controls for the second camera
+3. **Recording [3]**: Dual camera live preview, start/stop recording with Space bar
+4. **Recordings [4]**: Browse, manage, and delete saved recordings
+5. **Analysis [5]**: View analysis results with frame-by-frame navigation
 
 ### Workflow
 
-The typical workflow supports multiple recording sessions:
-
 1. **Configure Cameras** (Tabs 1 & 2):
-   - Adjust camera properties using W/X to select, +/- to adjust
-   - Save settings with 'S' key
-   - Reset to defaults with 'R' key
+   - Adjust camera properties with sliders in the browser
+   - Save settings or reset to defaults with buttons
+   - Use **Detect** in the header to find available camera indices
+   - Use **Reinit** to re-open cameras after plugging in or changing indices
 
 2. **Record** (Tab 3):
-   - Press **Space** to start/stop recording
-   - Recordings are automatically saved to the `recordings/` directory
+   - Click **Start Recording** or press **Space** to start/stop
+   - Recordings save to the `recordings/` directory automatically
 
-3. **Analyze** (Tab 4 - Automatic):
+3. **Manage Recordings** (Tab 4):
+   - View all recordings with date, duration, and file sizes
+   - Delete individual recordings or select multiple for bulk delete
+   - Clean up old recordings by age (e.g., delete everything older than 30 days)
+
+4. **Analyze** (Tab 5 - Automatic):
    - Analysis starts automatically after recording completes
    - View biomechanical metrics and pose detection results
    - Navigate frames with **A/Left Arrow** (previous) and **D/Right Arrow** (next)
+   - If analysis fails, the error reason is displayed in the tab
 
-4. **Record Again**:
-   - Return to Tab 3 and press **Space** to start a new recording session
-   - Camera resources are automatically managed between sessions
+### Keyboard Shortcuts
 
-### Controls
+| Key | Action |
+|-----|--------|
+| 1-5 | Switch between tabs |
+| Space | Start/stop recording (on Recording tab) |
+| A / Left Arrow | Previous analysis frame (on Analysis tab) |
+| D / Right Arrow | Next analysis frame (on Analysis tab) |
 
-#### Tab Navigation
-- **Tab/1/2/3/4**: Switch between tabs
-- **Q/ESC**: Quit application
+### Camera Header Controls
 
-#### Camera Setup Tabs (1 & 2)
-- **W/X**: Select property (previous/next)
-- **+/-**: Adjust current property (increase/decrease)
-- **S**: Save camera settings
-- **R**: Reset camera settings to defaults
-
-#### Recording Tab (3)
-- **Space**: Start/Stop recording
-
-#### Analysis Tab (4)
-- **A/Left Arrow**: Navigate to previous frame
-- **D/Right Arrow**: Navigate to next frame
-
-### Command Line Options
-
-```bash
-python scripts/camera_setup_recorder_gui.py [OPTIONS]
-
-Options:
-  --camera1 ID    Camera 1 ID (default: 0 on Linux, from config_windows.json on Windows)
-  --camera2 ID    Camera 2 ID (default: 1 on Linux, from config_windows.json on Windows)
-  --width WIDTH   Resolution width (default: 1280)
-  --height HEIGHT Resolution height (default: 720)
-  --fps FPS       Frame rate (default: 60)
-```
+The header bar shows per-camera status and provides:
+- **Cam 1 / Cam 2** index inputs — set which indices to open
+- **Reinit** — Re-open cameras with the specified indices (no restart needed)
+- **Detect** — Scan indices 0-7 to find available cameras, auto-fills the inputs
+- **Re-initialize** — Re-open cameras with the current indices
 
 ### Output
 
-Recorded videos are saved in the `recordings/` directory with filenames:
+Recorded videos are saved in the `recordings/` directory:
 - `recording_YYYYMMDD_HHMMSS_camera1.mp4`
 - `recording_YYYYMMDD_HHMMSS_camera2.mp4`
 
@@ -124,96 +138,114 @@ Analysis results include:
 - Maximum values for all metrics
 - Frame-by-frame values for navigation
 
+## API Endpoints
+
+The Flask GUI exposes a REST API (used by the browser UI):
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Serve the web UI |
+| GET | `/video_feed/<cam>` | MJPEG live stream |
+| GET | `/api/status` | System status (cameras, recording, analysis) |
+| GET | `/api/camera/<cam>/properties` | Camera property values and ranges |
+| POST | `/api/camera/<cam>/property` | Set a camera property |
+| POST | `/api/camera/<cam>/reset` | Reset camera properties to defaults |
+| POST | `/api/settings/save` | Save camera settings to JSON |
+| POST | `/api/cameras/reinit` | Re-initialize cameras (optional new IDs) |
+| POST | `/api/cameras/detect` | Detect available camera indices |
+| POST | `/api/recording/start` | Start recording |
+| POST | `/api/recording/stop` | Stop recording + trigger analysis |
+| GET | `/api/recordings` | List all recordings with metadata |
+| DELETE | `/api/recordings/<timestamp>` | Delete a recording pair |
+| DELETE | `/api/recordings` | Bulk delete recordings |
+| POST | `/api/recordings/cleanup` | Delete recordings older than N days |
+| GET | `/api/analysis/results` | Get analysis results and frame data |
+| POST | `/api/analysis/frame` | Set the current analysis frame index |
+
 ## Performance Tips
 
 1. **Resolution**: 720p (1280x720) provides a good balance between quality and performance
-2. **Frame Rate**: 60 FPS is recommended; reduce to 30 FPS if CPU usage is high
-3. **Hardware Acceleration**: The app automatically tries to use hardware-accelerated codecs when available
-4. **Close Other Applications**: Free up CPU resources for camera capture and analysis
+2. **Frame Rate**: 120 FPS is the default target; reduce if CPU usage is high
+3. **USB Bandwidth**: Two identical USB cameras **must be on different USB buses** (different physical controllers/hubs) to stream simultaneously. If camera 2 opens but shows no frames, move it to a different USB port.
+4. **Hardware Acceleration**: The app automatically tries hardware-accelerated codecs when available
+5. **Close Other Applications**: Free up CPU and USB bandwidth for camera capture
 
 ## Platform Differences
 
 ### Windows
 - Uses DirectShow backend (`cv2.CAP_DSHOW`) for better camera compatibility
-- Camera configuration is stored in `config_windows.json` (auto-detected)
-- To regenerate camera configuration: `python scripts/detect_windows_cameras.py`
-- Default cameras: Loaded from `config_windows.json` if available, otherwise 0 and 2
+- Camera configuration stored in `config_windows.json` (auto-detected)
+- To regenerate camera config: `python scripts/detect_windows_cameras.py`
+- Default cameras: From `config_windows.json` if available, otherwise 0 and 2
 
 ### Linux
-- Uses V4L2 backend (default)
+- Uses default OpenCV backend (V4L2)
+- Separate capture thread per camera for reliable dual-cam streaming
+- 1.5s delay between opening cameras + warmup reads (required for V4L2 with identical USB cams)
+- Auto-fallback: if the requested camera 2 index fails, tries other indices automatically
 - Default cameras: 0 and 1
-- Cameras cannot be opened simultaneously by multiple processes (GUI automatically manages this)
 
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform configuration information.
 
 ## Troubleshooting
 
 ### Camera Not Found
-- **Windows**: Run `python scripts/detect_windows_cameras.py` to automatically detect and configure cameras
-- Check camera IDs: Try 0, 1, 2, etc.
-- Ensure cameras are not being used by other applications (OBS, Zoom, etc.)
-- On Windows, check Device Manager for camera availability
+- Use the **Detect** button in the GUI header to find available indices
+- **Windows**: Run `python scripts/detect_windows_cameras.py` to detect cameras
+- Ensure cameras are not being used by other applications
 - Run `python tests/test_cameras.py` to find available cameras
-- Check `config_windows.json` for Windows camera configuration
+
+### Camera 2 Opens But No Video
+- **Most likely cause**: Both cameras are on the same USB bus (bandwidth conflict)
+- **Fix**: Move one camera to a different USB hub/controller (check with `lsusb -t`)
+- The GUI will show "Camera 2 not available" in the video feed even if `isOpened()` returns true
 
 ### High CPU Usage
 - Reduce resolution (try 640x480)
-- Reduce FPS (try 30)
+- Reduce FPS target (try 30 or 60)
 - Close other applications
-- Check if hardware acceleration is working (see codec selection in console output)
 
 ### Recording Not Working
 - Check if `recordings/` directory exists and is writable
 - Verify cameras are providing frames (check console output)
-- Ensure cameras are not locked by another process (especially on Linux)
 
 ### Analysis Errors
-- Ensure MediaPipe is installed correctly: `pip install "mediapipe>=0.10.0,<0.10.30"`
+- Errors now display directly in the Analysis tab with the specific error message
+- Ensure MediaPipe is installed: `pip install mediapipe`
 - Analysis runs even if no poses are detected (detection rate will be 0%)
-- Check that video files are fully written before analysis starts (automatic delay included)
-
-### Multiple Recording Sessions Fail
-- The application automatically manages camera resources between sessions
-- If issues persist, ensure no other applications are using the cameras
-- Check console output for camera lock warnings
 
 ## Testing
 
-The project includes comprehensive test suites:
-
-### GUI Tests
 ```bash
+# Flask GUI tests
+python -m pytest tests/test_flask_gui.py -v
+
+# GUI unit tests
 python -m pytest tests/test_gui.py -v
-```
 
-### Analysis Tests
-```bash
+# Analysis tests
 python -m pytest tests/test_analysis_navigation.py -v
 python -m pytest tests/test_analysis_workflow.py -v
-```
 
-### Workflow Tests
-```bash
+# Workflow tests
 python -m pytest tests/test_config_to_record_workflow.py -v
-```
 
-### Camera Tests
-```bash
+# Camera detection
 python tests/test_cameras.py
-```
 
-See test README files for detailed information:
-- [tests/README_GUI_TESTS.md](tests/README_GUI_TESTS.md)
-- [tests/README_ANALYSIS_TESTS.md](tests/README_ANALYSIS_TESTS.md)
+# Run all tests
+python run_all_tests.py
+```
 
 ## Technical Details
 
-- **Synchronization**: Timestamp-based frame matching with configurable tolerance
-- **Threading**: Each camera runs in its own thread to prevent blocking
-- **Buffering**: Minimal buffering (buffer size 2) to reduce latency and memory usage
+- **Architecture**: Flask web server with MJPEG streaming, REST API, and single-page HTML/JS frontend
+- **Threading**: Separate capture thread per camera to avoid V4L2 contention
+- **Buffering**: Minimal buffering (buffer size 1) to reduce latency
 - **Codecs**: Automatically selects best available codec (H.264 > XVID > mp4v)
 - **Analysis**: MediaPipe Pose Detection (model complexity 2) with custom biomechanical calculations
-- **Resource Management**: Automatic camera release/reacquisition for multiple recording sessions
+- **Resource Management**: Automatic camera release/reacquisition between recording sessions
+- **Recording Management**: File-based storage with timestamp grouping and safe deletion
 
 ## Project Structure
 

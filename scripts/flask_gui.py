@@ -18,8 +18,10 @@ import json
 import threading
 import time
 import numpy as np
-from typing import Optional, Tuple, Dict
-from datetime import datetime
+import re
+import glob as globmod
+from typing import Optional, Tuple, Dict, List
+from datetime import datetime, timedelta
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -108,11 +110,12 @@ class CameraManager:
         self.cameras_available = False
         self.running = False
 
-        # Frame buffers (shared between capture thread and MJPEG streams)
+        # Frame buffers (shared between capture threads and MJPEG streams)
         self.latest_frame1 = None
         self.latest_frame2 = None
         self.frame_lock = threading.Lock()
         self.capture_thread = None
+        self.capture_thread2 = None
 
         # Recording state
         self.recorder = None
@@ -123,6 +126,7 @@ class CameraManager:
         # Analysis state
         self.is_analyzing = False
         self.analysis_progress = ""
+        self.analysis_error = ""
         self.analysis_start_time = None
         self.analysis_camera1 = None
         self.analysis_camera2 = None
@@ -145,7 +149,9 @@ class CameraManager:
             self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
             self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
         else:
+            # Ubuntu/Linux: two identical USB cams need longer delay so driver can init first
             self.cap1 = cv2.VideoCapture(self.camera1_id)
+            time.sleep(1.5)
             self.cap2 = cv2.VideoCapture(self.camera2_id)
 
         cam1_ok = self.cap1.isOpened() if self.cap1 else False
@@ -162,13 +168,63 @@ class CameraManager:
             self.cap1 = None
 
         if not cam2_ok:
-            print(f"WARNING: Camera 2 (ID: {self.camera2_id}) not available")
+            requested_cam2 = self.camera2_id
             if self.cap2:
                 try:
                     self.cap2.release()
                 except Exception:
                     pass
             self.cap2 = None
+            # Try other indices for camera 2 (skip camera1_id). For two identical cams, try
+            # requested+1 and requested-1 first (second device often at next node).
+            def try_open(idx):
+                cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(idx)
+                if cap.isOpened():
+                    return cap
+                if cap:
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+                return None
+            order = [requested_cam2, requested_cam2 + 1, requested_cam2 - 1]
+            order += [i for i in range(8) if i not in order and i != self.camera1_id]
+            for idx in order:
+                if idx < 0 or idx == self.camera1_id:
+                    continue
+                cap2_try = try_open(idx)
+                if cap2_try is not None:
+                    self.cap2 = cap2_try
+                    self.camera2_id = idx
+                    cam2_ok = True
+                    print(f"Camera 2 opened at index {idx} (requested {requested_cam2} was unavailable)")
+                    break
+            if not cam2_ok and sys.platform != 'win32':
+                # Linux: try by device path (helps with identical UVC cams)
+                for dev in sorted([f for f in os.listdir('/dev') if f.startswith('video')], key=lambda x: int(x.replace('video', '')) if x.replace('video', '').isdigit() else 999):
+                    path = os.path.join('/dev', dev)
+                    try:
+                        idx = int(dev.replace('video', ''))
+                    except ValueError:
+                        continue
+                    if idx == self.camera1_id:
+                        continue
+                    cap2_try = cv2.VideoCapture(path)
+                    if cap2_try.isOpened():
+                        self.cap2 = cap2_try
+                        self.camera2_id = idx
+                        cam2_ok = True
+                        print(f"Camera 2 opened at {path} (index {idx})")
+                        break
+                    if cap2_try:
+                        try:
+                            cap2_try.release()
+                        except Exception:
+                            pass
+            if not cam2_ok:
+                print(f"WARNING: Camera 2 (ID: {requested_cam2}) not available; tried indices and device paths")
+
+        self.cameras_available = cam1_ok and cam2_ok
 
         # Configure cameras
         for cap in [self.cap1, self.cap2]:
@@ -188,34 +244,53 @@ class CameraManager:
             else:
                 print(f"Camera {cam_num}: Not available")
 
-        # Start background capture thread
+        # Linux: warmup reads so both cameras deliver frames (V4L2 can return False for first few reads)
+        if not sys.platform == 'win32':
+            for _ in range(8):
+                if self.cap1 and self.cap1.isOpened():
+                    self.cap1.read()
+                if self.cap2 and self.cap2.isOpened():
+                    self.cap2.read()
+                time.sleep(0.02)
+
+        # Start two capture threads (one per camera) - fixes Ubuntu/V4L2 "camera 2 opens but no frames"
         self.running = True
-        self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self.capture_thread = threading.Thread(target=self._capture_loop_cam1, daemon=True)
         self.capture_thread.start()
+        self.capture_thread2 = threading.Thread(target=self._capture_loop_cam2, daemon=True)
+        self.capture_thread2.start()
 
         print("Camera manager started")
 
-    def _capture_loop(self):
-        """Background thread that continuously grabs frames from both cameras."""
+    def _capture_loop_cam1(self):
+        """Dedicated thread for camera 1 only."""
         while self.running:
             if self.is_recording:
-                # Cameras are owned by the recorder during recording
                 time.sleep(0.1)
                 continue
-
             if self.cap1 and self.cap1.isOpened():
                 ret, frame = self.cap1.read()
                 if ret:
                     with self.frame_lock:
                         self.latest_frame1 = frame
+            time.sleep(1.0 / 60)
 
+    def _capture_loop_cam2(self):
+        """Dedicated thread for camera 2 only (avoids V4L2 issues when reading two cams in one thread)."""
+        while self.running:
+            if self.is_recording:
+                time.sleep(0.1)
+                continue
             if self.cap2 and self.cap2.isOpened():
                 ret, frame = self.cap2.read()
+                if not ret and sys.platform != 'win32':
+                    # Ubuntu: try grab+retrieve if read() fails (some V4L2 drivers prefer it)
+                    if self.cap2.grab():
+                        ret, frame = self.cap2.retrieve()
                 if ret:
                     with self.frame_lock:
                         self.latest_frame2 = frame
-
-            time.sleep(1.0 / 60)  # capture at ~60fps for smooth preview
+            time.sleep(1.0 / 60)
 
     def get_frame(self, camera_num: int) -> Optional[np.ndarray]:
         """Return the latest frame for the given camera (thread-safe copy)."""
@@ -446,6 +521,7 @@ class CameraManager:
                 self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
             else:
                 self.cap1 = cv2.VideoCapture(self.camera1_id)
+                time.sleep(1.5)
                 self.cap2 = cv2.VideoCapture(self.camera2_id)
 
             for cap in [self.cap1, self.cap2]:
@@ -456,6 +532,15 @@ class CameraManager:
                     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 else:
                     print("WARNING: Failed to reopen a camera after recording")
+
+            # Warmup reads on Linux
+            if sys.platform != 'win32':
+                for _ in range(8):
+                    if self.cap1 and self.cap1.isOpened():
+                        self.cap1.read()
+                    if self.cap2 and self.cap2.isOpened():
+                        self.cap2.read()
+                    time.sleep(0.02)
         except Exception as e:
             print(f"Error reopening cameras: {e}")
             self.cap1 = None
@@ -470,16 +555,20 @@ class CameraManager:
         if self.is_analyzing:
             return
         if not self.recording_files or len(self.recording_files) != 2:
+            self.analysis_error = "No videos to analyze — record a video first."
             self.status_message = "No videos to analyze"
             self.status_time = time.time()
             return
         if not all(os.path.exists(f) for f in self.recording_files):
+            missing = [f for f in self.recording_files if not os.path.exists(f)]
+            self.analysis_error = f"Video files not found: {', '.join(missing)}"
             self.status_message = "Video files not found"
             self.status_time = time.time()
             return
 
         self.is_analyzing = True
         self.analysis_progress = "Starting analysis..."
+        self.analysis_error = ""
         self.analysis_start_time = time.time()
         self.analysis_camera1 = None
         self.analysis_camera2 = None
@@ -542,6 +631,7 @@ class CameraManager:
         except Exception as e:
             self.is_analyzing = False
             self.analysis_progress = ""
+            self.analysis_error = str(e)
             self.status_message = f"Analysis failed: {e}"
             self.status_time = time.time()
             print(f"Analysis error: {e}")
@@ -554,6 +644,7 @@ class CameraManager:
             return {
                 'is_analyzing': self.is_analyzing,
                 'progress': self.analysis_progress,
+                'analysis_error': self.analysis_error,
                 'frame_index': self.analysis_frame_index,
                 'max_frames': 0,
                 'camera1': None,
@@ -575,6 +666,7 @@ class CameraManager:
         results = {
             'is_analyzing': self.is_analyzing,
             'progress': self.analysis_progress,
+            'analysis_error': self.analysis_error,
             'frame_index': self.analysis_frame_index,
             'max_frames': max_frames,
             'camera1': None,
@@ -613,6 +705,127 @@ class CameraManager:
         return results
 
     # ------------------------------------------------------------------
+    # Re-initialize cameras (e.g. after plugging in)
+    # ------------------------------------------------------------------
+
+    def reinit_cameras(self) -> Dict:
+        """Release and re-open cameras with same IDs. Use after plugging in cameras."""
+        if self.is_recording:
+            return {'error': 'Stop recording before re-initializing cameras'}
+
+        self.running = False
+        if self.capture_thread:
+            self.capture_thread.join(timeout=2.0)
+        self.capture_thread = None
+        if self.capture_thread2:
+            self.capture_thread2.join(timeout=2.0)
+        self.capture_thread2 = None
+
+        for cap in [self.cap1, self.cap2]:
+            if cap:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+        self.cap1 = None
+        self.cap2 = None
+        self.cameras_available = False
+        self.latest_frame1 = None
+        self.latest_frame2 = None
+
+        if sys.platform == 'win32':
+            self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
+            self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
+        else:
+            self.cap1 = cv2.VideoCapture(self.camera1_id)
+            time.sleep(1.5)
+            self.cap2 = cv2.VideoCapture(self.camera2_id)
+
+        cam1_ok = self.cap1.isOpened() if self.cap1 else False
+        cam2_ok = self.cap2.isOpened() if self.cap2 else False
+        self.cameras_available = cam1_ok and cam2_ok
+
+        if not cam1_ok:
+            if self.cap1:
+                try:
+                    self.cap1.release()
+                except Exception:
+                    pass
+            self.cap1 = None
+        if not cam2_ok:
+            if self.cap2:
+                try:
+                    self.cap2.release()
+                except Exception:
+                    pass
+            self.cap2 = None
+            requested_cam2 = self.camera2_id
+            order = [requested_cam2, requested_cam2 + 1, requested_cam2 - 1]
+            order += [i for i in range(8) if i not in order and i != self.camera1_id]
+            for idx in order:
+                if idx < 0 or idx == self.camera1_id:
+                    continue
+                cap2_try = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(idx)
+                if cap2_try.isOpened():
+                    self.cap2 = cap2_try
+                    self.camera2_id = idx
+                    cam2_ok = True
+                    break
+                if cap2_try:
+                    try:
+                        cap2_try.release()
+                    except Exception:
+                        pass
+            if not cam2_ok and sys.platform != 'win32':
+                for dev in sorted([f for f in os.listdir('/dev') if f.startswith('video')], key=lambda x: int(x.replace('video', '')) if x.replace('video', '').isdigit() else 999):
+                    path = os.path.join('/dev', dev)
+                    try:
+                        idx = int(dev.replace('video', ''))
+                    except ValueError:
+                        continue
+                    if idx == self.camera1_id:
+                        continue
+                    cap2_try = cv2.VideoCapture(path)
+                    if cap2_try.isOpened():
+                        self.cap2 = cap2_try
+                        self.camera2_id = idx
+                        cam2_ok = True
+                        break
+                    if cap2_try:
+                        try:
+                            cap2_try.release()
+                        except Exception:
+                            pass
+            self.cameras_available = cam1_ok and cam2_ok
+
+        for cap in [self.cap1, self.cap2]:
+            if cap and cap.isOpened():
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                cap.set(cv2.CAP_PROP_FPS, self.fps)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        if not sys.platform == 'win32':
+            for _ in range(8):
+                if self.cap1 and self.cap1.isOpened():
+                    self.cap1.read()
+                if self.cap2 and self.cap2.isOpened():
+                    self.cap2.read()
+                time.sleep(0.02)
+
+        self.running = True
+        self.capture_thread = threading.Thread(target=self._capture_loop_cam1, daemon=True)
+        self.capture_thread.start()
+        self.capture_thread2 = threading.Thread(target=self._capture_loop_cam2, daemon=True)
+        self.capture_thread2.start()
+
+        return {
+            'camera1_available': self.cap1 is not None and self.cap1.isOpened(),
+            'camera2_available': self.cap2 is not None and self.cap2.isOpened(),
+            'cameras_available': self.cameras_available,
+        }
+
+    # ------------------------------------------------------------------
     # Cleanup
     # ------------------------------------------------------------------
 
@@ -628,6 +841,8 @@ class CameraManager:
 
         if self.capture_thread:
             self.capture_thread.join(timeout=2.0)
+        if self.capture_thread2:
+            self.capture_thread2.join(timeout=2.0)
 
         for cap in [self.cap1, self.cap2]:
             if cap:
@@ -724,6 +939,114 @@ def video_feed(camera_num):
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@app.route('/api/cameras/reinit', methods=['POST'])
+def api_cameras_reinit():
+    """Re-initialize cameras. Optional JSON: { "camera1_id": int, "camera2_id": int } to change indices."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Camera manager not initialized'}), 500
+    data = request.get_json(silent=True) or {}
+    if 'camera1_id' in data:
+        try:
+            mgr.camera1_id = int(data['camera1_id'])
+        except (TypeError, ValueError):
+            pass
+    if 'camera2_id' in data:
+        try:
+            mgr.camera2_id = int(data['camera2_id'])
+        except (TypeError, ValueError):
+            pass
+    try:
+        result = mgr.reinit_cameras()
+        result['camera1_id'] = mgr.camera1_id
+        result['camera2_id'] = mgr.camera2_id
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cameras/detect', methods=['POST'])
+def api_cameras_detect():
+    """Try indices 0-7 and return which open. Temporarily releases cameras then re-opens with current IDs."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Camera manager not initialized'}), 500
+    if mgr.is_recording:
+        return jsonify({'error': 'Stop recording before detecting cameras'}), 400
+    # Release and stop capture
+    mgr.running = False
+    if mgr.capture_thread:
+        mgr.capture_thread.join(timeout=2.0)
+    mgr.capture_thread = None
+    if mgr.capture_thread2:
+        mgr.capture_thread2.join(timeout=2.0)
+    mgr.capture_thread2 = None
+    for cap in [mgr.cap1, mgr.cap2]:
+        if cap:
+            try:
+                cap.release()
+            except Exception:
+                pass
+    mgr.cap1 = mgr.cap2 = None
+    mgr.latest_frame1 = mgr.latest_frame2 = None
+    # Try each index
+    backend = cv2.CAP_DSHOW if sys.platform == 'win32' else cv2.CAP_ANY
+    available = []
+    for i in range(8):
+        cap = cv2.VideoCapture(i, backend) if sys.platform == 'win32' else cv2.VideoCapture(i)
+        if cap.isOpened():
+            available.append(i)
+            cap.release()
+    # Re-open with current IDs (Linux: delay between opens + warmup so both streams work)
+    if sys.platform == 'win32':
+        mgr.cap1 = cv2.VideoCapture(mgr.camera1_id, cv2.CAP_DSHOW)
+        mgr.cap2 = cv2.VideoCapture(mgr.camera2_id, cv2.CAP_DSHOW)
+    else:
+        mgr.cap1 = cv2.VideoCapture(mgr.camera1_id)
+        time.sleep(1.5)
+        mgr.cap2 = cv2.VideoCapture(mgr.camera2_id)
+    cam1_ok = mgr.cap1.isOpened() if mgr.cap1 else False
+    cam2_ok = mgr.cap2.isOpened() if mgr.cap2 else False
+    if not cam1_ok and mgr.cap1:
+        try:
+            mgr.cap1.release()
+        except Exception:
+            pass
+        mgr.cap1 = None
+    if not cam2_ok and mgr.cap2:
+        try:
+            mgr.cap2.release()
+        except Exception:
+            pass
+        mgr.cap2 = None
+    mgr.cameras_available = cam1_ok and cam2_ok
+    for cap in [mgr.cap1, mgr.cap2]:
+        if cap and cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, mgr.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, mgr.height)
+            cap.set(cv2.CAP_PROP_FPS, mgr.fps)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    if sys.platform != 'win32':
+        for _ in range(8):
+            if mgr.cap1 and mgr.cap1.isOpened():
+                mgr.cap1.read()
+            if mgr.cap2 and mgr.cap2.isOpened():
+                mgr.cap2.read()
+            time.sleep(0.02)
+    mgr.running = True
+    mgr.capture_thread = threading.Thread(target=mgr._capture_loop_cam1, daemon=True)
+    mgr.capture_thread.start()
+    mgr.capture_thread2 = threading.Thread(target=mgr._capture_loop_cam2, daemon=True)
+    mgr.capture_thread2.start()
+    return jsonify({
+        'available_indices': available,
+        'camera1_id': mgr.camera1_id,
+        'camera2_id': mgr.camera2_id,
+        'camera1_available': cam1_ok,
+        'camera2_available': cam2_ok,
+    })
+
+
 @app.route('/api/status')
 def api_status():
     """Overall system status (polled by the UI)."""
@@ -733,6 +1056,10 @@ def api_status():
 
     return jsonify({
         'cameras_available': mgr.cameras_available,
+        'camera1_available': mgr.cap1 is not None and mgr.cap1.isOpened(),
+        'camera2_available': mgr.cap2 is not None and mgr.cap2.isOpened(),
+        'camera1_id': mgr.camera1_id,
+        'camera2_id': mgr.camera2_id,
         'is_recording': mgr.is_recording,
         'is_analyzing': mgr.is_analyzing,
         'analysis_progress': mgr.analysis_progress,
@@ -830,6 +1157,219 @@ def api_set_analysis_frame():
         return jsonify({'error': 'Missing index'}), 400
     mgr.analysis_frame_index = int(data['index'])
     return jsonify(mgr.get_analysis_results())
+
+
+# ======================================================================
+# Recording management helpers
+# ======================================================================
+
+_RECORDING_PATTERN = re.compile(r'^recording_(\d{8}_\d{6})_camera[12]\.mp4$')
+
+
+def _get_recordings_dir() -> str:
+    return os.path.join(_project_root, 'recordings')
+
+
+def _list_recording_pairs() -> List[Dict]:
+    """Scan recordings/ dir, group by timestamp, return metadata sorted newest-first."""
+    rec_dir = _get_recordings_dir()
+    if not os.path.isdir(rec_dir):
+        return []
+
+    # Group files by timestamp
+    groups = {}
+    for fname in os.listdir(rec_dir):
+        m = _RECORDING_PATTERN.match(fname)
+        if not m:
+            continue
+        ts = m.group(1)
+        if ts not in groups:
+            groups[ts] = {}
+        fpath = os.path.join(rec_dir, fname)
+        if 'camera1' in fname:
+            groups[ts]['camera1'] = fpath
+        elif 'camera2' in fname:
+            groups[ts]['camera2'] = fpath
+
+    # Build result list
+    pairs = []
+    for ts, files in groups.items():
+        cam1_path = files.get('camera1')
+        cam2_path = files.get('camera2')
+        cam1_size = os.path.getsize(cam1_path) if cam1_path and os.path.exists(cam1_path) else 0
+        cam2_size = os.path.getsize(cam2_path) if cam2_path and os.path.exists(cam2_path) else 0
+
+        # Parse datetime from timestamp
+        try:
+            dt = datetime.strptime(ts, '%Y%m%d_%H%M%S')
+            date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            date_str = ts
+
+        # Try to get video duration from camera1 file
+        duration = None
+        probe_path = cam1_path or cam2_path
+        if probe_path:
+            try:
+                cap = cv2.VideoCapture(probe_path)
+                if cap.isOpened():
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                    if fps > 0 and frame_count > 0:
+                        duration = round(frame_count / fps, 1)
+                cap.release()
+            except Exception:
+                pass
+
+        pairs.append({
+            'timestamp': ts,
+            'date': date_str,
+            'camera1_file': os.path.basename(cam1_path) if cam1_path else None,
+            'camera2_file': os.path.basename(cam2_path) if cam2_path else None,
+            'camera1_size': cam1_size,
+            'camera2_size': cam2_size,
+            'total_size': cam1_size + cam2_size,
+            'duration': duration,
+        })
+
+    # Sort newest first
+    pairs.sort(key=lambda p: p['timestamp'], reverse=True)
+    return pairs
+
+
+def _is_protected_timestamp(ts: str) -> bool:
+    """Check if a timestamp matches the recording currently being analyzed."""
+    mgr = get_manager()
+    if mgr and mgr.recording_files:
+        for f in mgr.recording_files:
+            if ts in os.path.basename(f):
+                return True
+    return False
+
+
+def _delete_recording_pair(ts: str) -> Dict:
+    """Delete both camera files for a given timestamp. Returns status dict."""
+    if not _RECORDING_PATTERN.match(f'recording_{ts}_camera1.mp4'):
+        return {'error': f'Invalid timestamp format: {ts}'}
+
+    if _is_protected_timestamp(ts):
+        return {'error': f'Cannot delete {ts} — currently being analyzed'}
+
+    rec_dir = _get_recordings_dir()
+    deleted = []
+    errors = []
+    for cam in ['camera1', 'camera2']:
+        fpath = os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4')
+        if os.path.exists(fpath):
+            # Verify it's inside recordings dir (safety)
+            real = os.path.realpath(fpath)
+            if not real.startswith(os.path.realpath(rec_dir)):
+                errors.append(f'{cam}: path outside recordings directory')
+                continue
+            try:
+                os.remove(fpath)
+                deleted.append(os.path.basename(fpath))
+            except Exception as e:
+                errors.append(f'{cam}: {e}')
+
+    result = {'timestamp': ts, 'deleted': deleted}
+    if errors:
+        result['errors'] = errors
+    return result
+
+
+# ======================================================================
+# Recording management routes
+# ======================================================================
+
+@app.route('/api/recordings')
+def api_list_recordings():
+    """List all recording pairs with metadata."""
+    pairs = _list_recording_pairs()
+    total_size = sum(p['total_size'] for p in pairs)
+    oldest = pairs[-1]['date'] if pairs else None
+    newest = pairs[0]['date'] if pairs else None
+    return jsonify({
+        'recordings': pairs,
+        'count': len(pairs),
+        'total_size': total_size,
+        'oldest': oldest,
+        'newest': newest,
+    })
+
+
+@app.route('/api/recordings/stats')
+def api_recordings_stats():
+    """Return recording count, total disk usage, oldest/newest dates."""
+    pairs = _list_recording_pairs()
+    total_size = sum(p['total_size'] for p in pairs)
+    return jsonify({
+        'count': len(pairs),
+        'total_size': total_size,
+        'oldest': pairs[-1]['date'] if pairs else None,
+        'newest': pairs[0]['date'] if pairs else None,
+    })
+
+
+@app.route('/api/recordings/<timestamp>', methods=['DELETE'])
+def api_delete_recording(timestamp):
+    """Delete a specific recording pair by timestamp."""
+    result = _delete_recording_pair(timestamp)
+    if 'error' in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route('/api/recordings', methods=['DELETE'])
+def api_bulk_delete_recordings():
+    """Bulk delete recording pairs. Body: {"timestamps": ["20260215_133201", ...]}"""
+    data = request.get_json(silent=True) or {}
+    timestamps = data.get('timestamps', [])
+    if not timestamps:
+        return jsonify({'error': 'No timestamps provided'}), 400
+
+    results = []
+    for ts in timestamps:
+        results.append(_delete_recording_pair(ts))
+
+    deleted_count = sum(1 for r in results if r.get('deleted'))
+    return jsonify({
+        'results': results,
+        'deleted_count': deleted_count,
+    })
+
+
+@app.route('/api/recordings/cleanup', methods=['POST'])
+def api_recordings_cleanup():
+    """Delete recordings older than max_age_days. Body: {"max_age_days": 30}"""
+    data = request.get_json(silent=True) or {}
+    max_age_days = data.get('max_age_days')
+    if max_age_days is None:
+        return jsonify({'error': 'Missing max_age_days'}), 400
+    try:
+        max_age_days = int(max_age_days)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'max_age_days must be an integer'}), 400
+    if max_age_days < 1:
+        return jsonify({'error': 'max_age_days must be >= 1'}), 400
+
+    cutoff = datetime.now() - timedelta(days=max_age_days)
+    pairs = _list_recording_pairs()
+    results = []
+    for p in pairs:
+        try:
+            dt = datetime.strptime(p['timestamp'], '%Y%m%d_%H%M%S')
+        except ValueError:
+            continue
+        if dt < cutoff:
+            results.append(_delete_recording_pair(p['timestamp']))
+
+    deleted_count = sum(1 for r in results if r.get('deleted'))
+    return jsonify({
+        'results': results,
+        'deleted_count': deleted_count,
+        'cutoff_date': cutoff.strftime('%Y-%m-%d %H:%M:%S'),
+    })
 
 
 # ======================================================================
