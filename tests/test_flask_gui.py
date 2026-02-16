@@ -846,6 +846,204 @@ class TestNewAnalysisEndpoints(unittest.TestCase):
 
 
 # ======================================================================
+# Video Playback & Auto-Detect Endpoints
+# ======================================================================
+
+class TestAnalysisFrameEndpoint(unittest.TestCase):
+    """Test /api/analysis/frame/<camera_num> image endpoint."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        import flask_gui
+        self.mgr = CameraManager()
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        import flask_gui
+        flask_gui.camera_manager = None
+
+    def test_returns_placeholder_when_no_frames(self):
+        """Should return a JPEG placeholder when no analysis frames exist."""
+        resp = self.client.get('/api/analysis/frame/1?index=0')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, 'image/jpeg')
+
+    def test_returns_placeholder_for_out_of_range(self):
+        """Should return placeholder for index out of range."""
+        # Store a single compressed frame
+        dummy = np.zeros((100, 100, 3), dtype=np.uint8)
+        _, buf = cv2.imencode('.jpg', dummy, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        self.mgr.analysis_frames_cam1 = [buf.tobytes()]
+        resp = self.client.get('/api/analysis/frame/1?index=99')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, 'image/jpeg')
+
+    def test_returns_stored_frame(self):
+        """Should return the pre-compressed JPEG frame."""
+        dummy = np.zeros((100, 100, 3), dtype=np.uint8)
+        _, buf = cv2.imencode('.jpg', dummy, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        jpeg_bytes = buf.tobytes()
+        self.mgr.analysis_frames_cam1 = [jpeg_bytes]
+        resp = self.client.get('/api/analysis/frame/1?index=0')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, 'image/jpeg')
+        self.assertEqual(resp.data, jpeg_bytes)
+
+    def test_camera2_frame(self):
+        """Should serve cam2 frames correctly."""
+        dummy = np.full((50, 50, 3), 128, dtype=np.uint8)
+        _, buf = cv2.imencode('.jpg', dummy, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        jpeg_bytes = buf.tobytes()
+        self.mgr.analysis_frames_cam2 = [jpeg_bytes]
+        resp = self.client.get('/api/analysis/frame/2?index=0')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, jpeg_bytes)
+
+    def test_has_frames_in_results(self):
+        """Analysis results should report has_frames correctly."""
+        self.assertFalse(self.mgr.get_analysis_results()['has_frames'])
+        self.mgr.analysis_frames_cam1 = [b'fake']
+        self.assertTrue(self.mgr.get_analysis_results()['has_frames'])
+
+
+class TestAutoDetectEndpoints(unittest.TestCase):
+    """Test /api/auto-detect/* endpoints."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        import flask_gui
+        self.mgr = CameraManager()
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        import flask_gui
+        if self.mgr.swing_detector:
+            try:
+                self.mgr.swing_detector.release()
+            except Exception:
+                pass
+        flask_gui.camera_manager = None
+
+    def test_status_when_disabled(self):
+        """GET /api/auto-detect/status when disabled."""
+        resp = self.client.get('/api/auto-detect/status')
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertFalse(data['enabled'])
+        self.assertEqual(data['status'], {})
+
+    @patch('flask_gui.SwingDetector')
+    def test_toggle_on(self, MockDetector):
+        """POST /api/auto-detect/toggle should enable."""
+        mock_instance = MagicMock()
+        mock_instance.get_status.return_value = {'state': 'idle'}
+        MockDetector.return_value = mock_instance
+
+        resp = self.client.post('/api/auto-detect/toggle')
+        data = json.loads(resp.data)
+        self.assertTrue(data['enabled'])
+        self.assertTrue(self.mgr.auto_detect_enabled)
+
+    @patch('flask_gui.SwingDetector')
+    def test_toggle_off(self, MockDetector):
+        """Toggle on then off should disable."""
+        mock_instance = MagicMock()
+        mock_instance.get_status.return_value = {'state': 'idle'}
+        MockDetector.return_value = mock_instance
+
+        self.client.post('/api/auto-detect/toggle')  # on
+        resp = self.client.post('/api/auto-detect/toggle')  # off
+        data = json.loads(resp.data)
+        self.assertFalse(data['enabled'])
+        self.assertFalse(self.mgr.auto_detect_enabled)
+
+    def test_status_in_api_status(self):
+        """GET /api/status should include auto_detect_enabled."""
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.get.return_value = 128.0
+        self.mgr.cap1 = mock_cap
+        self.mgr.cap2 = mock_cap
+        self.mgr.cameras_available = True
+
+        resp = self.client.get('/api/status')
+        data = json.loads(resp.data)
+        self.assertIn('auto_detect_enabled', data)
+        self.assertFalse(data['auto_detect_enabled'])
+        self.assertIn('auto_detect_status', data)
+
+
+class TestCompressFrames(unittest.TestCase):
+    """Test the _compress_frames static method."""
+
+    def test_compress_frames(self):
+        frames = [
+            np.zeros((100, 100, 3), dtype=np.uint8),
+            np.full((100, 100, 3), 255, dtype=np.uint8),
+        ]
+        compressed = CameraManager._compress_frames(frames)
+        self.assertEqual(len(compressed), 2)
+        for c in compressed:
+            self.assertIsInstance(c, bytes)
+            self.assertTrue(len(c) > 0)
+            # JPEG magic bytes
+            self.assertTrue(c[:2] == b'\xff\xd8')
+
+    def test_compress_empty(self):
+        compressed = CameraManager._compress_frames([])
+        self.assertEqual(compressed, [])
+
+
+class TestTemplateNewFeatures(unittest.TestCase):
+    """Test that the template includes the new video playback and auto-detect UI."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        import flask_gui
+        self.mgr = CameraManager()
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        import flask_gui
+        flask_gui.camera_manager = None
+
+    def test_template_has_video_panels(self):
+        """HTML should contain analysis video playback panels."""
+        resp = self.client.get('/')
+        html = resp.data.decode()
+        self.assertIn('analysis-video-panels', html)
+        self.assertIn('analysis-frame-cam1', html)
+        self.assertIn('analysis-frame-cam2', html)
+
+    def test_template_has_play_button(self):
+        """HTML should contain the play/pause button."""
+        resp = self.client.get('/')
+        html = resp.data.decode()
+        self.assertIn('play-btn', html)
+        self.assertIn('togglePlayback', html)
+        self.assertIn('speed-label', html)
+
+    def test_template_has_auto_detect_toggle(self):
+        """HTML should contain the auto-detect toggle switch."""
+        resp = self.client.get('/')
+        html = resp.data.decode()
+        self.assertIn('auto-detect-cb', html)
+        self.assertIn('Auto Detect', html)
+        self.assertIn('auto-detect-panel', html)
+
+    def test_template_has_auto_detect_gauge(self):
+        """HTML should contain the shoulder turn gauge."""
+        resp = self.client.get('/')
+        html = resp.data.decode()
+        self.assertIn('auto-detect-gauge-fill', html)
+        self.assertIn('auto-detect-badge', html)
+        self.assertIn('Shoulder Turn', html)
+
+
+# ======================================================================
 # Runner
 # ======================================================================
 
@@ -863,6 +1061,10 @@ def run_flask_gui_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestFlaskRoutes))
     suite.addTests(loader.loadTestsFromTestCase(TestTemplateRendering))
     suite.addTests(loader.loadTestsFromTestCase(TestNewAnalysisEndpoints))
+    suite.addTests(loader.loadTestsFromTestCase(TestAnalysisFrameEndpoint))
+    suite.addTests(loader.loadTestsFromTestCase(TestAutoDetectEndpoints))
+    suite.addTests(loader.loadTestsFromTestCase(TestCompressFrames))
+    suite.addTests(loader.loadTestsFromTestCase(TestTemplateNewFeatures))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

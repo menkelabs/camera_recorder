@@ -19,6 +19,16 @@ A Python application for capturing synchronized video from two USB cameras with 
   - Interactive time-series chart with metric toggles and phase overlay
   - Frame-by-frame navigation with phase badge
   - Error details displayed in the GUI when analysis fails
+- **Video Playback in Analysis**: Side-by-side annotated video panels (face-on + DTL) synced to the frame slider
+  - Pose skeleton overlaid on each frame
+  - Play/pause with configurable speed (0.25x, 0.5x, 1x, 2x, 4x)
+  - Frames stored as compressed JPEG bytes (~15 MB vs ~500 MB raw) for low memory usage
+- **Auto Swing Detection**: Hands-free recording via real-time shoulder-turn monitoring
+  - Lightweight MediaPipe model (complexity=0) processes every 4th frame (~15 fps)
+  - State machine: Idle → Motion Detected → Recording → Cooldown → Idle
+  - Configurable thresholds (motion degree, confirmation frames, cooldown timer)
+  - Toggle on/off from the Recording tab; hides manual start/stop when active
+  - Real-time shoulder-turn gauge and state badge in the UI
 - **Swing Comparison**: Side-by-side comparison of any two recorded swings
   - Delta cards showing value changes between swings with color-coded indicators
   - Overlay chart with normalised timeline (swings of different lengths align on 0-100%)
@@ -27,6 +37,12 @@ A Python application for capturing synchronized video from two USB cameras with 
   - View all recordings with date, duration, and file sizes
   - Delete individual recordings or bulk-select and delete
   - Age-based cleanup (delete recordings older than N days)
+- **Archive to External Disk**: One-click archiving of recordings to a configured USB drive
+  - Configure the archive path once in the Settings tab (e.g. `/media/user/Seagate8TB/golf`)
+  - Archives video files, analysis JSON, and camera settings
+  - Tracks which recordings have been archived to avoid duplicates
+  - Shows external disk space (total/used/free) with a usage bar
+  - Connected/disconnected status badge for the archive drive
 - **Multiple Recording Sessions**: Configure, record, analyze, and record again without restarting
 - **Platform Support**: Windows and Linux with platform-appropriate camera backends and defaults
   - Auto-detection of camera indices with fallback search
@@ -71,20 +87,23 @@ python scripts/flask_gui.py --camera1 0 --camera2 2
 python scripts/flask_gui.py [OPTIONS]
 
 Options:
-  --camera1 ID    Camera 1 index (default: 0 on Linux, from config on Windows)
-  --camera2 ID    Camera 2 index (default: 1 on Linux, from config on Windows)
-  --width WIDTH   Resolution width (default: 1280)
-  --height HEIGHT Resolution height (default: 720)
-  --fps FPS       Recording FPS target (default: 120)
-  --host HOST     Host to bind (default: 0.0.0.0)
-  --port PORT     Port (default: 5000)
+  --camera1 ID            Camera 1 index (default: 0 on Linux, from config on Windows)
+  --camera2 ID            Camera 2 index (default: 1 on Linux, from config on Windows)
+  --width WIDTH           Resolution width (default: 1280)
+  --height HEIGHT         Resolution height (default: 720)
+  --fps FPS               Recording FPS target (default: 120)
+  --model-complexity {0,1,2}  MediaPipe model for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)
+  --host HOST             Host to bind (default: 0.0.0.0)
+  --port PORT             Port (default: 5000)
 ```
+
+For lower-end hardware (e.g. HP EliteBook 840 G5), use `--model-complexity 0` for faster analysis at the cost of slightly lower accuracy.
 
 ## Usage
 
 ### GUI Overview
 
-The application provides a tabbed web interface with 6 tabs:
+The application provides a tabbed web interface with 7 tabs:
 
 1. **Camera 1 Setup [1]**: Live preview + property sliders (brightness, contrast, exposure, etc.)
 2. **Camera 2 Setup [2]**: Same controls for the second camera
@@ -92,6 +111,7 @@ The application provides a tabbed web interface with 6 tabs:
 4. **Recordings [4]**: Browse, manage, and delete saved recordings
 5. **Analysis [5]**: View analysis results with frame-by-frame navigation
 6. **Compare [6]**: Side-by-side comparison of any two analyzed swings
+7. **Settings [7]**: Archive configuration and external disk management
 
 ### Workflow
 
@@ -103,6 +123,8 @@ The application provides a tabbed web interface with 6 tabs:
 
 2. **Record** (Tab 3):
    - Click **Start Recording** or press **Space** to start/stop
+   - **Auto Detect** toggle: enable to let the system watch for swing motion and auto-start/stop recording
+   - When Auto Detect is on, a shoulder-turn gauge and state badge show real-time detection status
    - Recordings save to the `recordings/` directory automatically
 
 3. **Manage Recordings** (Tab 4):
@@ -113,6 +135,8 @@ The application provides a tabbed web interface with 6 tabs:
 4. **Analyze** (Tab 5 - Automatic):
    - Analysis starts automatically after recording completes
    - Results are auto-saved as JSON alongside the video files for later comparison
+   - **Video playback panels** show annotated frames (pose skeleton) for both cameras, synced to the slider
+   - **Play/pause** button with speed control (0.25x – 4x); press **Space** on the Analysis tab
    - Navigate frames with **A/Left Arrow** (previous) and **D/Right Arrow** (next)
    - If analysis fails, the error reason is displayed in the tab
 
@@ -121,12 +145,17 @@ The application provides a tabbed web interface with 6 tabs:
    - See delta cards showing which metrics improved or regressed
    - View overlaid time-series with normalised x-axis (swing progress 0-100%)
 
+6. **Archive** (Tab 7 — Settings):
+   - Set the archive path to your external USB drive (e.g. `/media/username/Seagate8TB/golf`)
+   - Click **Archive All New Recordings** to copy videos, analysis JSON, and settings to the drive
+   - The disk usage bar shows total/used/free space; a badge shows connected/disconnected status
+
 ### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| 1-6 | Switch between tabs |
-| Space | Start/stop recording (on Recording tab) |
+| 1-7 | Switch between tabs |
+| Space | Start/stop recording (Recording tab) or play/pause video (Analysis tab) |
 | A / Left Arrow | Previous analysis frame (on Analysis tab) |
 | D / Right Arrow | Next analysis frame (on Analysis tab) |
 
@@ -155,11 +184,19 @@ Analysis results include:
 
 ### Analysis Dashboard
 
-The Analysis tab displays a rich dashboard with 4 sections:
+The Analysis tab displays a rich dashboard with 5 sections:
 
 ```
++----------------------------+  +----------------------------+
+| Camera 1 — Face-On         |  | Camera 2 — Down-the-Line   |
+|                            |  |                            |
+|   [annotated frame with    |  |   [annotated frame with    |
+|    pose skeleton overlay]  |  |    pose skeleton overlay]  |
+|                            |  |                            |
++----------------------------+  +----------------------------+
+
 +----------------------------------------------------------+
-| < Prev   Frame: 42 / 180   [=========|====]  Next >  TOP |  <- phase badge
+| ▶ 1x  < Prev  Frame: 42/180  [======|====]  Next >  TOP |  <- play/pause + speed
 +----------------------------------------------------------+
 
 +---------------+  +---------------+  +---------------+  +---------------+
@@ -255,8 +292,15 @@ The Flask GUI exposes a REST API (used by the browser UI):
 | POST | `/api/recordings/cleanup` | Delete recordings older than N days |
 | GET | `/api/analysis/results` | Get analysis results and frame data |
 | POST | `/api/analysis/frame` | Set the current analysis frame index |
+| GET | `/api/analysis/frame/<cam>?index=N` | Get annotated JPEG frame for camera at index |
+| POST | `/api/auto-detect/toggle` | Enable/disable auto swing detection |
+| GET | `/api/auto-detect/status` | Get auto-detect state and shoulder-turn values |
 | GET | `/api/analyses` | List all saved analysis results |
 | GET | `/api/compare?a=TS&b=TS` | Compare two swings by timestamp |
+| GET | `/api/archive/config` | Get archive path and disk status |
+| POST | `/api/archive/config` | Set the archive path |
+| GET | `/api/archive/status` | Archived recordings count and disk info |
+| POST | `/api/archive/run` | Archive all new (or specified) recordings |
 
 ## Performance Tips
 
@@ -265,6 +309,9 @@ The Flask GUI exposes a REST API (used by the browser UI):
 3. **USB Bandwidth**: Two identical USB cameras **must be on different USB buses** (different physical controllers/hubs) to stream simultaneously. If camera 2 opens but shows no frames, move it to a different USB port.
 4. **Hardware Acceleration**: The app automatically tries hardware-accelerated codecs when available
 5. **Close Other Applications**: Free up CPU and USB bandwidth for camera capture
+6. **Model Complexity**: Use `--model-complexity 0` (lite) on laptops like the HP EliteBook 840 G5 for ~3x faster analysis. Use `2` (heavy) on workstations for best accuracy.
+7. **Memory**: Annotated frames are stored as compressed JPEG (~50 KB each) instead of raw BGR (~2.7 MB each), keeping analysis memory under 20 MB for a typical 300-frame recording.
+8. **Auto-Detect**: The swing detector uses model complexity 0 and only processes every 4th capture frame, adding minimal CPU overhead during preview.
 
 ## Platform Differences
 
@@ -313,8 +360,11 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform con
 ## Testing
 
 ```bash
-# Flask GUI tests (routes, template, recording controls, analysis)
+# Flask GUI tests (routes, template, recording, analysis, video playback, auto-detect)
 python -m pytest tests/test_flask_gui.py -v
+
+# Swing detector state machine (idle, motion, recording, cooldown, full cycle)
+python -m pytest tests/test_swing_detector.py -v
 
 # Swing metrics (all 11 metrics, phases, tempo, analyze_sequence)
 python -m pytest tests/test_sway_calculator.py -v
@@ -324,6 +374,9 @@ python -m pytest tests/test_swing_comparison.py -v
 
 # Recording management (list, delete, bulk delete, cleanup)
 python -m pytest tests/test_recording_management.py -v
+
+# Archive to external disk (config, copy, manifest, API)
+python -m pytest tests/test_archive.py -v
 
 # Analysis navigation and workflow
 python -m pytest tests/test_analysis_navigation.py -v
@@ -348,10 +401,13 @@ python run_all_tests.py
 - **Threading**: Separate capture thread per camera to avoid V4L2 contention
 - **Buffering**: Minimal buffering (buffer size 1) to reduce latency
 - **Codecs**: Automatically selects best available codec (H.264 > XVID > mp4v)
-- **Analysis**: MediaPipe Pose Detection (model complexity 2) with 15 landmark extraction and 11 biomechanical metrics
+- **Analysis**: MediaPipe Pose Detection (configurable model complexity 0/1/2) with 15 landmark extraction and 11 biomechanical metrics
+- **Video Playback**: Annotated frames stored as compressed JPEG bytes for low-memory playback (~15 MB for 300 frames)
+- **Auto-Detect**: SwingDetector state machine using lightweight MediaPipe model (complexity=0) with frame subsampling
 - **Swing Comparison**: JSON-serialized analysis results with normalised overlay charting
 - **Resource Management**: Automatic camera release/reacquisition between recording sessions
 - **Recording Management**: File-based storage with timestamp grouping and safe deletion
+- **Archive**: Configurable external disk path with manifest-based deduplication and disk usage reporting
 
 ## Project Structure
 

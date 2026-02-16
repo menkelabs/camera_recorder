@@ -15,6 +15,7 @@ import cv2
 import sys
 import os
 import json
+import shutil
 import threading
 import time
 import numpy as np
@@ -28,6 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from dual_camera_recorder import DualCameraRecorder
 from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
+from swing_detector import SwingDetector
 
 from flask import Flask, render_template, jsonify, request, Response
 
@@ -82,7 +84,7 @@ class CameraManager:
     }
 
     # Tab names (mirrors the original GUI)
-    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Recordings", "Analysis", "Compare"]
+    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Recordings", "Analysis", "Compare", "Settings"]
 
     def __init__(self, camera1_id: int = None, camera2_id: int = None,
                  width: int = 1280, height: int = 720, fps: int = 120):
@@ -131,6 +133,14 @@ class CameraManager:
         self.analysis_camera1 = None
         self.analysis_camera2 = None
         self.analysis_frame_index = 0
+        self.analysis_frames_cam1 = []  # JPEG-compressed annotated frames
+        self.analysis_frames_cam2 = []
+        self.analysis_model_complexity = 2  # 0=lite, 1=full, 2=heavy
+
+        # Auto-detect state
+        self.auto_detect_enabled = False
+        self.swing_detector = None
+        self.auto_detect_frame_counter = 0
 
         # Status messages
         self.status_message = ""
@@ -273,6 +283,21 @@ class CameraManager:
                 if ret:
                     with self.frame_lock:
                         self.latest_frame1 = frame
+
+                    # Auto-detect: process every 4th frame (~15 fps)
+                    if self.auto_detect_enabled and self.swing_detector and not self.is_recording:
+                        self.auto_detect_frame_counter += 1
+                        if self.auto_detect_frame_counter % 4 == 0:
+                            try:
+                                event = self.swing_detector.process_frame(frame)
+                                if event == 'start' and not self.is_recording:
+                                    print("[AutoDetect] Swing detected — starting recording")
+                                    self.start_recording()
+                                elif event == 'stop' and self.is_recording:
+                                    print("[AutoDetect] Swing ended — stopping recording")
+                                    self.stop_recording()
+                            except Exception as e:
+                                print(f"[AutoDetect] Error: {e}")
             time.sleep(1.0 / 60)
 
     def _capture_loop_cam2(self):
@@ -547,6 +572,38 @@ class CameraManager:
             self.cap2 = None
 
     # ------------------------------------------------------------------
+    # Auto swing detection
+    # ------------------------------------------------------------------
+
+    def toggle_auto_detect(self) -> dict:
+        """Enable or disable automatic swing detection."""
+        if self.auto_detect_enabled:
+            self.auto_detect_enabled = False
+            if self.swing_detector:
+                self.swing_detector.release()
+                self.swing_detector = None
+            self.auto_detect_frame_counter = 0
+            self.status_message = "Auto-detect disabled"
+            self.status_time = time.time()
+        else:
+            self.swing_detector = SwingDetector()
+            self.auto_detect_enabled = True
+            self.auto_detect_frame_counter = 0
+            self.status_message = "Auto-detect enabled — watching for swings"
+            self.status_time = time.time()
+        return {
+            'enabled': self.auto_detect_enabled,
+            'status': self.swing_detector.get_status() if self.swing_detector else {},
+        }
+
+    def get_auto_detect_status(self) -> dict:
+        """Return the current auto-detect state."""
+        return {
+            'enabled': self.auto_detect_enabled,
+            'status': self.swing_detector.get_status() if self.swing_detector else {},
+        }
+
+    # ------------------------------------------------------------------
     # Analysis
     # ------------------------------------------------------------------
 
@@ -577,9 +634,25 @@ class CameraManager:
         thread = threading.Thread(target=self._analyze_videos, daemon=True)
         thread.start()
 
+    def _clear_analysis_frames(self):
+        """Release annotated frame memory from a previous analysis."""
+        self.analysis_frames_cam1 = []
+        self.analysis_frames_cam2 = []
+
+    @staticmethod
+    def _compress_frames(bgr_frames: list) -> list:
+        """Compress a list of BGR numpy arrays to JPEG bytes (~30x smaller)."""
+        compressed = []
+        for frame in bgr_frames:
+            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            compressed.append(buf.tobytes())
+        return compressed
+
     def _analyze_videos(self):
         """Background thread: run MediaPipe pose analysis on both videos."""
         try:
+            self._clear_analysis_frames()
+
             video1_path = self.recording_files[0]
             video2_path = self.recording_files[1]
             time.sleep(1.0)  # let video files flush
@@ -598,10 +671,13 @@ class CameraManager:
             cap.release()
 
             # --- Camera 1 (face-on) ---
-            self.analysis_progress = "Processing Camera 1 (face-on)..."
-            processor1 = PoseProcessor(model_complexity=2)
-            landmarks1, _ = processor1.process_video(video1_path)
+            mc = self.analysis_model_complexity
+            self.analysis_progress = f"Processing Camera 1 (face-on, model={mc})..."
+            processor1 = PoseProcessor(model_complexity=mc)
+            landmarks1, annotated1 = processor1.process_video(video1_path)
             processor1.release()
+            self.analysis_frames_cam1 = self._compress_frames(annotated1)
+            del annotated1  # free raw BGR memory immediately
 
             calc1 = SwayCalculator()
             analysis1 = calc1.analyze_sequence(landmarks1, frame_width1)
@@ -610,10 +686,12 @@ class CameraManager:
             self.analysis_camera1 = analysis1
 
             # --- Camera 2 (down-the-line) ---
-            self.analysis_progress = "Processing Camera 2 (down-the-line)..."
-            processor2 = PoseProcessor(model_complexity=2)
-            landmarks2, _ = processor2.process_video(video2_path)
+            self.analysis_progress = f"Processing Camera 2 (down-the-line, model={mc})..."
+            processor2 = PoseProcessor(model_complexity=mc)
+            landmarks2, annotated2 = processor2.process_video(video2_path)
             processor2.release()
+            self.analysis_frames_cam2 = self._compress_frames(annotated2)
+            del annotated2
 
             calc2 = SwayCalculator()
             analysis2 = calc2.analyze_sequence(landmarks2, frame_width2)
@@ -643,6 +721,7 @@ class CameraManager:
 
     def get_analysis_results(self) -> Dict:
         """Return analysis results formatted for the web UI."""
+        has_frames = len(self.analysis_frames_cam1) > 0 or len(self.analysis_frames_cam2) > 0
         if self.analysis_camera1 is None and self.analysis_camera2 is None:
             return {
                 'is_analyzing': self.is_analyzing,
@@ -650,6 +729,7 @@ class CameraManager:
                 'analysis_error': self.analysis_error,
                 'frame_index': self.analysis_frame_index,
                 'max_frames': 0,
+                'has_frames': has_frames,
                 'camera1': None,
                 'camera2': None,
             }
@@ -681,6 +761,7 @@ class CameraManager:
             'analysis_error': self.analysis_error,
             'frame_index': self.analysis_frame_index,
             'max_frames': max_frames,
+            'has_frames': has_frames,
             'camera1': None,
             'camera2': None,
         }
@@ -1116,6 +1197,10 @@ def api_status():
     if mgr is None:
         return jsonify({'error': 'Not initialized'})
 
+    auto_status = {}
+    if mgr.auto_detect_enabled and mgr.swing_detector:
+        auto_status = mgr.swing_detector.get_status()
+
     return jsonify({
         'cameras_available': mgr.cameras_available,
         'camera1_available': mgr.cap1 is not None and mgr.cap1.isOpened(),
@@ -1131,6 +1216,8 @@ def api_status():
         'fps': mgr.fps,
         'width': mgr.width,
         'height': mgr.height,
+        'auto_detect_enabled': mgr.auto_detect_enabled,
+        'auto_detect_status': auto_status,
     })
 
 
@@ -1199,6 +1286,24 @@ def api_stop_recording():
     return jsonify(mgr.stop_recording())
 
 
+@app.route('/api/auto-detect/toggle', methods=['POST'])
+def api_auto_detect_toggle():
+    """Enable or disable auto swing detection."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    return jsonify(mgr.toggle_auto_detect())
+
+
+@app.route('/api/auto-detect/status')
+def api_auto_detect_status():
+    """Get current auto-detect state."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    return jsonify(mgr.get_auto_detect_status())
+
+
 @app.route('/api/analysis/results')
 def api_analysis_results():
     """Get current analysis results and frame data."""
@@ -1219,6 +1324,29 @@ def api_set_analysis_frame():
         return jsonify({'error': 'Missing index'}), 400
     mgr.analysis_frame_index = int(data['index'])
     return jsonify(mgr.get_analysis_results())
+
+
+@app.route('/api/analysis/frame/<int:camera_num>')
+def api_analysis_frame_image(camera_num):
+    """Return a JPEG of the annotated analysis frame for the given camera and index.
+
+    Frames are stored pre-compressed as JPEG bytes to minimise memory usage
+    on modest hardware (e.g. EliteBook 840 G5 with 8 GB RAM).
+    """
+    mgr = get_manager()
+    if mgr is None:
+        return Response(_placeholder_jpeg("Not initialized"),
+                        mimetype='image/jpeg')
+
+    index = request.args.get('index', 0, type=int)
+    frames = mgr.analysis_frames_cam1 if camera_num == 1 else mgr.analysis_frames_cam2
+
+    if not frames or index < 0 or index >= len(frames):
+        text = f"Cam {camera_num}: no frame {index}"
+        return Response(_placeholder_jpeg(text), mimetype='image/jpeg')
+
+    # Frames are already JPEG bytes — serve directly
+    return Response(frames[index], mimetype='image/jpeg')
 
 
 # ======================================================================
@@ -1538,6 +1666,220 @@ def api_compare():
 
 
 # ======================================================================
+# Archive helpers and routes
+# ======================================================================
+
+_ARCHIVE_CONFIG_FILE = os.path.join(_project_root, 'archive_config.json')
+
+
+def _load_archive_config() -> Dict:
+    """Load archive configuration from JSON file."""
+    if not os.path.exists(_ARCHIVE_CONFIG_FILE):
+        return {}
+    try:
+        with open(_ARCHIVE_CONFIG_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_archive_config(config: Dict):
+    """Persist archive configuration to JSON file."""
+    with open(_ARCHIVE_CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+def _get_archive_path() -> Optional[str]:
+    """Return the configured archive path, or None."""
+    config = _load_archive_config()
+    return config.get('archive_path')
+
+
+def _archive_manifest_path() -> str:
+    """Path to the manifest tracking archived recordings."""
+    return os.path.join(_get_recordings_dir(), '.archive_manifest.json')
+
+
+def _load_archive_manifest() -> Dict:
+    """Load the set of timestamps that have been archived."""
+    path = _archive_manifest_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_archive_manifest(manifest: Dict):
+    """Persist the archive manifest."""
+    path = _archive_manifest_path()
+    with open(path, 'w') as f:
+        json.dump(manifest, f, indent=2)
+
+
+def _disk_usage(path: str) -> Optional[Dict]:
+    """Return disk usage info for the volume containing *path*."""
+    try:
+        usage = shutil.disk_usage(path)
+        return {
+            'total': usage.total,
+            'used': usage.used,
+            'free': usage.free,
+        }
+    except Exception:
+        return None
+
+
+def _archive_recording(ts: str, archive_dir: str) -> Dict:
+    """Copy all files for a recording timestamp to the archive directory.
+
+    Copies: camera1.mp4, camera2.mp4, analysis_<ts>.json, and any
+    camera_settings_*.json files present in the project root.
+    """
+    rec_dir = _get_recordings_dir()
+    os.makedirs(archive_dir, exist_ok=True)
+
+    copied = []
+    errors = []
+
+    # Video files
+    for cam in ['camera1', 'camera2']:
+        src = os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4')
+        if os.path.exists(src):
+            dst = os.path.join(archive_dir, os.path.basename(src))
+            try:
+                shutil.copy2(src, dst)
+                copied.append(os.path.basename(src))
+            except Exception as e:
+                errors.append(f'{os.path.basename(src)}: {e}')
+
+    # Analysis JSON
+    analysis_src = os.path.join(rec_dir, f'analysis_{ts}.json')
+    if os.path.exists(analysis_src):
+        try:
+            shutil.copy2(analysis_src, os.path.join(archive_dir, os.path.basename(analysis_src)))
+            copied.append(os.path.basename(analysis_src))
+        except Exception as e:
+            errors.append(f'analysis_{ts}.json: {e}')
+
+    # Camera settings files (from project root — copy all that exist)
+    for settings_file in globmod.glob(os.path.join(_project_root, 'camera_settings_*.json')):
+        fname = os.path.basename(settings_file)
+        dst = os.path.join(archive_dir, fname)
+        if not os.path.exists(dst):
+            try:
+                shutil.copy2(settings_file, dst)
+                copied.append(fname)
+            except Exception as e:
+                errors.append(f'{fname}: {e}')
+
+    result = {'timestamp': ts, 'copied': copied}
+    if errors:
+        result['errors'] = errors
+    return result
+
+
+@app.route('/api/archive/config')
+def api_archive_config():
+    """Get archive configuration and disk status."""
+    config = _load_archive_config()
+    archive_path = config.get('archive_path', '')
+    result = {
+        'archive_path': archive_path,
+        'configured': bool(archive_path),
+        'available': False,
+        'disk': None,
+    }
+    if archive_path:
+        result['available'] = os.path.isdir(archive_path) or os.path.isdir(os.path.dirname(archive_path))
+        result['disk'] = _disk_usage(archive_path if os.path.isdir(archive_path)
+                                     else os.path.dirname(archive_path))
+    return jsonify(result)
+
+
+@app.route('/api/archive/config', methods=['POST'])
+def api_set_archive_config():
+    """Set the archive path. Body: { "archive_path": "/mnt/seagate8tb/golf" }"""
+    data = request.get_json(silent=True) or {}
+    archive_path = data.get('archive_path', '').strip()
+    if not archive_path:
+        return jsonify({'error': 'archive_path is required'}), 400
+
+    # Validate: parent directory must exist (we create the final dir on first archive)
+    parent = os.path.dirname(archive_path) if not os.path.isdir(archive_path) else archive_path
+    if not os.path.isdir(parent):
+        return jsonify({'error': f'Parent directory does not exist: {parent}'}), 400
+
+    config = _load_archive_config()
+    config['archive_path'] = archive_path
+    _save_archive_config(config)
+    return jsonify({'success': True, 'archive_path': archive_path})
+
+
+@app.route('/api/archive/status')
+def api_archive_status():
+    """Return which recordings have been archived and archive disk info."""
+    manifest = _load_archive_manifest()
+    archive_path = _get_archive_path()
+    disk = None
+    available = False
+    if archive_path:
+        available = os.path.isdir(archive_path) or os.path.isdir(os.path.dirname(archive_path))
+        disk = _disk_usage(archive_path if os.path.isdir(archive_path)
+                           else os.path.dirname(archive_path))
+    return jsonify({
+        'archived_timestamps': list(manifest.keys()),
+        'archived_count': len(manifest),
+        'archive_path': archive_path or '',
+        'available': available,
+        'disk': disk,
+    })
+
+
+@app.route('/api/archive/run', methods=['POST'])
+def api_archive_run():
+    """Archive all un-archived recordings. Body (optional): { "timestamps": [...] }"""
+    archive_path = _get_archive_path()
+    if not archive_path:
+        return jsonify({'error': 'Archive path not configured'}), 400
+    if not os.path.isdir(archive_path) and not os.path.isdir(os.path.dirname(archive_path)):
+        return jsonify({'error': f'Archive path not accessible: {archive_path}'}), 400
+
+    data = request.get_json(silent=True) or {}
+    requested_ts = data.get('timestamps')
+
+    manifest = _load_archive_manifest()
+    pairs = _list_recording_pairs()
+
+    if requested_ts:
+        pairs = [p for p in pairs if p['timestamp'] in requested_ts]
+    else:
+        pairs = [p for p in pairs if p['timestamp'] not in manifest]
+
+    results = []
+    for p in pairs:
+        ts = p['timestamp']
+        result = _archive_recording(ts, archive_path)
+        if result.get('copied'):
+            manifest[ts] = {
+                'archived_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'files': result['copied'],
+            }
+        results.append(result)
+
+    _save_archive_manifest(manifest)
+
+    total_copied = sum(len(r.get('copied', [])) for r in results)
+    return jsonify({
+        'results': results,
+        'archived_count': len([r for r in results if r.get('copied')]),
+        'total_files_copied': total_copied,
+    })
+
+
+# ======================================================================
 # Main entry point
 # ======================================================================
 
@@ -1561,6 +1903,8 @@ def main():
     parser.add_argument('--width', type=int, default=1280, help='Resolution width (default: 1280)')
     parser.add_argument('--height', type=int, default=720, help='Resolution height (default: 720)')
     parser.add_argument('--fps', type=int, default=120, help='Recording FPS target (default: 120)')
+    parser.add_argument('--model-complexity', type=int, default=2, choices=[0, 1, 2],
+                        help='MediaPipe model complexity for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=5000, help='Port (default: 5000)')
 
@@ -1574,12 +1918,15 @@ def main():
         height=args.height,
         fps=args.fps,
     )
+    camera_manager.analysis_model_complexity = args.model_complexity
     camera_manager.start()
 
+    model_names = {0: 'lite', 1: 'full', 2: 'heavy'}
     print()
     print("=" * 60)
     print(f"  Flask GUI running at http://localhost:{args.port}")
     print(f"  Recording target: {args.fps}fps @ {args.width}x{args.height}")
+    print(f"  Analysis model: {model_names.get(args.model_complexity, '?')} (complexity={args.model_complexity})")
     print(f"  Press Ctrl+C to stop")
     print("=" * 60)
     print()

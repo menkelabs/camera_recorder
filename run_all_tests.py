@@ -46,6 +46,8 @@ def run_unittest_tests(python_exe):
         'test_sway_calculator',
         'test_swing_comparison',
         'test_recording_management',
+        'test_swing_detector',
+        'test_archive',
     ]
     
     # Use subprocess to run in the venv Python context
