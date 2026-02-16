@@ -296,6 +296,133 @@
             color: var(--text-dim);
         }
         .rec-settings strong { color: var(--text); }
+        .rec-buttons {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Toggle switch */
+        .auto-detect-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toggle-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: var(--bg-header);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            transition: .3s;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 18px; width: 18px;
+            left: 2px; bottom: 2px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: .3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+            background: #fff;
+        }
+
+        /* Auto-detect panel */
+        .auto-detect-panel {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: var(--bg-header);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .auto-detect-state {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .auto-detect-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            background: #1c2333;
+            color: var(--text-dim);
+        }
+        .auto-detect-badge.motion { background: #3d2800; color: var(--yellow); }
+        .auto-detect-badge.recording { background: #4a1a1a; color: var(--red); }
+        .auto-detect-badge.cooldown { background: #1a3a1a; color: var(--green); }
+        .auto-detect-info {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+        .auto-detect-gauge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .gauge-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+        .gauge-bar-bg {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-body);
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 80px;
+        }
+        .gauge-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width .15s;
+        }
+        .gauge-value {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text);
+            min-width: 40px;
+            text-align: right;
+        }
+        /* Pulsing border on camera 1 preview when auto-detect is active */
+        .auto-detect-active .preview-card:first-child {
+            border: 2px solid var(--accent);
+            animation: detectPulse 2s ease-in-out infinite;
+        }
+        @keyframes detectPulse {
+            0%, 100% { border-color: var(--accent); }
+            50% { border-color: transparent; }
+        }
 
         /* ===== Analysis Tab ===== */
         .analysis-layout { max-width: 1400px; }
@@ -364,6 +491,48 @@
             font-size: 14px;
             color: var(--text-dim);
             margin-top: 8px;
+        }
+
+        /* Video playback panels */
+        .analysis-video-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        .analysis-video-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .analysis-video-card .video-card-header {
+            padding: 8px 14px;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+        .analysis-video-card img {
+            width: 100%;
+            display: block;
+            aspect-ratio: 16/9;
+            object-fit: contain;
+            background: #000;
+        }
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .playback-controls .btn { min-width: 40px; }
+        .speed-label {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-dim);
+            min-width: 36px;
+            text-align: center;
         }
 
         /* Frame navigation bar */
@@ -746,6 +915,113 @@
         .status-bar .msg { color: var(--cyan); }
         .status-bar .hint { opacity: .6; }
 
+        /* ===== Settings Tab ===== */
+        .settings-layout { max-width: 900px; }
+        .settings-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 20px;
+        }
+        .settings-section h3 {
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            color: var(--text);
+        }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .setting-row label {
+            min-width: 120px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+        .setting-row input[type="text"] {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+        .setting-row input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .disk-info {
+            display: flex;
+            gap: 24px;
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: var(--bg-header);
+            border-radius: var(--radius);
+            font-size: 13px;
+        }
+        .disk-info .disk-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .disk-info .disk-stat .disk-label {
+            font-size: 11px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .disk-info .disk-stat .disk-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--text);
+        }
+        .disk-bar-bg {
+            flex: 1;
+            height: 10px;
+            background: var(--bg-body);
+            border-radius: 5px;
+            overflow: hidden;
+            min-width: 120px;
+            align-self: center;
+        }
+        .disk-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 5px;
+            transition: width .3s;
+        }
+        .disk-bar-fill.warn { background: var(--yellow); }
+        .disk-bar-fill.critical { background: var(--red); }
+        .archive-status {
+            margin-top: 16px;
+            padding: 14px 16px;
+            background: var(--bg-header);
+            border-radius: var(--radius);
+        }
+        .archive-status .archive-stat {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .archive-status .archive-stat strong {
+            color: var(--text);
+        }
+        .archive-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .archive-badge.connected { background: #1a3a1a; color: var(--green); }
+        .archive-badge.disconnected { background: #4a1a1a; color: var(--red); }
+        .archive-badge.not-configured { background: #1c2333; color: var(--text-dim); }
+
         /* ===== Responsive ===== */
         @media (max-width: 1100px) {
             .metrics-dashboard {
@@ -806,6 +1082,9 @@
     </button>
     <button class="tab-btn" data-tab="compare" onclick="switchTab('compare')">
         Compare <span class="shortcut">[6]</span>
+    </button>
+    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
+        Settings <span class="shortcut">[7]</span>
     </button>
 </div>
 
@@ -877,10 +1156,30 @@
                         <div id="rec-detail" class="detail">Press Space or click Start</div>
                     </div>
                 </div>
-                <div>
+                <div class="rec-buttons">
                     <button id="rec-btn" class="btn btn-success btn-lg" onclick="toggleRecording()">
                         Start Recording
                     </button>
+                    <div class="auto-detect-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-detect-cb" onchange="toggleAutoDetect()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Auto Detect</span>
+                    </div>
+                </div>
+                <div id="auto-detect-panel" class="auto-detect-panel" style="display:none">
+                    <div class="auto-detect-state">
+                        <span class="auto-detect-badge" id="auto-detect-badge">Idle</span>
+                        <span class="auto-detect-info" id="auto-detect-info">Watching for swing...</span>
+                    </div>
+                    <div class="auto-detect-gauge">
+                        <span class="gauge-label">Shoulder Turn</span>
+                        <div class="gauge-bar-bg">
+                            <div class="gauge-bar-fill" id="auto-detect-gauge-fill"></div>
+                        </div>
+                        <span class="gauge-value" id="auto-detect-gauge-value">--</span>
+                    </div>
                 </div>
             </div>
             <div class="rec-settings">
@@ -960,8 +1259,26 @@
             </div>
             <!-- Results state -->
             <div id="analysis-results" style="display:none">
-                <!-- 1. Frame navigation + phase badge -->
+                <!-- 0. Video playback panels -->
+                <div class="analysis-video-panels" id="analysis-video-panels" style="display:none">
+                    <div class="analysis-video-card">
+                        <div class="video-card-header">Camera 1 &mdash; Face-On</div>
+                        <img id="analysis-frame-cam1" src="" alt="Camera 1 analysis frame">
+                    </div>
+                    <div class="analysis-video-card">
+                        <div class="video-card-header">Camera 2 &mdash; Down-the-Line</div>
+                        <img id="analysis-frame-cam2" src="" alt="Camera 2 analysis frame">
+                    </div>
+                </div>
+
+                <!-- 1. Frame navigation + phase badge + playback -->
                 <div class="frame-nav">
+                    <div class="playback-controls">
+                        <button class="btn" id="play-btn" onclick="togglePlayback()" title="Play/Pause (Space)">&#9654;</button>
+                        <button class="btn" onclick="cycleSpeed()" title="Change speed">
+                            <span class="speed-label" id="speed-label">1x</span>
+                        </button>
+                    </div>
                     <button class="btn" onclick="prevFrame()" title="Previous frame (A / Left Arrow)">&#9664; Prev</button>
                     <span class="frame-label" id="frame-label">Frame: 1 / 100</span>
                     <input type="range" id="frame-slider" min="0" max="99" value="0"
@@ -1050,12 +1367,74 @@
         </div>
     </div>
 
+    <!-- ===== Settings Tab ===== -->
+    <div id="tab-settings" class="tab-panel">
+        <div class="settings-layout">
+
+            <!-- Archive Configuration -->
+            <div class="settings-section">
+                <h3>Archive Configuration</h3>
+                <p style="font-size:13px;color:var(--text-dim);margin:0 0 16px 0">
+                    Configure an external disk path to archive recordings, analysis results, and camera settings.
+                </p>
+                <div class="setting-row">
+                    <label>Archive Path</label>
+                    <input type="text" id="archive-path-input"
+                           placeholder="/media/username/Seagate8TB/golf_recordings">
+                    <button class="btn btn-primary" onclick="saveArchivePath()">Save</button>
+                </div>
+                <div class="setting-row">
+                    <label>Status</label>
+                    <span id="archive-connection-badge" class="archive-badge not-configured">Not Configured</span>
+                </div>
+            </div>
+
+            <!-- Disk Info -->
+            <div class="settings-section" id="archive-disk-section" style="display:none">
+                <h3>Archive Disk</h3>
+                <div class="disk-info" id="archive-disk-info">
+                    <div class="disk-stat">
+                        <span class="disk-label">Total</span>
+                        <span class="disk-value" id="disk-total">--</span>
+                    </div>
+                    <div class="disk-stat">
+                        <span class="disk-label">Used</span>
+                        <span class="disk-value" id="disk-used">--</span>
+                    </div>
+                    <div class="disk-stat">
+                        <span class="disk-label">Free</span>
+                        <span class="disk-value" id="disk-free">--</span>
+                    </div>
+                    <div class="disk-bar-bg">
+                        <div class="disk-bar-fill" id="disk-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Archive Actions -->
+            <div class="settings-section">
+                <h3>Archive Actions</h3>
+                <div class="archive-status" id="archive-status-panel">
+                    <div class="archive-stat"><strong id="archive-count">0</strong> recordings archived</div>
+                    <div class="archive-stat" id="archive-unarchived-text">--</div>
+                </div>
+                <div class="btn-row" style="margin-top:16px">
+                    <button class="btn btn-primary" id="archive-all-btn" onclick="archiveAll()">
+                        Archive All New Recordings
+                    </button>
+                    <button class="btn" onclick="refreshArchiveStatus()">Refresh</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
 </div>
 
 <!-- Status Bar -->
 <div class="status-bar">
     <span id="status-msg" class="msg"></span>
-    <span class="hint">Keys: 1-6 tabs &middot; Space record &middot; A/D frame nav</span>
+    <span class="hint">Keys: 1-7 tabs &middot; Space record &middot; A/D frame nav</span>
 </div>
 
 <script>
@@ -1085,6 +1464,7 @@ function switchTab(tabName) {
     if (tabName === 'recordings') refreshRecordings();
     if (tabName === 'analysis') refreshAnalysis();
     if (tabName === 'compare') refreshCompareList();
+    if (tabName === 'settings') refreshArchiveStatus();
 }
 
 // ===================================================================
@@ -1278,6 +1658,69 @@ function updateRecordingUI(status) {
     const id2 = status.camera2_id !== undefined ? status.camera2_id : '?';
     const statusEl = document.getElementById('camera-status-text');
     if (statusEl) statusEl.textContent = `Cam 1 (${id1}): ${c1} · Cam 2 (${id2}): ${c2}`;
+}
+
+// ===================================================================
+// Auto-detect
+// ===================================================================
+
+function toggleAutoDetect() {
+    fetch('/api/auto-detect/toggle', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus('Error: ' + data.error); return; }
+            const cb = document.getElementById('auto-detect-cb');
+            cb.checked = data.enabled;
+            updateAutoDetectUI(data.enabled, data.status || {});
+            showStatus(data.enabled ? 'Auto-detect enabled' : 'Auto-detect disabled');
+        });
+}
+
+function updateAutoDetectUI(enabled, status) {
+    const panel = document.getElementById('auto-detect-panel');
+    const recBtn = document.getElementById('rec-btn');
+    const dualPreview = document.querySelector('.dual-preview');
+
+    if (enabled) {
+        panel.style.display = 'flex';
+        recBtn.style.display = 'none';
+        if (dualPreview) dualPreview.classList.add('auto-detect-active');
+    } else {
+        panel.style.display = 'none';
+        recBtn.style.display = '';
+        if (dualPreview) dualPreview.classList.remove('auto-detect-active');
+    }
+
+    if (status && enabled) {
+        const badge = document.getElementById('auto-detect-badge');
+        const info = document.getElementById('auto-detect-info');
+        const gaugeFill = document.getElementById('auto-detect-gauge-fill');
+        const gaugeVal = document.getElementById('auto-detect-gauge-value');
+
+        const state = status.state || 'idle';
+        badge.textContent = state.replace(/_/g, ' ');
+        badge.className = 'auto-detect-badge';
+        if (state === 'motion_detected') badge.classList.add('motion');
+        else if (state === 'recording') badge.classList.add('recording');
+        else if (state === 'cooldown') badge.classList.add('cooldown');
+
+        const delta = status.delta;
+        const threshold = status.motion_threshold || 15;
+        if (delta != null) {
+            const pct = Math.min(100, (delta / (threshold * 2)) * 100);
+            gaugeFill.style.width = pct + '%';
+            gaugeFill.style.background = delta > threshold ? 'var(--red)' : 'var(--accent)';
+            gaugeVal.textContent = delta.toFixed(1) + '\u00b0';
+        } else {
+            gaugeFill.style.width = '0%';
+            gaugeVal.textContent = '--';
+        }
+
+        if (state === 'idle') info.textContent = 'Watching for swing...';
+        else if (state === 'motion_detected') info.textContent = 'Motion detected \u2014 confirming...';
+        else if (state === 'recording') info.textContent = 'Swing in progress';
+        else if (state === 'cooldown') info.textContent = 'Swing ending \u2014 cooldown...';
+    }
 }
 
 // ===================================================================
@@ -1523,6 +1966,20 @@ function renderAnalysis(data) {
     if (!slider.matches(':active')) slider.value = data.frame_index;
     document.getElementById('frame-label').textContent =
         `Frame: ${data.frame_index + 1} / ${data.max_frames}`;
+
+    // Video playback panels
+    const videoPanels = document.getElementById('analysis-video-panels');
+    if (data.has_frames) {
+        videoPanels.style.display = 'grid';
+        const cam1Img = document.getElementById('analysis-frame-cam1');
+        const cam2Img = document.getElementById('analysis-frame-cam2');
+        const newSrc1 = `/api/analysis/frame/1?index=${data.frame_index}`;
+        const newSrc2 = `/api/analysis/frame/2?index=${data.frame_index}`;
+        if (cam1Img.getAttribute('src') !== newSrc1) cam1Img.src = newSrc1;
+        if (cam2Img.getAttribute('src') !== newSrc2) cam2Img.src = newSrc2;
+    } else {
+        videoPanels.style.display = 'none';
+    }
 
     // Phase badge
     const phase = _currentPhase(data);
@@ -1826,6 +2283,52 @@ function prevFrame() {
 function nextFrame() {
     if (!analysisData || analysisData.max_frames <= 0) return;
     seekFrame(Math.min(analysisData.max_frames - 1, analysisData.frame_index + 1));
+}
+
+// ===================================================================
+// Video Playback Controls
+// ===================================================================
+let playbackTimer = null;
+const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2, 4];
+let playbackSpeedIdx = 2; // default 1x
+
+function togglePlayback() {
+    if (playbackTimer) {
+        stopPlayback();
+    } else {
+        startPlayback();
+    }
+}
+
+function startPlayback() {
+    if (!analysisData || analysisData.max_frames <= 1) return;
+    const speed = PLAYBACK_SPEEDS[playbackSpeedIdx];
+    const interval = Math.round(1000 / (15 * speed)); // base ~15fps
+    playbackTimer = setInterval(() => {
+        if (!analysisData) { stopPlayback(); return; }
+        const next = analysisData.frame_index + 1;
+        if (next >= analysisData.max_frames) {
+            stopPlayback();
+            return;
+        }
+        seekFrame(next);
+    }, interval);
+    document.getElementById('play-btn').innerHTML = '&#9646;&#9646;';
+}
+
+function stopPlayback() {
+    if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
+    document.getElementById('play-btn').innerHTML = '&#9654;';
+}
+
+function cycleSpeed() {
+    playbackSpeedIdx = (playbackSpeedIdx + 1) % PLAYBACK_SPEEDS.length;
+    const speed = PLAYBACK_SPEEDS[playbackSpeedIdx];
+    document.getElementById('speed-label').textContent = speed < 1 ? speed + 'x' : speed + 'x';
+    if (playbackTimer) {
+        stopPlayback();
+        startPlayback();
+    }
 }
 
 // ===================================================================
@@ -2168,6 +2671,10 @@ function pollStatus() {
         .then(data => {
             if (data.error) return;
             updateRecordingUI(data);
+            // Sync auto-detect checkbox and UI
+            const adCb = document.getElementById('auto-detect-cb');
+            if (adCb && adCb.checked !== data.auto_detect_enabled) adCb.checked = data.auto_detect_enabled;
+            updateAutoDetectUI(data.auto_detect_enabled, data.auto_detect_status || {});
             if (data.status_message) showStatus(data.status_message);
             // Auto-refresh analysis when on that tab
             if (currentTab === 'analysis' && (data.is_analyzing || analysisData === null)) {
@@ -2175,6 +2682,99 @@ function pollStatus() {
             }
         })
         .catch(() => {});
+}
+
+// ===================================================================
+// Archive / Settings
+// ===================================================================
+
+function refreshArchiveStatus() {
+    fetch('/api/archive/config')
+        .then(r => r.json())
+        .then(data => {
+            const pathInput = document.getElementById('archive-path-input');
+            if (data.archive_path && pathInput.value === '') pathInput.value = data.archive_path;
+
+            const badge = document.getElementById('archive-connection-badge');
+            const diskSection = document.getElementById('archive-disk-section');
+
+            if (!data.configured) {
+                badge.textContent = 'Not Configured';
+                badge.className = 'archive-badge not-configured';
+                diskSection.style.display = 'none';
+            } else if (data.available) {
+                badge.textContent = 'Connected';
+                badge.className = 'archive-badge connected';
+                diskSection.style.display = 'block';
+                if (data.disk) {
+                    document.getElementById('disk-total').textContent = formatBytes(data.disk.total);
+                    document.getElementById('disk-used').textContent = formatBytes(data.disk.used);
+                    document.getElementById('disk-free').textContent = formatBytes(data.disk.free);
+                    const pct = (data.disk.used / data.disk.total) * 100;
+                    const fill = document.getElementById('disk-bar-fill');
+                    fill.style.width = pct + '%';
+                    fill.className = 'disk-bar-fill' +
+                        (pct > 90 ? ' critical' : pct > 75 ? ' warn' : '');
+                }
+            } else {
+                badge.textContent = 'Disconnected';
+                badge.className = 'archive-badge disconnected';
+                diskSection.style.display = 'none';
+            }
+        })
+        .catch(() => {});
+
+    fetch('/api/archive/status')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('archive-count').textContent = data.archived_count;
+            // Calculate unarchived
+            fetch('/api/recordings')
+                .then(r => r.json())
+                .then(rdata => {
+                    const total = rdata.count || 0;
+                    const archived = data.archived_count || 0;
+                    const unarchived = Math.max(0, total - archived);
+                    document.getElementById('archive-unarchived-text').textContent =
+                        `${unarchived} recording${unarchived !== 1 ? 's' : ''} not yet archived`;
+                    const btn = document.getElementById('archive-all-btn');
+                    btn.textContent = unarchived > 0
+                        ? `Archive ${unarchived} New Recording${unarchived !== 1 ? 's' : ''}`
+                        : 'All Recordings Archived';
+                    btn.disabled = unarchived === 0;
+                });
+        })
+        .catch(() => {});
+}
+
+function saveArchivePath() {
+    const path = document.getElementById('archive-path-input').value.trim();
+    if (!path) { showStatus('Please enter an archive path'); return; }
+    fetch('/api/archive/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({archive_path: path})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus('Error: ' + data.error); return; }
+        showStatus('Archive path saved');
+        refreshArchiveStatus();
+    });
+}
+
+function archiveAll() {
+    const btn = document.getElementById('archive-all-btn');
+    btn.disabled = true;
+    btn.textContent = 'Archiving...';
+    fetch('/api/archive/run', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus('Error: ' + data.error); btn.disabled = false; return; }
+            showStatus(`Archived ${data.archived_count} recording(s), ${data.total_files_copied} files copied`);
+            refreshArchiveStatus();
+        })
+        .catch(() => { btn.disabled = false; });
 }
 
 // ===================================================================
@@ -2191,8 +2791,10 @@ document.addEventListener('keydown', (e) => {
         case '4': switchTab('recordings'); break;
         case '5': switchTab('analysis'); break;
         case '6': switchTab('compare'); break;
+        case '7': switchTab('settings'); break;
         case ' ':
             if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
+            else if (currentTab === 'analysis') { e.preventDefault(); togglePlayback(); }
             break;
         case 'a': case 'A': case 'ArrowLeft':
             if (currentTab === 'analysis') { e.preventDefault(); prevFrame(); }
