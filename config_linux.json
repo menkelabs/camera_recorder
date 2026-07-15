@@ -1,0 +1,22 @@
+{
+  "platform": "linux",
+  "camera1_id": 0,
+  "camera2_id": 1,
+  "recording_settings": {
+    "general": {
+      "width": 1280,
+      "height": 720,
+      "fps": 60,
+      "notes": "Default Linux recording settings. Re-run scripts/detect_linux_cameras.py after plugging cameras into different ports."
+    },
+    "golf_swing": {
+      "width": 1280,
+      "height": 720,
+      "fps": 120,
+      "notes": "Target 120fps for golf swing capture when the cameras and USB bus support it."
+    }
+  },
+  "detected_cameras": [],
+  "detection_date": null,
+  "notes": "Template Linux config. Run: python scripts/detect_linux_cameras.py"
+}

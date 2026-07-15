@@ -7,33 +7,33 @@ import cv2
 import sys
 import os
 
-# Fix Windows console encoding for Unicode characters
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_utils import create_camera_capture, fix_console_encoding, get_camera_ids, print_platform_banner
+
+fix_console_encoding()
 
 
 def test_camera(camera_id: int):
     """Test if a camera can be opened and read from"""
     print(f"\nTesting Camera {camera_id}...")
-    cap = cv2.VideoCapture(camera_id)
-    
-    if not cap.isOpened():
+    try:
+        cap = create_camera_capture(camera_id)
+    except ValueError:
         print(f"  [X] Camera {camera_id} failed to open")
         return False
-    
+
     print(f"  [OK] Camera {camera_id} opened successfully")
-    
+
     # Try to read a frame
     ret, frame = cap.read()
     if not ret:
         print(f"  [X] Camera {camera_id} opened but cannot read frames")
         cap.release()
         return False
-    
+
     print(f"  [OK] Camera {camera_id} can read frames")
     print(f"  Frame size: {frame.shape[1]}x{frame.shape[0]}")
-    
+
     # Get camera properties
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -79,13 +79,20 @@ def main():
     if len(available_cameras) >= 2:
         print("\n" + "=" * 60)
         print("Testing simultaneous access to 2 cameras...")
-        cap1 = cv2.VideoCapture(available_cameras[0])
-        cap2 = cv2.VideoCapture(available_cameras[1])
-        
+        try:
+            cap1 = create_camera_capture(available_cameras[0])
+            if sys.platform != 'win32':
+                import time
+                time.sleep(0.5)
+            cap2 = create_camera_capture(available_cameras[1])
+        except ValueError as e:
+            print(f"  [X] Failed to open both cameras: {e}")
+            return
+
         if cap1.isOpened() and cap2.isOpened():
             ret1, frame1 = cap1.read()
             ret2, frame2 = cap2.read()
-            
+
             if ret1 and ret2:
                 print("[OK] Both cameras can be accessed simultaneously!")
             else:

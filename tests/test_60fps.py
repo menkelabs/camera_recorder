@@ -4,26 +4,25 @@ Test 60fps recording at 720p
 
 import cv2
 import sys
+import os
 import time
 
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+# Shared cross-platform helpers (UTF-8 console + camera open)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_utils import create_camera_capture, fix_console_encoding, get_camera_ids, print_platform_banner
+
+fix_console_encoding()
 
 def test_camera_fps(camera_id, target_fps):
     """Test if camera can achieve target FPS"""
     print(f"Testing Camera {camera_id} at {target_fps} FPS...")
-    
-    # Use platform-appropriate backend
-    if sys.platform == 'win32':
-        cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
-    else:
-        cap = cv2.VideoCapture(camera_id)
-    if not cap.isOpened():
+
+    try:
+        cap = create_camera_capture(camera_id)
+    except ValueError:
         print(f"  [X] Cannot open camera {camera_id}")
         return False
-    
+
     # Set resolution and FPS
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
