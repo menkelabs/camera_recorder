@@ -5,26 +5,28 @@ Golf swings are very fast - need high frame rates!
 
 import cv2
 import sys
+import os
 import time
 
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_utils import create_camera_capture, fix_console_encoding, get_camera_ids, print_platform_banner
+
+fix_console_encoding()
 
 def test_high_fps(camera_id, width, height, target_fps):
     """Test if camera can achieve high frame rates"""
     try:
-        cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
-        if not cap.isOpened():
-            return None
-        
+        cap = create_camera_capture(camera_id)
+    except ValueError:
+        return None
+
+    try:
         # Set resolution and FPS
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         cap.set(cv2.CAP_PROP_FPS, target_fps)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        
+
         # Get actual values
         actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -71,9 +73,10 @@ def main():
     print("  - Swing duration: ~0.5-1.5 seconds")
     print("  - Impact happens in milliseconds")
     print()
-    print("Testing cameras 0 and 2 for high-speed capture...")
+    cam1_id, cam2_id = get_camera_ids()
+    print(f"Testing cameras {cam1_id} and {cam2_id} for high-speed capture...")
     print()
-    
+
     # Test configurations for golf swings
     test_configs = [
         # (width, height, fps, description)
@@ -84,11 +87,7 @@ def main():
         (1920, 1080, 30, "1080p @ 30fps - Too slow for golf swings"),
     ]
     
-    # Import test utils for camera IDs
-    from test_utils import get_camera_ids
-    
-    # Use camera IDs from config file (Windows) or defaults
-    cam1_id, cam2_id = get_camera_ids()
+    # Camera IDs already resolved above via get_camera_ids()
     cameras = [cam1_id, cam2_id]
     results = {}
     
