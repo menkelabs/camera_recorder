@@ -30,6 +30,7 @@ from dual_camera_recorder import DualCameraRecorder
 from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
 from swing_detector import SwingDetector
+from camera_utils import get_camera_ids, load_camera_config, create_camera_capture
 from swing_score import score_analysis
 from recording_meta import (
     attach_meta_to_pairs,
@@ -57,19 +58,20 @@ from flask import Flask, render_template, jsonify, request, Response, send_file
 
 
 def load_windows_config(config_path: str = None) -> dict:
-    """Load Windows-specific camera configuration from JSON file"""
-    if config_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(project_root, 'config_windows.json')
+    """Load Windows camera config (back-compat wrapper around load_camera_config)."""
+    return load_camera_config(config_path=config_path, platform='windows')
 
-    if not os.path.exists(config_path):
-        return None
 
+def load_platform_config(config_path: str = None) -> dict:
+    """Load config_windows.json or config_linux.json for the host OS."""
+    return load_camera_config(config_path=config_path)
+
+
+def _open_cap(camera_id):
+    """Open a live camera with the platform backend; return None on failure."""
     try:
-        with open(config_path, 'r') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"Warning: Could not load config from {config_path}: {e}")
+        return create_camera_capture(camera_id)
+    except ValueError:
         return None
 
 
@@ -111,19 +113,15 @@ class CameraManager:
 
     def __init__(self, camera1_id: int = None, camera2_id: int = None,
                  width: int = 1280, height: int = 720, fps: int = 120):
-        # Determine camera IDs by platform
-        if sys.platform == 'win32':
-            config = load_windows_config()
-            if config:
-                if camera1_id is None:
-                    camera1_id = config.get('camera1_id', 0)
-                if camera2_id is None:
-                    camera2_id = config.get('camera2_id', 2)
-            self.camera1_id = camera1_id if camera1_id is not None else 0
-            self.camera2_id = camera2_id if camera2_id is not None else 2
-        else:
-            self.camera1_id = camera1_id if camera1_id is not None else 0
-            self.camera2_id = camera2_id if camera2_id is not None else 1
+        # Resolve camera IDs from platform config (Windows or Linux) with defaults
+        if camera1_id is None or camera2_id is None:
+            defaults = get_camera_ids()
+            if camera1_id is None:
+                camera1_id = defaults[0]
+            if camera2_id is None:
+                camera2_id = defaults[1]
+        self.camera1_id = camera1_id
+        self.camera2_id = camera2_id
 
         self.width = width
         self.height = height
@@ -184,14 +182,16 @@ class CameraManager:
         print(f"Starting cameras: cam1={self.camera1_id}, cam2={self.camera2_id}")
         print(f"Resolution: {self.width}x{self.height} @ {self.fps}fps (120fps recording target)")
 
-        if sys.platform == 'win32':
-            self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
-            self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
-        else:
-            # Ubuntu/Linux: two identical USB cams need longer delay so driver can init first
-            self.cap1 = cv2.VideoCapture(self.camera1_id)
+        from camera_utils import create_camera_capture
+
+        self.cap1 = _open_cap(self.camera1_id)
+
+        # Ubuntu/Linux: two identical USB cams need a short delay so the driver
+        # can finish initializing the first device before opening the second.
+        if sys.platform != 'win32':
             time.sleep(1.5)
-            self.cap2 = cv2.VideoCapture(self.camera2_id)
+
+        self.cap2 = _open_cap(self.camera2_id)
 
         cam1_ok = self.cap1.isOpened() if self.cap1 else False
         cam2_ok = self.cap2.isOpened() if self.cap2 else False
@@ -217,15 +217,7 @@ class CameraManager:
             # Try other indices for camera 2 (skip camera1_id). For two identical cams, try
             # requested+1 and requested-1 first (second device often at next node).
             def try_open(idx):
-                cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(idx)
-                if cap.isOpened():
-                    return cap
-                if cap:
-                    try:
-                        cap.release()
-                    except Exception:
-                        pass
-                return None
+                return _open_cap(idx)
             order = [requested_cam2, requested_cam2 + 1, requested_cam2 - 1]
             order += [i for i in range(8) if i not in order and i != self.camera1_id]
             for idx in order:
@@ -712,13 +704,10 @@ class CameraManager:
         if not self.cameras_available:
             return
         try:
-            if sys.platform == 'win32':
-                self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
-                self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
-            else:
-                self.cap1 = cv2.VideoCapture(self.camera1_id)
+            self.cap1 = _open_cap(self.camera1_id)
+            if sys.platform != 'win32':
                 time.sleep(1.5)
-                self.cap2 = cv2.VideoCapture(self.camera2_id)
+            self.cap2 = _open_cap(self.camera2_id)
 
             for cap in [self.cap1, self.cap2]:
                 if cap and cap.isOpened():
@@ -1158,13 +1147,10 @@ class CameraManager:
         self.latest_frame1 = None
         self.latest_frame2 = None
 
-        if sys.platform == 'win32':
-            self.cap1 = cv2.VideoCapture(self.camera1_id, cv2.CAP_DSHOW)
-            self.cap2 = cv2.VideoCapture(self.camera2_id, cv2.CAP_DSHOW)
-        else:
-            self.cap1 = cv2.VideoCapture(self.camera1_id)
+        self.cap1 = _open_cap(self.camera1_id)
+        if sys.platform != 'win32':
             time.sleep(1.5)
-            self.cap2 = cv2.VideoCapture(self.camera2_id)
+        self.cap2 = _open_cap(self.camera2_id)
 
         cam1_ok = self.cap1.isOpened() if self.cap1 else False
         cam2_ok = self.cap2.isOpened() if self.cap2 else False
@@ -1190,17 +1176,12 @@ class CameraManager:
             for idx in order:
                 if idx < 0 or idx == self.camera1_id:
                     continue
-                cap2_try = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if sys.platform == 'win32' else cv2.VideoCapture(idx)
-                if cap2_try.isOpened():
+                cap2_try = _open_cap(idx)
+                if cap2_try is not None:
                     self.cap2 = cap2_try
                     self.camera2_id = idx
                     cam2_ok = True
                     break
-                if cap2_try:
-                    try:
-                        cap2_try.release()
-                    except Exception:
-                        pass
             if not cam2_ok and sys.platform != 'win32':
                 for dev in sorted([f for f in os.listdir('/dev') if f.startswith('video')], key=lambda x: int(x.replace('video', '')) if x.replace('video', '').isdigit() else 999):
                     path = os.path.join('/dev', dev)
@@ -1210,17 +1191,12 @@ class CameraManager:
                         continue
                     if idx == self.camera1_id:
                         continue
-                    cap2_try = cv2.VideoCapture(path)
-                    if cap2_try.isOpened():
+                    cap2_try = _open_cap(path)
+                    if cap2_try is not None:
                         self.cap2 = cap2_try
                         self.camera2_id = idx
                         cam2_ok = True
                         break
-                    if cap2_try:
-                        try:
-                            cap2_try.release()
-                        except Exception:
-                            pass
             self.cameras_available = cam1_ok and cam2_ok
 
         for cap in [self.cap1, self.cap2]:
@@ -1414,22 +1390,18 @@ def api_cameras_detect():
                 pass
     mgr.cap1 = mgr.cap2 = None
     mgr.latest_frame1 = mgr.latest_frame2 = None
-    # Try each index
-    backend = cv2.CAP_DSHOW if sys.platform == 'win32' else cv2.CAP_ANY
+    # Try each index with the platform-appropriate backend
     available = []
     for i in range(8):
-        cap = cv2.VideoCapture(i, backend) if sys.platform == 'win32' else cv2.VideoCapture(i)
-        if cap.isOpened():
+        cap = _open_cap(i)
+        if cap is not None:
             available.append(i)
             cap.release()
     # Re-open with current IDs (Linux: delay between opens + warmup so both streams work)
-    if sys.platform == 'win32':
-        mgr.cap1 = cv2.VideoCapture(mgr.camera1_id, cv2.CAP_DSHOW)
-        mgr.cap2 = cv2.VideoCapture(mgr.camera2_id, cv2.CAP_DSHOW)
-    else:
-        mgr.cap1 = cv2.VideoCapture(mgr.camera1_id)
+    mgr.cap1 = _open_cap(mgr.camera1_id)
+    if sys.platform != 'win32':
         time.sleep(1.5)
-        mgr.cap2 = cv2.VideoCapture(mgr.camera2_id)
+    mgr.cap2 = _open_cap(mgr.camera2_id)
     cam1_ok = mgr.cap1.isOpened() if mgr.cap1 else False
     cam2_ok = mgr.cap2.isOpened() if mgr.cap2 else False
     if not cam1_ok and mgr.cap1:

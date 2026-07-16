@@ -5,39 +5,29 @@ Verify that both USB cameras are recording simultaneously
 import cv2
 import sys
 import time
-import sys
 import os
-# Add src directory to path
+
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(project_root, 'src'))
+sys.path.insert(0, os.path.join(project_root, 'tests'))
 
 from dual_camera_recorder import DualCameraRecorder
+from test_utils import fix_console_encoding, get_camera_ids, print_platform_banner
 
-# Add tests to path for test_utils
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(project_root, 'tests'))
-from test_utils import get_camera_ids
-
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+fix_console_encoding()
 
 def main():
-    print("=" * 70)
-    print("Dual USB Camera Simultaneous Recording Verification")
-    print("=" * 70)
+    print_platform_banner("Dual USB Camera Simultaneous Recording Verification")
     print()
-    
-    # Use camera IDs from config file (Windows) or defaults
+
+    # Use camera IDs from platform config (Windows or Linux)
     cam1_id, cam2_id = get_camera_ids()
-    
+
     print("Configuration:")
-    print(f"  Camera 1: Index {cam1_id} (HD USB Camera)")
-    print(f"  Camera 2: Index {cam2_id} (HD USB Camera)")
+    print(f"  Camera 1: Index {cam1_id}")
+    print(f"  Camera 2: Index {cam2_id}")
     print("  Resolution: 1280x720 @ 120fps")
-    print()
-    
+    print() 
     recorder = DualCameraRecorder(camera1_id=cam1_id, camera2_id=cam2_id)
     
     try:

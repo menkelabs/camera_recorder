@@ -2,229 +2,139 @@
 
 ## Overview
 
-The camera_recorder project supports both **Windows** and **Linux** with platform-specific camera configuration. Camera indexing and initialization differ significantly between platforms due to differences in how operating systems enumerate USB devices.
+The camera_recorder project supports **Windows** and **Linux** from one codebase.
+Camera indexes and OpenCV backends differ by OS; a shared API in
+`src/camera_utils.py` hides that so apps and tests call the same functions
+everywhere.
 
-## Platform Differences
+## Quick start (either OS)
 
-### Camera Backend
+```bash
+# 1. Detect cameras and write the platform config file
+# Windows:
+python scripts/detect_windows_cameras.py
+# Linux:
+python scripts/detect_linux_cameras.py
 
-| Platform | Backend | API |
-|----------|---------|-----|
-| **Windows** | DirectShow | `cv2.CAP_DSHOW` |
-| **Linux** | Video4Linux2 | `cv2.CAP_V4L2` (default) |
+# 2. Run the GUI (reads config_windows.json or config_linux.json automatically)
+python scripts/flask_gui.py
 
-### Why Camera Indexes Differ
+# 3. Run unit tests (no cameras needed — same command on both OSes)
+python run_all_tests.py --unit
 
-#### Windows
-- Camera indexes are assigned by DirectShow based on device enumeration order
-- Built-in webcams often take index 0 or 1
-- USB cameras can have non-sequential indexes (e.g., 0, 2, 4)
-- Indexes may change when cameras are unplugged/replugged or USB ports change
-- **Solution**: Use `config_windows.json` to store detected camera configuration
-
-#### Linux
-- Cameras are assigned `/dev/video*` devices
-- Each physical camera may create multiple device nodes (video capture + metadata)
-- USB cameras are typically sequential (0, 1, 2...) but can vary by USB port order
-- Device nodes can change on reboot or when cameras are reconnected
-- **Solution**: Need `config_linux.json` (TODO - see roadmap below)
-
-## Current Implementation
-
-### Windows (Implemented ✓)
-
-1. **Auto-detection script**: `scripts/detect_windows_cameras.py`
-   - Enumerates all cameras using DirectShow
-   - Tests each camera for HD capability and frame rate
-   - Saves configuration to `config_windows.json`
-
-2. **Configuration file**: `config_windows.json`
-   ```json
-   {
-     "platform": "windows",
-     "camera1_id": 0,
-     "camera2_id": 2,
-     "detected_cameras": [
-       {"id": 0, "is_hd_usb": true, "measured_fps": 90.5},
-       {"id": 1, "is_hd_usb": false, "measured_fps": 13.9},
-       {"id": 2, "is_hd_usb": true, "measured_fps": 83.9}
-     ]
-   }
-   ```
-
-3. **GUI startup**: Reads `config_windows.json` for camera IDs
-
-### Linux (Partial - Needs Enhancement)
-
-Currently uses hardcoded defaults:
-- Camera 1: Index 0
-- Camera 2: Index 1
-
-**Limitations**:
-- No auto-detection script for Linux
-- No configuration file persistence
-- Assumes sequential camera indexes
-
-## Roadmap: Linux Support Enhancement
-
-### Phase 1: Linux Camera Detection Script
-
-Create `scripts/detect_linux_cameras.py`:
-
-```python
-# Planned functionality:
-# 1. List all /dev/video* devices
-# 2. Filter to actual capture devices (not metadata nodes)
-# 3. Test each camera for resolution/fps capability
-# 4. Identify USB cameras by vendor/product ID
-# 5. Save to config_linux.json
+# 4. Run hardware/camera scripts when cameras are plugged in
+python run_all_tests.py --hardware
 ```
 
-**Key Linux APIs to use**:
-- `v4l2-ctl` for device enumeration
-- `/sys/class/video4linux/` for device info
-- `udevadm` for USB device identification
+## Platform differences
 
-### Phase 2: Configuration File for Linux
+| Concern | Windows | Linux |
+|---------|---------|-------|
+| Config file | `config_windows.json` | `config_linux.json` |
+| OpenCV backend | `cv2.CAP_DSHOW` | default (V4L2) |
+| Typical dual-cam IDs | `0, 2` (skip built-in) | `0, 1` |
+| Detection script | `scripts/detect_windows_cameras.py` | `scripts/detect_linux_cameras.py` |
+| Console Unicode | `fix_console_encoding()` | no-op |
 
-Create `config_linux.json`:
+## Shared API (`src/camera_utils.py`)
+
+Use these helpers instead of branching on `sys.platform` in new code:
+
+```python
+from camera_utils import (
+    get_camera_ids,          # (cam1, cam2) from config or defaults
+    load_camera_config,      # dict from config_*.json (any platform)
+    create_camera_capture,   # VideoCapture with correct backend
+    get_opencv_backend,      # CAP_DSHOW or None
+    fix_console_encoding,    # UTF-8 stdout on Windows
+    describe_platform_setup, # banner-friendly snapshot
+)
+```
+
+### Config shape (same on both platforms)
+
 ```json
 {
   "platform": "linux",
   "camera1_id": 0,
-  "camera2_id": 2,
-  "camera1_device": "/dev/video0",
-  "camera2_device": "/dev/video2",
-  "detected_cameras": [
-    {
-      "id": 0,
-      "device": "/dev/video0",
-      "usb_path": "1-2.1",
-      "vendor": "HD USB Camera",
-      "supports_720p_60fps": true
-    }
-  ]
+  "camera2_id": 1,
+  "recording_settings": { "general": {...}, "golf_swing": {...} },
+  "detected_cameras": [ ... ],
+  "detection_date": "2026-07-15",
+  "notes": "..."
 }
 ```
 
-### Phase 3: USB Port-Based Identification
+## Testing from one codebase
 
-For consistent camera assignment regardless of boot order:
+### Unit tests (CI / cloud / laptop without cameras)
+
+```bash
+python run_all_tests.py --unit
+# or a single module:
+python -m unittest tests.test_platform_config -v
+```
+
+`tests/test_platform_config.py` mocks `sys.platform` so Windows and Linux
+config paths, defaults, and backends are verified on whichever host you use.
+
+### Hardware tests
+
+```bash
+python run_all_tests.py --hardware
+```
+
+Standalone scripts under `tests/` now:
+
+1. Call `fix_console_encoding()` (safe on Linux).
+2. Open cameras with `create_camera_capture()` (no hardcoded `CAP_DSHOW`).
+3. Resolve indexes with `get_camera_ids()` (reads the local config file).
+
+### Test helpers
 
 ```python
-# Use USB port path for stable identification
-# e.g., "usb-0000:00:14.0-2" always refers to same physical port
-
-def get_camera_by_usb_port(port_path):
-    """Find camera device by USB port path (stable across reboots)"""
-    # Implementation using udev rules or sysfs
-    pass
+# tests/test_utils.py — re-exports camera_utils for existing imports
+from test_utils import get_camera_ids, create_camera_capture, print_platform_banner
 ```
 
-### Phase 4: Unified Configuration Loader
+`from test_utils import get_camera_ids` keeps working; it no longer
+Windows-only-loads config.
 
-```python
-def load_camera_config():
-    """Load platform-appropriate configuration"""
-    if sys.platform == 'win32':
-        config_file = 'config_windows.json'
-    else:
-        config_file = 'config_linux.json'
-    
-    if os.path.exists(config_file):
-        return json.load(open(config_file))
-    else:
-        # Run auto-detection
-        return auto_detect_cameras()
-```
+## Flask GUI / recorder
 
-## Usage
+`CameraManager` and `DualCameraRecorder` both call `get_camera_ids()` and
+`create_camera_capture()`, so the same binary behaves correctly after you
+generate the platform config once.
 
-### Windows
+Override anytime:
 
 ```bash
-# First time: Detect and configure cameras
-python scripts/detect_windows_cameras.py
-
-# Run GUI (uses config_windows.json automatically)
-python scripts/camera_setup_recorder_gui.py
-```
-
-### Linux (Current)
-
-```bash
-# List available cameras
-ls /dev/video*
-v4l2-ctl --list-devices
-
-# Run GUI with explicit camera IDs
-python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 2
-```
-
-### Linux (Planned)
-
-```bash
-# First time: Detect and configure cameras
-python scripts/detect_linux_cameras.py
-
-# Run GUI (will use config_linux.json automatically)
-python scripts/camera_setup_recorder_gui.py
-```
-
-## Manual Camera Override
-
-On any platform, you can override auto-detected cameras:
-
-```bash
-python scripts/camera_setup_recorder_gui.py --camera1 0 --camera2 1
+python scripts/flask_gui.py --camera1 0 --camera2 2
 ```
 
 ## Troubleshooting
 
-### Windows: Cameras Not Detected
+### Windows: cameras not detected
 
-1. Run detection script: `python scripts/detect_windows_cameras.py`
-2. Check Device Manager for camera availability
-3. Ensure cameras aren't in use by other apps (OBS, Zoom, etc.)
-4. Try different USB ports
+1. `python scripts/detect_windows_cameras.py`
+2. Device Manager → cameras present
+3. Close apps that lock the camera (Zoom, OBS, Camera app)
 
-### Linux: Cameras Not Found
+### Linux: cameras not found
 
-1. List devices: `ls -la /dev/video*`
-2. Check permissions: `groups` (should include `video`)
-3. Add user to video group: `sudo usermod -a -G video $USER`
-4. Check USB connection: `lsusb`
-5. View kernel messages: `dmesg | grep -i camera`
+1. `ls -la /dev/video*`
+2. `groups` should include `video` (`sudo usermod -aG video $USER`)
+3. `python scripts/detect_linux_cameras.py`
+4. Re-check `config_linux.json` camera IDs
 
-### Camera Index Changed
+### Index changed after unplug/replug
 
-- **Windows**: Re-run `python scripts/detect_windows_cameras.py`
-- **Linux**: Use `--camera1` and `--camera2` arguments, or wait for `detect_linux_cameras.py`
+Re-run the platform detection script; unit tests stay green because they
+do not depend on live indexes.
 
-## Technical Notes
+## Why this matters
 
-### OpenCV Camera Backends
-
-```python
-# Windows - DirectShow provides better USB camera support
-cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
-
-# Linux - V4L2 is the native Linux video API  
-cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-# or use default (usually V4L2 on Linux)
-cap = cv2.VideoCapture(camera_id)
-```
-
-### Buffer Settings
-
-Both platforms benefit from minimal buffering for low latency:
-```python
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize frame buffer
-```
-
-### Frame Rate Control
-
-```python
-cap.set(cv2.CAP_PROP_FPS, 60)  # Request 60 FPS
-# Note: Actual FPS depends on camera capability and lighting conditions
-```
+Previously Linux tests skipped Windows config, and several hardware scripts
+hardcoded `CAP_DSHOW` (broken on Linux). The shared helpers + dual config
+files + `--unit` / `--hardware` split let you develop on Linux, ship on
+Windows, and run the same commands on both.

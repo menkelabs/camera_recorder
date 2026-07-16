@@ -337,10 +337,14 @@ The Flask GUI exposes a REST API (used by the browser UI):
 
 ### Linux
 - Uses default OpenCV backend (V4L2)
+- Camera configuration stored in `config_linux.json` (same schema as Windows)
+- To regenerate camera config: `python scripts/detect_linux_cameras.py`
 - Separate capture thread per camera for reliable dual-cam streaming
 - 1.5s delay between opening cameras + warmup reads (required for V4L2 with identical USB cams)
 - Auto-fallback: if the requested camera 2 index fails, tries other indices automatically
-- Default cameras: 0 and 1
+- Default cameras: From `config_linux.json` if available, otherwise 0 and 1
+
+Both platforms share `src/camera_utils.py` (`get_camera_ids()`, `create_camera_capture()`, etc.) so apps and tests do not branch on `sys.platform` by hand.
 
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform configuration information.
 
@@ -373,41 +377,35 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform con
 
 ## Testing
 
+Same commands on Windows and Linux. Unit tests do not need cameras.
+
 ```bash
+# Unit tests only (default — safe in CI / cloud)
+python run_all_tests.py --unit
+
+# Cross-platform config helpers (mocks Windows + Linux on any host)
+python -m unittest tests.test_platform_config -v
+
 # Flask GUI tests (routes, template, recording, analysis, video playback, auto-detect)
-python -m pytest tests/test_flask_gui.py -v
+python -m unittest tests.test_flask_gui -v
 
-# Swing detector state machine (idle, motion, recording, cooldown, full cycle)
-python -m pytest tests/test_swing_detector.py -v
+# Swing detector / metrics / comparison / archive / recordings
+python -m unittest tests.test_swing_detector -v
+python -m unittest tests.test_sway_calculator -v
+python -m unittest tests.test_swing_comparison -v
+python -m unittest tests.test_recording_management -v
+python -m unittest tests.test_archive -v
 
-# Swing metrics (all 11 metrics, phases, tempo, analyze_sequence)
-python -m pytest tests/test_sway_calculator.py -v
-
-# Swing comparison (save/load JSON, compare API)
-python -m pytest tests/test_swing_comparison.py -v
-
-# Recording management (list, delete, bulk delete, cleanup)
-python -m pytest tests/test_recording_management.py -v
-
-# Archive to external disk (config, copy, manifest, API)
-python -m pytest tests/test_archive.py -v
-
-# Analysis navigation and workflow
-python -m pytest tests/test_analysis_navigation.py -v
-python -m pytest tests/test_analysis_workflow.py -v
-
-# GUI unit tests (OpenCV-based, legacy)
-python -m pytest tests/test_gui.py -v
-
-# Workflow tests
-python -m pytest tests/test_config_to_record_workflow.py -v
-
-# Camera detection
+# Hardware / camera scripts (plug cameras in first)
+python run_all_tests.py --hardware
 python tests/test_cameras.py
 
-# Run all tests
-python run_all_tests.py
+# Everything
+python run_all_tests.py --all
 ```
+
+See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.json` /
+`config_linux.json` and `camera_utils` keep tests portable.
 
 ## Technical Details
 

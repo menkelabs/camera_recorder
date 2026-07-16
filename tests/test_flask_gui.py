@@ -31,16 +31,19 @@ class TestCameraManagerInitialization(unittest.TestCase):
     """Test CameraManager initialization with platform-appropriate defaults."""
 
     def test_platform_defaults_linux(self):
-        """Linux should use cameras 0, 1 by default."""
-        with patch('sys.platform', 'linux'):
+        """Linux should use config_linux.json / sequential defaults."""
+        with patch('sys.platform', 'linux'), \
+             patch('camera_utils.sys.platform', 'linux'):
+            expected_cam1, expected_cam2 = get_camera_ids(platform='linux')
             mgr = CameraManager()
-            self.assertEqual(mgr.camera1_id, 0)
-            self.assertEqual(mgr.camera2_id, 1)
+            self.assertEqual(mgr.camera1_id, expected_cam1)
+            self.assertEqual(mgr.camera2_id, expected_cam2)
 
     def test_platform_defaults_windows(self):
-        """Windows should read from config file."""
-        with patch('sys.platform', 'win32'):
-            expected_cam1, expected_cam2 = get_camera_ids()
+        """Windows should read from config_windows.json."""
+        with patch('sys.platform', 'win32'), \
+             patch('camera_utils.sys.platform', 'win32'):
+            expected_cam1, expected_cam2 = get_camera_ids(platform='windows')
             mgr = CameraManager()
             self.assertEqual(mgr.camera1_id, expected_cam1)
             self.assertEqual(mgr.camera2_id, expected_cam2)

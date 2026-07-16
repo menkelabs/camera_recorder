@@ -29,34 +29,27 @@ class CameraCapture:
         
     def start(self, width: int = 1280, height: int = 720, fps: int = 30):
         """Start camera capture thread"""
-        # Use platform-appropriate backend
-        import sys
-        if sys.platform == 'win32' and isinstance(self.camera_id, int):
-            # Windows: Use DirectShow backend for better compatibility
-            self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_DSHOW)
-        else:
-            # Linux/Other: Use default backend (V4L2 on Linux)
-            self.cap = cv2.VideoCapture(self.camera_id)
-        if not self.cap.isOpened():
-            raise ValueError(f"Failed to open camera {self.camera_id}")
-        
+        # Use platform-appropriate backend (DirectShow on Windows, V4L2 on Linux)
+        from camera_utils import create_camera_capture
+        self.cap = create_camera_capture(self.camera_id)
+
         # Set camera properties for better performance
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer to minimize latency
-        
+
         # Get actual properties
         actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-        
+
         print(f"Camera {self.camera_id}: {actual_width}x{actual_height} @ {actual_fps} FPS")
-        
+
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
-        
+
         return (actual_width, actual_height, actual_fps)
     
     def _capture_loop(self):
@@ -111,17 +104,15 @@ class DualCameraRecorder:
     """Main recorder class for dual camera synchronized recording"""
     
     def __init__(self, camera1_id = None, camera2_id = None):
-        # Use platform-appropriate defaults if not specified
-        import sys
-        if sys.platform == 'win32':
-            # Windows: Use cameras 0 and 2 (skip built-in at 1)
-            camera1_id = camera1_id if camera1_id is not None else 0
-            camera2_id = camera2_id if camera2_id is not None else 2
-        else:
-            # Linux/Other: Use cameras 0 and 1
-            camera1_id = camera1_id if camera1_id is not None else 0
-            camera2_id = camera2_id if camera2_id is not None else 1
-        
+        # Use platform config (config_windows.json / config_linux.json) or defaults
+        from camera_utils import get_camera_ids
+        if camera1_id is None or camera2_id is None:
+            defaults = get_camera_ids()
+            if camera1_id is None:
+                camera1_id = defaults[0]
+            if camera2_id is None:
+                camera2_id = defaults[1]
+
         self.camera1 = CameraCapture(camera1_id)
         self.camera2 = CameraCapture(camera2_id)
         self.recording = False

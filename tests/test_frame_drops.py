@@ -8,18 +8,15 @@ import sys
 import time
 import os
 from datetime import datetime
-import sys
-import os
-# Add src directory to path
+
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(project_root, 'src'))
+sys.path.insert(0, os.path.join(project_root, 'tests'))
 
 from dual_camera_recorder import DualCameraRecorder
+from test_utils import fix_console_encoding, get_camera_ids, print_platform_banner
 
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+fix_console_encoding()
 
 def count_frames_in_video(video_path):
     """Count actual frames in a video file"""
