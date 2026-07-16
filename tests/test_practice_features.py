@@ -272,6 +272,13 @@ class TestPracticeAPIEndpoints(unittest.TestCase):
         self.assertIn('ref-btn', html)
         self.assertIn('Clip Cam1', html)
         self.assertIn('Pre-Record Checklist', html)
+        self.assertIn('session-cb', html)
+        self.assertIn('metro-cb', html)
+        self.assertIn('usb-warn', html)
+        self.assertIn('cam1-role', html)
+        self.assertIn('practice-tools', html)
+        self.assertIn('Session mode', html)
+        self.assertIn('Tempo metronome', html)
 
 
 class TestDrillsAndReference(unittest.TestCase):
@@ -354,6 +361,8 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         ids = {i['id'] for i in data['items']}
         self.assertIn('camera1', ids)
         self.assertIn('disk', ids)
+        self.assertIn('usb', ids)
+        self.assertIn('camera_labels', data)
 
     def test_reference_api(self):
         r = self.client.post('/api/reference', json={'timestamp': '20260715_120000'})
@@ -375,6 +384,119 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         r = self.client.post('/api/analysis/export-clip', json={'camera': 1})
         self.assertEqual(r.status_code, 400)
         self.assertIn('error', r.get_json())
+
+
+class TestUsbHealth(unittest.TestCase):
+    def test_usb_bus_root(self):
+        from usb_health import _usb_bus_root
+        self.assertEqual(_usb_bus_root('1-2.3.4:1.0'), '1-2')
+        self.assertEqual(_usb_bus_root('3-1'), '3-1')
+        self.assertEqual(_usb_bus_root('2-4.1'), '2-4')
+
+    def test_frame_starvation_warning(self):
+        from usb_health import frame_starvation_warning
+        self.assertIsNone(frame_starvation_warning(True, True))
+        self.assertIsNone(frame_starvation_warning(False, False))
+        w2 = frame_starvation_warning(True, False)
+        self.assertIsNotNone(w2)
+        self.assertIn('Camera 2', w2)
+        w1 = frame_starvation_warning(False, True)
+        self.assertIsNotNone(w1)
+        self.assertIn('Camera 1', w1)
+
+    def test_detect_shared_without_v4l(self):
+        from usb_health import detect_shared_usb_bus
+        result = detect_shared_usb_bus(0, 1)
+        self.assertIn('platform_supported', result)
+        self.assertIn('shared_bus', result)
+
+
+class TestPracticeSettingsRoles(unittest.TestCase):
+    def test_roles_and_labels(self):
+        from practice_settings import (
+            camera_labels,
+            load_practice_settings,
+            update_practice_settings,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            data = load_practice_settings(tmp)
+            self.assertEqual(data['camera_roles']['camera1'], 'face_on')
+            labels = camera_labels(data)
+            self.assertEqual(labels['camera1'], 'Face-On')
+            self.assertEqual(labels['camera2'], 'Down-the-Line')
+
+            updated = update_practice_settings(tmp, {
+                'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+                'metronome': {'enabled': True, 'bpm': 72},
+            })
+            self.assertEqual(updated['camera_roles']['camera1'], 'dtl')
+            self.assertEqual(updated['metronome']['bpm'], 72)
+            labels2 = camera_labels(updated)
+            self.assertEqual(labels2['camera1'], 'Down-the-Line')
+
+            # Same role on both → auto-correct camera2
+            fixed = update_practice_settings(tmp, {
+                'camera_roles': {'camera1': 'face_on', 'camera2': 'face_on'},
+            })
+            self.assertEqual(fixed['camera_roles']['camera1'], 'face_on')
+            self.assertEqual(fixed['camera_roles']['camera2'], 'dtl')
+
+
+class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        import flask_gui
+        self.fg = flask_gui
+        self._orig_dir = flask_gui._get_recordings_dir
+        flask_gui._get_recordings_dir = lambda: self.tmp.name
+        os.makedirs(self.tmp.name, exist_ok=True)
+        self.client = flask_gui.app.test_client()
+        self.mgr = flask_gui.CameraManager(camera1_id=0, camera2_id=1)
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        self.fg._get_recordings_dir = self._orig_dir
+        self.fg.camera_manager = None
+        self.tmp.cleanup()
+
+    def test_practice_settings_get_post(self):
+        r = self.client.get('/api/practice/settings')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('camera_roles', data)
+        self.assertIn('metronome', data)
+        self.assertIn('camera_labels', data)
+
+        r2 = self.client.post('/api/practice/settings', json={
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+            'metronome': {'enabled': True, 'bpm': 66},
+        })
+        self.assertEqual(r2.status_code, 200)
+        body = r2.get_json()
+        self.assertEqual(body['camera_roles']['camera1'], 'dtl')
+        self.assertEqual(body['metronome']['bpm'], 66)
+        self.assertEqual(body['camera_labels']['camera1'], 'Down-the-Line')
+
+    def test_session_api_requires_checklist(self):
+        r = self.client.post('/api/session', json={'enabled': True})
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        # No cameras → checklist fails → session stays off
+        self.assertFalse(data.get('enabled'))
+        self.assertIn('error', data)
+
+    def test_session_next_when_disabled(self):
+        r = self.client.post('/api/session/next')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('error', r.get_json())
+
+    def test_status_includes_session_and_labels(self):
+        r = self.client.get('/api/status')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('session', data)
+        self.assertIn('camera_labels', data)
+        self.assertIn('practice', data)
 
 
 if __name__ == '__main__':

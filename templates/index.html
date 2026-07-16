@@ -977,6 +977,37 @@
         }
         .ref-banner strong { color: var(--accent); }
 
+        .usb-warn {
+            display: none; margin-top: 10px; padding: 10px 12px;
+            background: #3d2800; border: 1px solid var(--yellow);
+            border-radius: var(--radius); color: var(--yellow); font-size: 12px;
+        }
+        .usb-warn.show { display: block; }
+
+        .practice-tools {
+            margin-top: 14px; padding: 12px 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); display: flex; flex-direction: column; gap: 12px;
+        }
+        .practice-tools h3 { font-size: 13px; color: var(--cyan); margin: 0; }
+        .practice-row {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px;
+        }
+        .metro-beat {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: var(--border); display: inline-block;
+        }
+        .metro-beat.pulse { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+        .metro-beat.accent { background: var(--green); }
+        .session-phase {
+            font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+        }
+        .session-phase.active { color: var(--green); }
+        .role-select {
+            padding: 4px 8px; background: var(--bg-input); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+        }
+
         /* ===== Favorites / notes ===== */
         .fav-btn {
             background: transparent; border: none; cursor: pointer;
@@ -1273,11 +1304,11 @@
             <div class="dual-preview">
                 <div class="preview-card">
                     <img src="/video_feed/1" alt="Camera 1">
-                    <div class="preview-info">Camera 1 (Face-On)</div>
+                    <div class="preview-info" id="rec-cam1-label">Camera 1 (Face-On)</div>
                 </div>
                 <div class="preview-card">
                     <img src="/video_feed/2" alt="Camera 2">
-                    <div class="preview-info">Camera 2 (Down-the-Line)</div>
+                    <div class="preview-info" id="rec-cam2-label">Camera 2 (Down-the-Line)</div>
                 </div>
             </div>
             <div class="rec-controls">
@@ -1327,6 +1358,36 @@
                 </h3>
                 <div id="checklist-items">
                     <div class="checklist-item"><span class="mark">…</span> Checking cameras…</div>
+                </div>
+                <div class="usb-warn" id="usb-warn"></div>
+            </div>
+
+            <div class="practice-tools">
+                <h3>Practice Tools</h3>
+                <div class="practice-row">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="session-cb" onchange="toggleSession()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Session mode</span>
+                    <span class="session-phase" id="session-phase">idle</span>
+                    <span class="session-phase" id="session-count">swings: 0</span>
+                    <button class="btn" id="session-next-btn" onclick="sessionNext()" style="display:none;font-size:12px;padding:4px 10px;">
+                        Next Swing
+                    </button>
+                </div>
+                <div class="practice-row">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="metro-cb" onchange="toggleMetronome()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Tempo metronome</span>
+                    <span class="metro-beat" id="metro-beat"></span>
+                    <label style="color:var(--text-dim)">BPM</label>
+                    <input type="number" id="metro-bpm" min="40" max="120" value="60"
+                           style="width:64px;padding:4px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:4px;"
+                           onchange="saveMetronomeSettings()">
+                    <span style="color:var(--text-dim)">3:1 feel</span>
                 </div>
             </div>
         </div>
@@ -1440,11 +1501,11 @@
                 <!-- 0. Video playback panels -->
                 <div class="analysis-video-panels" id="analysis-video-panels" style="display:none">
                     <div class="analysis-video-card">
-                        <div class="video-card-header">Camera 1 &mdash; Face-On</div>
+                        <div class="video-card-header" id="analysis-cam1-header">Camera 1 &mdash; Face-On</div>
                         <img id="analysis-frame-cam1" src="" alt="Camera 1 analysis frame">
                     </div>
                     <div class="analysis-video-card">
-                        <div class="video-card-header">Camera 2 &mdash; Down-the-Line</div>
+                        <div class="video-card-header" id="analysis-cam2-header">Camera 2 &mdash; Down-the-Line</div>
                         <img id="analysis-frame-cam2" src="" alt="Camera 2 analysis frame">
                     </div>
                 </div>
@@ -1485,14 +1546,14 @@
                 <div class="camera-columns">
                     <div class="cam-summary">
                         <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
-                            <h4>Camera 1 (Face-On)</h4>
+                            <h4 id="cam1-summary-title">Camera 1 (Face-On)</h4>
                             <span class="chevron">&#9660;</span>
                         </div>
                         <div class="cam-summary-body open" id="cam1-summary"></div>
                     </div>
                     <div class="cam-summary">
                         <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
-                            <h4>Camera 2 (Down-the-Line)</h4>
+                            <h4 id="cam2-summary-title">Camera 2 (Down-the-Line)</h4>
                             <span class="chevron">&#9660;</span>
                         </div>
                         <div class="cam-summary-body open" id="cam2-summary"></div>
@@ -1584,6 +1645,32 @@
     <!-- ===== Settings Tab ===== -->
     <div id="tab-settings" class="tab-panel">
         <div class="settings-layout">
+
+            <!-- Camera Roles -->
+            <div class="settings-section">
+                <h3>Camera Roles</h3>
+                <p style="font-size:13px;color:var(--text-dim);margin:0 0 16px 0">
+                    Assign Face-On vs Down-the-Line. Labels and scoring follow roles; files stay camera1/camera2.
+                </p>
+                <div class="setting-row">
+                    <label>Camera 1</label>
+                    <select id="cam1-role" class="role-select">
+                        <option value="face_on">Face-On</option>
+                        <option value="dtl">Down-the-Line</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Camera 2</label>
+                    <select id="cam2-role" class="role-select">
+                        <option value="face_on">Face-On</option>
+                        <option value="dtl">Down-the-Line</option>
+                    </select>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" onclick="swapCameraRoles()">Swap Roles</button>
+                    <button class="btn btn-primary" onclick="saveCameraRoles()">Save Roles</button>
+                </div>
+            </div>
 
             <!-- Archive Configuration -->
             <div class="settings-section">
@@ -1680,7 +1767,7 @@ function switchTab(tabName) {
     if (tabName === 'analysis') refreshAnalysis();
     if (tabName === 'compare') refreshCompareList();
     if (tabName === 'progress') refreshProgress();
-    if (tabName === 'settings') refreshArchiveStatus();
+    if (tabName === 'settings') { refreshArchiveStatus(); loadPracticeSettings(); }
 }
 
 // ===================================================================
@@ -1923,6 +2010,18 @@ function renderChecklist(data) {
         return `<div class="checklist-item ${cls}"><span class="mark">${mark}</span>` +
                `<span><strong>${item.label}</strong> — ${item.detail}</span></div>`;
     }).join('');
+
+    const usbWarn = document.getElementById('usb-warn');
+    if (usbWarn) {
+        if (data.usb_warning) {
+            usbWarn.textContent = data.usb_warning;
+            usbWarn.classList.add('show');
+        } else {
+            usbWarn.textContent = '';
+            usbWarn.classList.remove('show');
+        }
+    }
+    if (data.camera_labels) applyCameraLabels(data.camera_labels);
 }
 
 function updateAutoDetectUI(enabled, status) {
@@ -2317,6 +2416,8 @@ function renderAnalysis(data) {
 
     // Swing score
     renderSwingScore(data.score);
+
+    if (data.camera_labels) applyCameraLabels(data.camera_labels);
 
     // ---------- Metric dashboard cards ----------
     renderDashboard(data);
@@ -3086,6 +3187,8 @@ function pollStatus() {
             if (adCb && adCb.checked !== data.auto_detect_enabled) adCb.checked = data.auto_detect_enabled;
             updateAutoDetectUI(data.auto_detect_enabled, data.auto_detect_status || {});
             if (data.status_message) showStatus(data.status_message);
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            if (data.session) updateSessionUI(data.session);
             // Auto-refresh analysis when on that tab
             if (currentTab === 'analysis' && (data.is_analyzing || analysisData === null)) {
                 refreshAnalysis();
@@ -3093,8 +3196,228 @@ function pollStatus() {
             if (currentTab === 'recording' && !data.is_recording) {
                 refreshChecklist();
             }
+            // Session review: jump to Analysis once when phase flips
+            if (data.session && data.session.enabled && data.session.phase === 'review'
+                && _lastSessionPhase !== 'review' && !data.is_analyzing) {
+                switchTab('analysis');
+                refreshAnalysis();
+            }
+            _lastSessionPhase = data.session ? data.session.phase : null;
         })
         .catch(() => {});
+}
+
+// ===================================================================
+// Practice: camera roles, metronome, session mode
+// ===================================================================
+let _lastSessionPhase = null;
+let _metroCtx = null;
+let _metroTimer = null;
+let _metroBeat = 0;
+let _metroEnabled = false;
+let _metroSyncing = false;
+
+function applyCameraLabels(labels) {
+    if (!labels) return;
+    const c1 = labels.camera1 || 'Face-On';
+    const c2 = labels.camera2 || 'Down-the-Line';
+    const rec1 = document.getElementById('rec-cam1-label');
+    const rec2 = document.getElementById('rec-cam2-label');
+    if (rec1) rec1.textContent = 'Camera 1 (' + c1 + ')';
+    if (rec2) rec2.textContent = 'Camera 2 (' + c2 + ')';
+    const a1 = document.getElementById('analysis-cam1-header');
+    const a2 = document.getElementById('analysis-cam2-header');
+    if (a1) a1.innerHTML = 'Camera 1 &mdash; ' + c1;
+    if (a2) a2.innerHTML = 'Camera 2 &mdash; ' + c2;
+    const s1 = document.getElementById('cam1-summary-title');
+    const s2 = document.getElementById('cam2-summary-title');
+    if (s1) s1.textContent = 'Camera 1 (' + c1 + ')';
+    if (s2) s2.textContent = 'Camera 2 (' + c2 + ')';
+}
+
+function loadPracticeSettings() {
+    fetch('/api/practice/settings')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            const roles = data.camera_roles || {};
+            const r1 = document.getElementById('cam1-role');
+            const r2 = document.getElementById('cam2-role');
+            if (r1 && roles.camera1) r1.value = roles.camera1;
+            if (r2 && roles.camera2) r2.value = roles.camera2;
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            if (data.metronome) syncMetronomeFromSettings(data.metronome);
+            if (data.session) {
+                const cb = document.getElementById('session-cb');
+                if (cb) cb.checked = !!data.session.enabled;
+            }
+        })
+        .catch(() => {});
+}
+
+function saveCameraRoles() {
+    const r1 = document.getElementById('cam1-role').value;
+    const r2 = document.getElementById('cam2-role').value;
+    fetch('/api/practice/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({camera_roles: {camera1: r1, camera2: r2}})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus(data.error); return; }
+            const roles = data.camera_roles || {};
+            document.getElementById('cam1-role').value = roles.camera1;
+            document.getElementById('cam2-role').value = roles.camera2;
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            showStatus('Camera roles saved');
+        })
+        .catch(() => showStatus('Failed to save roles'));
+}
+
+function swapCameraRoles() {
+    const r1 = document.getElementById('cam1-role');
+    const r2 = document.getElementById('cam2-role');
+    const tmp = r1.value;
+    r1.value = r2.value;
+    r2.value = tmp;
+    saveCameraRoles();
+}
+
+function updateSessionUI(session) {
+    if (!session) return;
+    const cb = document.getElementById('session-cb');
+    if (cb && cb.checked !== !!session.enabled) cb.checked = !!session.enabled;
+    const phaseEl = document.getElementById('session-phase');
+    const countEl = document.getElementById('session-count');
+    const nextBtn = document.getElementById('session-next-btn');
+    if (phaseEl) {
+        phaseEl.textContent = session.phase || 'idle';
+        phaseEl.classList.toggle('active', !!session.enabled && session.phase !== 'idle');
+    }
+    if (countEl) countEl.textContent = 'swings: ' + (session.count || 0);
+    if (nextBtn) {
+        nextBtn.style.display = (session.enabled && session.phase === 'review') ? '' : 'none';
+    }
+}
+
+function toggleSession() {
+    const enabled = document.getElementById('session-cb').checked;
+    fetch('/api/session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                showStatus(data.error);
+                document.getElementById('session-cb').checked = false;
+                if (data.checklist) renderChecklist(data.checklist);
+            }
+            updateSessionUI(data);
+            if (data.enabled) switchTab('recording');
+        })
+        .catch(() => {
+            document.getElementById('session-cb').checked = false;
+            showStatus('Session toggle failed');
+        });
+}
+
+function sessionNext() {
+    fetch('/api/session/next', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) showStatus(data.error);
+            updateSessionUI(data);
+            if (data.phase === 'armed') switchTab('recording');
+        })
+        .catch(() => showStatus('Next swing failed'));
+}
+
+function syncMetronomeFromSettings(metro) {
+    if (!metro || _metroSyncing) return;
+    _metroSyncing = true;
+    const bpmEl = document.getElementById('metro-bpm');
+    const cb = document.getElementById('metro-cb');
+    if (bpmEl && document.activeElement !== bpmEl) bpmEl.value = metro.bpm || 60;
+    if (cb) cb.checked = !!metro.enabled;
+    // Do not auto-start audio here (browsers require a user gesture).
+    _metroSyncing = false;
+}
+
+function toggleMetronome() {
+    const enabled = document.getElementById('metro-cb').checked;
+    if (enabled) startMetronome();
+    else stopMetronome();
+    saveMetronomeSettings();
+}
+
+function saveMetronomeSettings() {
+    if (_metroSyncing) return;
+    const bpm = parseInt(document.getElementById('metro-bpm').value, 10) || 60;
+    const enabled = document.getElementById('metro-cb').checked;
+    fetch('/api/practice/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({metronome: {enabled: enabled, bpm: bpm, ratio: '3:1'}})
+    }).catch(() => {});
+    if (_metroEnabled) {
+        stopMetronome();
+        startMetronome();
+    }
+}
+
+function _ensureAudio() {
+    if (!_metroCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        _metroCtx = new AC();
+    }
+    if (_metroCtx.state === 'suspended') _metroCtx.resume();
+    return _metroCtx;
+}
+
+function _click(accent) {
+    const ctx = _ensureAudio();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = accent ? 880 : 660;
+    gain.gain.value = accent ? 0.18 : 0.1;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    osc.stop(ctx.currentTime + 0.07);
+}
+
+function startMetronome() {
+    stopMetronome();
+    _metroEnabled = true;
+    _metroBeat = 0;
+    const tick = () => {
+        if (!_metroEnabled) return;
+        const bpm = parseInt(document.getElementById('metro-bpm').value, 10) || 60;
+        const accent = (_metroBeat % 4) === 0;
+        _click(accent);
+        const beatEl = document.getElementById('metro-beat');
+        if (beatEl) {
+            beatEl.classList.remove('pulse', 'accent');
+            void beatEl.offsetWidth;
+            beatEl.classList.add(accent ? 'accent' : 'pulse');
+        }
+        _metroBeat += 1;
+        _metroTimer = setTimeout(tick, Math.round(60000 / bpm));
+    };
+    tick();
+}
+
+function stopMetronome() {
+    _metroEnabled = false;
+    if (_metroTimer) { clearTimeout(_metroTimer); _metroTimer = null; }
+    const beatEl = document.getElementById('metro-beat');
+    if (beatEl) beatEl.classList.remove('pulse', 'accent');
 }
 
 // ===================================================================
@@ -3382,6 +3705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial property fetch
     refreshProperties(1);
     refreshProperties(2);
+    loadPracticeSettings();
     pollStatus();
 
     // Poll status every 500ms

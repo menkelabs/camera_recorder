@@ -43,6 +43,10 @@ A Python application for capturing synchronized video from two USB cameras with 
 - **Export Report**: Download HTML or CSV analysis reports (score + metric breakdown)
 - **Clip Export**: Save annotated Cam1/Cam2 analysis frames as a short MP4
 - **Pre-Record Checklist**: Live readiness checks (both cams, frames, disk) before record/auto-detect
+- **Camera Roles**: Assign Face-On vs Down-the-Line per camera; labels and scoring follow roles
+- **USB Bandwidth Warning**: Checklist warns when both cameras share a USB bus (Linux) or one cam starves for frames
+- **Tempo Metronome**: Optional 3:1 practice click track (BPM) on the Recording tab
+- **Session Mode**: Armed → record → analyze → review → next swing loop for continuous practice
 - **Recording Management**: Browse, inspect, and delete recordings from the GUI
   - View all recordings with date, duration, and file sizes
   - Delete individual recordings or bulk-select and delete

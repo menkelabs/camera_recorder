@@ -44,11 +44,14 @@ from practice_reports import (
     load_analysis_file,
 )
 from practice_settings import (
+    camera_labels,
     get_reference_timestamp,
     load_practice_settings,
     set_reference_timestamp,
+    update_practice_settings,
 )
 from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
+from usb_health import detect_shared_usb_bus, frame_starvation_warning
 
 from flask import Flask, render_template, jsonify, request, Response, send_file
 
@@ -161,6 +164,12 @@ class CameraManager:
         self.auto_detect_enabled = False
         self.swing_detector = None
         self.auto_detect_frame_counter = 0
+
+        # Session mode state machine:
+        # idle → armed → recording → analyzing → review → armed/idle
+        self.session_enabled = False
+        self.session_phase = 'idle'
+        self.session_count = 0
 
         # Status messages
         self.status_message = ""
@@ -505,15 +514,44 @@ class CameraManager:
             'required': True,
         })
 
+        # USB bandwidth / topology
+        usb = detect_shared_usb_bus(self.camera1_id, self.camera2_id)
+        starve = frame_starvation_warning(f1, f2)
+        usb_ok = True
+        usb_detail = 'Cameras on separate USB paths'
+        if usb.get('shared_bus') is True:
+            usb_ok = False
+            usb_detail = usb.get('warning') or 'Shared USB bus detected'
+        elif starve:
+            usb_ok = False
+            usb_detail = starve
+        elif usb.get('warning') and usb.get('shared_bus') is None:
+            usb_ok = True  # advisory only when mapping incomplete
+            usb_detail = usb['warning']
+        elif not usb.get('platform_supported'):
+            usb_detail = 'USB topology check is Linux-only; watch for dropped Cam2 frames'
+        items.append({
+            'id': 'usb',
+            'label': 'USB bandwidth',
+            'ok': usb_ok,
+            'detail': usb_detail,
+            'required': False,
+            'usb': usb,
+        })
+
         ready = all(i['ok'] for i in items if i.get('required'))
+        settings = load_practice_settings(_get_recordings_dir())
+        labels = camera_labels(settings)
         return {
             'ready': ready,
             'items': items,
             'camera1_id': self.camera1_id,
             'camera2_id': self.camera2_id,
+            'camera_labels': labels,
             'width': self.width,
             'height': self.height,
             'fps': self.fps,
+            'usb_warning': None if usb_ok else usb_detail,
         }
 
     def start_recording(self) -> Dict:
@@ -593,6 +631,8 @@ class CameraManager:
                 os.path.join(self.recorder.output_dir, f"{filename}_camera1.mp4"),
                 os.path.join(self.recorder.output_dir, f"{filename}_camera2.mp4"),
             ]
+            if self.session_enabled:
+                self.session_phase = 'recording'
 
             self.status_message = "Recording started"
             self.status_time = time.time()
@@ -643,9 +683,16 @@ class CameraManager:
 
             # Auto-start analysis
             if self.recording_files and len(self.recording_files) == 2:
+                if self.session_enabled:
+                    self.session_phase = 'analyzing'
                 self.start_analysis()
 
-            return {'success': True, 'duration': duration}
+            return {
+                'success': True,
+                'duration': duration,
+                'session_phase': self.session_phase,
+                'session_enabled': self.session_enabled,
+            }
 
         except Exception as e:
             self.is_recording = False
@@ -738,6 +785,75 @@ class CameraManager:
         return {
             'enabled': self.auto_detect_enabled,
             'status': self.swing_detector.get_status() if self.swing_detector else {},
+        }
+
+    # ------------------------------------------------------------------
+    # Session mode
+    # ------------------------------------------------------------------
+
+    def set_session_enabled(self, enabled: bool) -> dict:
+        """Enable/disable practice session loop."""
+        settings = load_practice_settings(_get_recordings_dir())
+        session_prefs = settings.get('session') or {}
+        if enabled:
+            checklist = self.get_pre_record_checklist()
+            if not checklist['ready']:
+                failed = [i['label'] for i in checklist['items']
+                          if i.get('required') and not i['ok']]
+                return {
+                    'enabled': False,
+                    'phase': self.session_phase,
+                    'error': 'Checklist failed: ' + '; '.join(failed[:3]),
+                    'checklist': checklist,
+                    'count': self.session_count,
+                }
+            self.session_enabled = True
+            self.session_phase = 'armed'
+            if session_prefs.get('auto_detect', True) and not self.auto_detect_enabled:
+                toggle = self.toggle_auto_detect()
+                if toggle.get('error'):
+                    self.session_enabled = False
+                    self.session_phase = 'idle'
+                    return {
+                        'enabled': False,
+                        'phase': 'idle',
+                        'error': toggle['error'],
+                        'checklist': toggle.get('checklist'),
+                        'count': self.session_count,
+                    }
+            self.status_message = 'Session mode on — ready for next swing'
+            self.status_time = time.time()
+        else:
+            self.session_enabled = False
+            self.session_phase = 'idle'
+            if self.auto_detect_enabled:
+                self.toggle_auto_detect()
+            self.status_message = 'Session mode off'
+            self.status_time = time.time()
+        update_practice_settings(_get_recordings_dir(), {
+            'session': {**session_prefs, 'enabled': self.session_enabled}
+        })
+        return self.get_session_status()
+
+    def session_next(self) -> dict:
+        """Advance from review → armed for the next swing."""
+        if not self.session_enabled:
+            return {'error': 'Session mode is not enabled', **self.get_session_status()}
+        if self.is_recording or self.is_analyzing:
+            return {'error': 'Busy — finish current swing first', **self.get_session_status()}
+        self.session_phase = 'armed'
+        settings = load_practice_settings(_get_recordings_dir())
+        if settings.get('session', {}).get('auto_detect', True) and not self.auto_detect_enabled:
+            self.toggle_auto_detect()
+        self.status_message = f'Session armed — swing #{self.session_count + 1}'
+        self.status_time = time.time()
+        return self.get_session_status()
+
+    def get_session_status(self) -> dict:
+        return {
+            'enabled': self.session_enabled,
+            'phase': self.session_phase,
+            'count': self.session_count,
         }
 
     # ------------------------------------------------------------------
@@ -846,12 +962,22 @@ class CameraManager:
             # Auto-save analysis results to JSON alongside the recordings
             self._save_analysis_json()
 
+            if self.session_enabled:
+                self.session_phase = 'review'
+                self.session_count += 1
+                self.status_message = (
+                    f"Session swing #{self.session_count} ready for review "
+                    f"({elapsed:.1f}s analysis)"
+                )
+
         except Exception as e:
             self.is_analyzing = False
             self.analysis_progress = ""
             self.analysis_error = str(e)
             self.status_message = f"Analysis failed: {e}"
             self.status_time = time.time()
+            if self.session_enabled:
+                self.session_phase = 'armed'
             print(f"Analysis error: {e}")
             import traceback
             traceback.print_exc()
@@ -933,11 +1059,23 @@ class CameraManager:
         results['camera1'] = _build_camera_block(self.analysis_camera1)
         results['camera2'] = _build_camera_block(self.analysis_camera2)
 
-        # Overall swing score / grade from summary metrics
-        results['score'] = score_analysis({
+        settings = load_practice_settings(_get_recordings_dir())
+        labels = camera_labels(settings)
+        results['camera_labels'] = labels
+
+        # Score using face-on / DTL roles (swap if user assigned cam1 as DTL)
+        score_payload = {
             'camera1': self.analysis_camera1,
             'camera2': self.analysis_camera2,
-        })
+        }
+        roles = settings.get('camera_roles') or {}
+        if roles.get('camera1') == 'dtl':
+            score_payload = {
+                'camera1': self.analysis_camera2,
+                'camera2': self.analysis_camera1,
+            }
+        results['score'] = score_analysis(score_payload)
+        results['session'] = self.get_session_status()
 
         return results
 
@@ -1362,6 +1500,9 @@ def api_status():
         'height': mgr.height,
         'auto_detect_enabled': mgr.auto_detect_enabled,
         'auto_detect_status': auto_status,
+        'session': mgr.get_session_status(),
+        'camera_labels': camera_labels(load_practice_settings(_get_recordings_dir())),
+        'practice': load_practice_settings(_get_recordings_dir()),
     })
 
 
@@ -2010,6 +2151,55 @@ def api_set_reference():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify(settings)
+
+
+@app.route('/api/practice/settings')
+def api_practice_settings():
+    """Get practice settings (roles, metronome, session, reference)."""
+    settings = load_practice_settings(_get_recordings_dir())
+    settings['camera_labels'] = camera_labels(settings)
+    return jsonify(settings)
+
+
+@app.route('/api/practice/settings', methods=['POST'])
+def api_update_practice_settings():
+    """Patch practice settings. Body may include camera_roles, metronome, session."""
+    data = request.get_json(silent=True) or {}
+    try:
+        settings = update_practice_settings(_get_recordings_dir(), data)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    settings['camera_labels'] = camera_labels(settings)
+    return jsonify(settings)
+
+
+@app.route('/api/session', methods=['POST'])
+def api_session_toggle():
+    """Enable/disable session mode. Body: {enabled: bool}."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    data = request.get_json(silent=True) or {}
+    if 'enabled' not in data:
+        return jsonify({'error': 'Missing enabled'}), 400
+    return jsonify(mgr.set_session_enabled(bool(data['enabled'])))
+
+
+@app.route('/api/session/next', methods=['POST'])
+def api_session_next():
+    """Advance session from review to armed for the next swing."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    return jsonify(mgr.session_next())
+
+
+@app.route('/api/session')
+def api_session_status():
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    return jsonify(mgr.get_session_status())
 
 
 @app.route('/api/analysis/export-clip', methods=['POST'])
