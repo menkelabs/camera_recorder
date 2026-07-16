@@ -43,8 +43,14 @@ from practice_reports import (
     build_progress_series,
     load_analysis_file,
 )
+from practice_settings import (
+    get_reference_timestamp,
+    load_practice_settings,
+    set_reference_timestamp,
+)
+from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
 
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request, Response, send_file
 
 
 def load_windows_config(config_path: str = None) -> dict:
@@ -414,10 +420,114 @@ class CameraManager:
     # Recording
     # ------------------------------------------------------------------
 
+    def get_pre_record_checklist(self) -> Dict:
+        """
+        Readiness checks before arming record / auto-detect.
+
+        Each item: {id, label, ok, detail}
+        ready=True only when every required item passes.
+        """
+        items = []
+
+        cam1_ok = bool(self.cap1 and self.cap1.isOpened())
+        cam2_ok = bool(self.cap2 and self.cap2.isOpened())
+        items.append({
+            'id': 'camera1',
+            'label': f'Camera 1 (index {self.camera1_id}) open',
+            'ok': cam1_ok,
+            'detail': 'OK' if cam1_ok else 'Not available — check Detect / USB',
+            'required': True,
+        })
+        items.append({
+            'id': 'camera2',
+            'label': f'Camera 2 (index {self.camera2_id}) open',
+            'ok': cam2_ok,
+            'detail': 'OK' if cam2_ok else 'Not available — try another index or USB port',
+            'required': True,
+        })
+
+        with self.frame_lock:
+            f1 = self.latest_frame1 is not None
+            f2 = self.latest_frame2 is not None
+        items.append({
+            'id': 'frames1',
+            'label': 'Camera 1 delivering frames',
+            'ok': f1,
+            'detail': 'Receiving preview frames' if f1 else 'No recent frames',
+            'required': True,
+        })
+        items.append({
+            'id': 'frames2',
+            'label': 'Camera 2 delivering frames',
+            'ok': f2,
+            'detail': 'Receiving preview frames' if f2 else 'No recent frames — often a USB bandwidth issue',
+            'required': True,
+        })
+
+        # Resolution / FPS targets (informational if caps can't report)
+        res_ok = True
+        res_detail = f'Target {self.width}x{self.height} @ {self.fps}fps'
+        if cam1_ok:
+            w = int(self.cap1.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+            h = int(self.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+            if w and h:
+                res_ok = (w >= self.width * 0.9 and h >= self.height * 0.9)
+                res_detail = f'Cam1 reports {w}x{h}; target {self.width}x{self.height}'
+        items.append({
+            'id': 'resolution',
+            'label': 'Resolution near target',
+            'ok': res_ok,
+            'detail': res_detail,
+            'required': False,
+        })
+
+        rec_dir = _get_recordings_dir()
+        writable = os.path.isdir(rec_dir) and os.access(rec_dir, os.W_OK)
+        if not os.path.isdir(rec_dir):
+            try:
+                os.makedirs(rec_dir, exist_ok=True)
+                writable = os.access(rec_dir, os.W_OK)
+            except OSError:
+                writable = False
+        items.append({
+            'id': 'disk',
+            'label': 'Recordings folder writable',
+            'ok': writable,
+            'detail': rec_dir if writable else f'Cannot write to {rec_dir}',
+            'required': True,
+        })
+
+        items.append({
+            'id': 'not_recording',
+            'label': 'Not already recording',
+            'ok': not self.is_recording,
+            'detail': 'Idle' if not self.is_recording else 'Stop the current recording first',
+            'required': True,
+        })
+
+        ready = all(i['ok'] for i in items if i.get('required'))
+        return {
+            'ready': ready,
+            'items': items,
+            'camera1_id': self.camera1_id,
+            'camera2_id': self.camera2_id,
+            'width': self.width,
+            'height': self.height,
+            'fps': self.fps,
+        }
+
     def start_recording(self) -> Dict:
         """Start dual camera 120fps recording."""
         if self.is_recording:
             return {'error': 'Already recording'}
+
+        checklist = self.get_pre_record_checklist()
+        if not checklist['ready']:
+            failed = [i['label'] for i in checklist['items'] if i.get('required') and not i['ok']]
+            msg = 'Checklist failed: ' + '; '.join(failed[:3])
+            self.status_message = msg
+            self.status_time = time.time()
+            return {'error': msg, 'checklist': checklist}
 
         if not self.cameras_available:
             self.status_message = "Cameras not available - cannot record"
@@ -600,6 +710,19 @@ class CameraManager:
             self.status_message = "Auto-detect disabled"
             self.status_time = time.time()
         else:
+            checklist = self.get_pre_record_checklist()
+            if not checklist['ready']:
+                failed = [i['label'] for i in checklist['items']
+                          if i.get('required') and not i['ok']]
+                msg = 'Checklist failed: ' + '; '.join(failed[:3])
+                self.status_message = msg
+                self.status_time = time.time()
+                return {
+                    'enabled': False,
+                    'error': msg,
+                    'checklist': checklist,
+                    'status': {},
+                }
             self.swing_detector = SwingDetector()
             self.auto_detect_enabled = True
             self.auto_detect_frame_counter = 0
@@ -1298,6 +1421,15 @@ def api_start_recording():
     return jsonify(mgr.start_recording())
 
 
+@app.route('/api/checklist')
+def api_checklist():
+    """Pre-record readiness checklist."""
+    mgr = get_manager()
+    if mgr is None:
+        return jsonify({'error': 'Not initialized'})
+    return jsonify(mgr.get_pre_record_checklist())
+
+
 @app.route('/api/recording/stop', methods=['POST'])
 def api_stop_recording():
     """Stop recording, trigger analysis."""
@@ -1511,6 +1643,9 @@ def api_list_recordings():
     """List all recording pairs with metadata."""
     pairs = _list_recording_pairs()
     pairs = attach_meta_to_pairs(_get_recordings_dir(), pairs)
+    ref = get_reference_timestamp(_get_recordings_dir())
+    for p in pairs:
+        p['is_reference'] = (p.get('timestamp') == ref)
     total_size = sum(p['total_size'] for p in pairs)
     oldest = pairs[-1]['date'] if pairs else None
     newest = pairs[0]['date'] if pairs else None
@@ -1521,6 +1656,7 @@ def api_list_recordings():
         'oldest': oldest,
         'newest': newest,
         'favorite_count': sum(1 for p in pairs if p.get('favorite')),
+        'reference_timestamp': ref,
     })
 
 
@@ -1644,10 +1780,16 @@ def _load_analysis(ts: str) -> Optional[Dict]:
 def api_list_analyses():
     """List all saved analysis results."""
     analyses = _list_saved_analyses()
+    ref = get_reference_timestamp(_get_recordings_dir())
     # Strip internal path from response
     for a in analyses:
         a.pop('path', None)
-    return jsonify({'analyses': analyses, 'count': len(analyses)})
+        a['is_reference'] = (a.get('timestamp') == ref)
+    return jsonify({
+        'analyses': analyses,
+        'count': len(analyses),
+        'reference_timestamp': ref,
+    })
 
 
 @app.route('/api/compare')
@@ -1826,6 +1968,98 @@ def api_analysis_export():
             'Content-Disposition': f'attachment; filename=swing_report_{stamp}.html'
         },
     )
+
+
+@app.route('/api/reference')
+def api_get_reference():
+    """Return the pinned golden/reference swing timestamp."""
+    settings = load_practice_settings(_get_recordings_dir())
+    ts = settings.get('reference_timestamp')
+    meta = None
+    if ts:
+        try:
+            meta = get_recording_meta(_get_recordings_dir(), ts)
+        except ValueError:
+            meta = None
+        # Include analysis date if present
+        analysis = _load_analysis(ts)
+        date = None
+        if analysis:
+            try:
+                date = datetime.strptime(ts, '%Y%m%d_%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                date = ts
+        return jsonify({
+            'reference_timestamp': ts,
+            'date': date,
+            'meta': meta,
+            'has_analysis': analysis is not None,
+        })
+    return jsonify({'reference_timestamp': None, 'date': None, 'meta': None, 'has_analysis': False})
+
+
+@app.route('/api/reference', methods=['POST'])
+def api_set_reference():
+    """Pin or clear reference swing. Body: {timestamp: str|null}."""
+    data = request.get_json(silent=True) or {}
+    if 'timestamp' not in data:
+        return jsonify({'error': 'Missing timestamp (use null to clear)'}), 400
+    ts = data.get('timestamp')
+    try:
+        settings = set_reference_timestamp(_get_recordings_dir(), ts)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(settings)
+
+
+@app.route('/api/analysis/export-clip', methods=['POST'])
+def api_export_clip():
+    """
+    Export annotated analysis frames as MP4.
+    Body: {camera: 1|2, fps?: number, timestamp?: str}
+    Uses in-memory frames when timestamp omitted / matches current recording.
+    """
+    mgr = get_manager()
+    data = request.get_json(silent=True) or {}
+    cam = int(data.get('camera') or 1)
+    if cam not in (1, 2):
+        return jsonify({'error': 'camera must be 1 or 2'}), 400
+    fps = float(data.get('fps') or 30.0)
+    ts = data.get('timestamp')
+
+    frames = None
+    stamp = ts
+    if mgr is not None:
+        frames = mgr.analysis_frames_cam1 if cam == 1 else mgr.analysis_frames_cam2
+        if not stamp:
+            path = mgr._analysis_json_path()
+            if path:
+                m = re.search(r'analysis_(\d{8}_\d{6})\.json', path)
+                if m:
+                    stamp = m.group(1)
+
+    if not frames:
+        return jsonify({'error': 'No annotated frames in memory — open Analysis after a recording'}), 400
+    if not stamp:
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    out_path = resolve_clip_output(_get_recordings_dir(), stamp, cam)
+    try:
+        result = jpeg_frames_to_mp4(frames, out_path, fps=fps)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'success': True, **result})
+
+
+@app.route('/api/analysis/clip/<path:filename>')
+def api_download_clip(filename):
+    """Download a previously exported clip from the recordings directory."""
+    if not re.match(r'^clip_\d{8}_\d{6}_camera[12]\.mp4$', filename):
+        return jsonify({'error': 'Invalid clip filename'}), 400
+    path = os.path.join(_get_recordings_dir(), filename)
+    if not os.path.isfile(path):
+        return jsonify({'error': 'Clip not found'}), 404
+    return send_file(path, mimetype='video/mp4', as_attachment=True, download_name=filename)
 
 
 # ======================================================================

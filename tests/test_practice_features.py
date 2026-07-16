@@ -267,6 +267,114 @@ class TestPracticeAPIEndpoints(unittest.TestCase):
         self.assertIn('score-header', html)
         self.assertIn('Export HTML', html)
         self.assertIn('fav-btn', html)
+        self.assertIn('checklist-panel', html)
+        self.assertIn('drills-panel', html)
+        self.assertIn('ref-btn', html)
+        self.assertIn('Clip Cam1', html)
+        self.assertIn('Pre-Record Checklist', html)
+
+
+class TestDrillsAndReference(unittest.TestCase):
+    def test_poor_swing_includes_drills(self):
+        result = score_analysis(_poor_analysis())
+        self.assertTrue(result['drills'])
+        self.assertTrue(all('tip' in d for d in result['drills']))
+
+    def test_good_swing_few_or_no_drills(self):
+        result = score_analysis(_good_analysis())
+        # Good swing should have few needs_work → few drills
+        self.assertLessEqual(len(result['drills']), 2)
+
+    def test_reference_roundtrip(self):
+        from practice_settings import get_reference_timestamp, set_reference_timestamp
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(get_reference_timestamp(tmp))
+            set_reference_timestamp(tmp, '20260715_120000')
+            self.assertEqual(get_reference_timestamp(tmp), '20260715_120000')
+            set_reference_timestamp(tmp, None)
+            self.assertIsNone(get_reference_timestamp(tmp))
+
+
+class TestClipExporter(unittest.TestCase):
+    def test_jpeg_frames_to_mp4(self):
+        import cv2
+        import numpy as np
+        from clip_exporter import jpeg_frames_to_mp4
+
+        frames = []
+        for i in range(5):
+            img = np.zeros((60, 80, 3), dtype=np.uint8)
+            img[:] = (i * 40, 80, 120)
+            ok, buf = cv2.imencode('.jpg', img)
+            self.assertTrue(ok)
+            frames.append(buf.tobytes())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, 'clip_test.mp4')
+            result = jpeg_frames_to_mp4(frames, out, fps=10.0)
+            self.assertTrue(os.path.isfile(out))
+            self.assertEqual(result['frame_count'], 5)
+            self.assertGreater(os.path.getsize(out), 0)
+
+    def test_empty_frames_raises(self):
+        from clip_exporter import jpeg_frames_to_mp4
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                jpeg_frames_to_mp4([], os.path.join(tmp, 'x.mp4'))
+
+
+class TestChecklistAndReferenceAPI(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        import flask_gui
+        self.fg = flask_gui
+        self._orig_dir = flask_gui._get_recordings_dir
+        flask_gui._get_recordings_dir = lambda: self.tmp.name
+        os.makedirs(self.tmp.name, exist_ok=True)
+        path = os.path.join(self.tmp.name, 'analysis_20260715_120000.json')
+        with open(path, 'w') as f:
+            json.dump(_good_analysis(), f)
+        self.client = flask_gui.app.test_client()
+        # Install a manager so checklist works
+        self.mgr = flask_gui.CameraManager(camera1_id=0, camera2_id=1)
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        self.fg._get_recordings_dir = self._orig_dir
+        self.fg.camera_manager = None
+        self.tmp.cleanup()
+
+    def test_checklist_endpoint(self):
+        r = self.client.get('/api/checklist')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertIn('ready', data)
+        self.assertIn('items', data)
+        self.assertFalse(data['ready'])  # no real cameras in test env
+        ids = {i['id'] for i in data['items']}
+        self.assertIn('camera1', ids)
+        self.assertIn('disk', ids)
+
+    def test_reference_api(self):
+        r = self.client.post('/api/reference', json={'timestamp': '20260715_120000'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()['reference_timestamp'], '20260715_120000')
+
+        r2 = self.client.get('/api/reference')
+        self.assertEqual(r2.get_json()['reference_timestamp'], '20260715_120000')
+        self.assertTrue(r2.get_json()['has_analysis'])
+
+        r3 = self.client.get('/api/analyses')
+        self.assertEqual(r3.get_json()['reference_timestamp'], '20260715_120000')
+        self.assertTrue(r3.get_json()['analyses'][0]['is_reference'])
+
+        self.client.post('/api/reference', json={'timestamp': None})
+        self.assertIsNone(self.client.get('/api/reference').get_json()['reference_timestamp'])
+
+    def test_export_clip_without_frames(self):
+        r = self.client.post('/api/analysis/export-clip', json={'camera': 1})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('error', r.get_json())
 
 
 if __name__ == '__main__':

@@ -44,6 +44,53 @@ SCORE_METRICS: List[Dict[str, Any]] = [
 # Points: good=100, ok=60, needs-work=20
 _POINTS = {'good': 100.0, 'ok': 60.0, 'needs_work': 20.0}
 
+# Short coaching drills for metrics rated needs_work
+DRILL_TIPS = {
+    'shoulder_turn': (
+        'Make a fuller shoulder turn with a quiet lower body. '
+        'Pause at the top and feel your lead shoulder under your chin.'
+    ),
+    'hip_turn': (
+        'Start the downswing with the hips. Feel pressure move into the lead heel '
+        'before the arms drop.'
+    ),
+    'x_factor': (
+        'Create separation: turn shoulders more than hips on the backswing, '
+        'then lead with the hips on the way down.'
+    ),
+    'tempo': (
+        'Count a smooth 3:1 rhythm — “one-two-three” back, “one” through. '
+        'A metronome app at a slow beat helps.'
+    ),
+    'sway': (
+        'Keep the trail hip from sliding away from the target. '
+        'Feel like you turn around a stable trail leg.'
+    ),
+    'head_sway': (
+        'Pick a spot behind the ball and keep your head quiet over it '
+        'until after impact.'
+    ),
+    'spine_angle': (
+        'Set posture at address and hold it. Practice half-swings focusing on '
+        'keeping chest tilt constant.'
+    ),
+    'spine_tilt': (
+        'Avoid early standing up. Feel the trail shoulder stay lower through impact.'
+    ),
+    'lead_arm_angle': (
+        'Widen the swing arc — soft trail elbow, lead arm extended but not locked '
+        'at the top.'
+    ),
+    'knee_flex': (
+        'Soft-flex both knees at address and keep that flex into the downswing; '
+        'don’t straighten early.'
+    ),
+    'weight_shift': (
+        'Finish with most pressure on the lead foot. Step-through drills: '
+        'step toward the target as you swing through.'
+    ),
+}
+
 
 def rate_value(value: Optional[float], good: Tuple[float, float],
                ok: Tuple[float, float]) -> Optional[str]:
@@ -138,6 +185,13 @@ def score_analysis(analysis: Dict) -> Dict[str, Any]:
     score = round(sum(points_list) / len(points_list), 1) if points_list else None
     grade = grade_from_score(score)
 
+    focus_keys = [e['key'] for e in breakdown if e['rating'] == 'needs_work']
+    drills = [
+        {'key': k, 'label': next(e['label'] for e in breakdown if e['key'] == k),
+         'tip': DRILL_TIPS[k]}
+        for k in focus_keys if k in DRILL_TIPS
+    ]
+
     return {
         'score': score,
         'grade': grade,
@@ -146,4 +200,5 @@ def score_analysis(analysis: Dict) -> Dict[str, Any]:
         'breakdown': breakdown,
         'strengths': [e['label'] for e in breakdown if e['rating'] == 'good'],
         'focus_areas': [e['label'] for e in breakdown if e['rating'] == 'needs_work'],
+        'drills': drills,
     }

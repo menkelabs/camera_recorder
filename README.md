@@ -36,9 +36,13 @@ A Python application for capturing synchronized video from two USB cameras with 
 - **Swing Score**: Overall 0–100 score and A–F grade from the same good/ok metric ranges as the dashboard
   - Strengths and focus areas called out on the Analysis tab
   - Score persisted with each analysis JSON
+  - Suggested drills for metrics that need work
 - **Favorites & Practice Notes**: Star swings and attach notes/tags from the Recordings tab
+- **Reference Swing**: Pin a golden swing; Compare defaults Swing A to the reference
 - **Progress Trends**: Progress tab charts score and key metrics across sessions over time
 - **Export Report**: Download HTML or CSV analysis reports (score + metric breakdown)
+- **Clip Export**: Save annotated Cam1/Cam2 analysis frames as a short MP4
+- **Pre-Record Checklist**: Live readiness checks (both cams, frames, disk) before record/auto-detect
 - **Recording Management**: Browse, inspect, and delete recordings from the GUI
   - View all recordings with date, duration, and file sizes
   - Delete individual recordings or bulk-select and delete
