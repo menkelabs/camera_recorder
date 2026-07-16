@@ -30,6 +30,19 @@ from dual_camera_recorder import DualCameraRecorder
 from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
 from swing_detector import SwingDetector
+from swing_score import score_analysis
+from recording_meta import (
+    attach_meta_to_pairs,
+    delete_recording_meta,
+    get_recording_meta,
+    update_recording_meta,
+)
+from practice_reports import (
+    analysis_to_csv,
+    analysis_to_html_report,
+    build_progress_series,
+    load_analysis_file,
+)
 
 from flask import Flask, render_template, jsonify, request, Response
 
@@ -84,7 +97,8 @@ class CameraManager:
     }
 
     # Tab names (mirrors the original GUI)
-    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Recordings", "Analysis", "Compare", "Settings"]
+    TAB_NAMES = ["Camera 1 Setup", "Camera 2 Setup", "Recording", "Recordings",
+                 "Analysis", "Compare", "Progress", "Settings"]
 
     def __init__(self, camera1_id: int = None, camera2_id: int = None,
                  width: int = 1280, height: int = 720, fps: int = 120):
@@ -796,6 +810,12 @@ class CameraManager:
         results['camera1'] = _build_camera_block(self.analysis_camera1)
         results['camera2'] = _build_camera_block(self.analysis_camera2)
 
+        # Overall swing score / grade from summary metrics
+        results['score'] = score_analysis({
+            'camera1': self.analysis_camera1,
+            'camera2': self.analysis_camera2,
+        })
+
         return results
 
     # ------------------------------------------------------------------
@@ -840,6 +860,7 @@ class CameraManager:
             'camera1': _serialise_cam(self.analysis_camera1),
             'camera2': _serialise_cam(self.analysis_camera2),
         }
+        payload['score'] = score_analysis(payload)
         try:
             with open(path, 'w') as f:
                 json.dump(payload, f)
@@ -1462,6 +1483,19 @@ def _delete_recording_pair(ts: str) -> Dict:
             except Exception as e:
                 errors.append(f'{cam}: {e}')
 
+    # Also remove analysis JSON and practice meta if present
+    analysis_path = os.path.join(rec_dir, f'analysis_{ts}.json')
+    if os.path.exists(analysis_path):
+        try:
+            os.remove(analysis_path)
+            deleted.append(os.path.basename(analysis_path))
+        except Exception as e:
+            errors.append(f'analysis: {e}')
+    try:
+        delete_recording_meta(rec_dir, ts)
+    except Exception:
+        pass
+
     result = {'timestamp': ts, 'deleted': deleted}
     if errors:
         result['errors'] = errors
@@ -1476,6 +1510,7 @@ def _delete_recording_pair(ts: str) -> Dict:
 def api_list_recordings():
     """List all recording pairs with metadata."""
     pairs = _list_recording_pairs()
+    pairs = attach_meta_to_pairs(_get_recordings_dir(), pairs)
     total_size = sum(p['total_size'] for p in pairs)
     oldest = pairs[-1]['date'] if pairs else None
     newest = pairs[0]['date'] if pairs else None
@@ -1485,6 +1520,7 @@ def api_list_recordings():
         'total_size': total_size,
         'oldest': oldest,
         'newest': newest,
+        'favorite_count': sum(1 for p in pairs if p.get('favorite')),
     })
 
 
@@ -1663,6 +1699,133 @@ def api_compare():
             'camera2': _cam_deltas(data_a.get('camera2'), data_b.get('camera2')),
         },
     })
+
+
+# ======================================================================
+# Practice features: favorites/notes, progress, export, score
+# ======================================================================
+
+@app.route('/api/recordings/<timestamp>/meta', methods=['GET'])
+def api_get_recording_meta(timestamp):
+    """Get favorite / notes / tags for a recording."""
+    try:
+        meta = get_recording_meta(_get_recordings_dir(), timestamp)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(meta)
+
+
+@app.route('/api/recordings/<timestamp>/meta', methods=['POST'])
+def api_update_recording_meta(timestamp):
+    """Update favorite / notes / tags. Body: {favorite?, notes?, tags?}."""
+    data = request.get_json(silent=True) or {}
+    try:
+        meta = update_recording_meta(
+            _get_recordings_dir(),
+            timestamp,
+            favorite=data.get('favorite') if 'favorite' in data else None,
+            notes=data.get('notes') if 'notes' in data else None,
+            tags=data.get('tags') if 'tags' in data else None,
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(meta)
+
+
+@app.route('/api/progress')
+def api_progress():
+    """Aggregate saved analyses into progress / trend series."""
+    analyses_meta = _list_saved_analyses()
+    loaded = []
+    for item in analyses_meta:
+        data = _load_analysis(item['timestamp'])
+        if not data:
+            continue
+        data.setdefault('timestamp', item['timestamp'])
+        data.setdefault('date', item.get('date'))
+        # Recompute score if older JSON lacks it
+        if 'score' not in data:
+            data['score'] = score_analysis(data)
+        loaded.append(data)
+    return jsonify(build_progress_series(loaded))
+
+
+@app.route('/api/analysis/score')
+def api_analysis_score():
+    """
+    Score the current in-memory analysis, or a saved one via ?timestamp=.
+    """
+    ts = request.args.get('timestamp')
+    if ts:
+        data = _load_analysis(ts)
+        if data is None:
+            return jsonify({'error': f'Analysis not found for {ts}'}), 404
+        return jsonify(score_analysis(data))
+
+    mgr = get_manager()
+    if mgr is None or (mgr.analysis_camera1 is None and mgr.analysis_camera2 is None):
+        return jsonify({'error': 'No analysis results'}), 404
+    return jsonify(score_analysis({
+        'camera1': mgr.analysis_camera1,
+        'camera2': mgr.analysis_camera2,
+    }))
+
+
+@app.route('/api/analysis/export')
+def api_analysis_export():
+    """
+    Export analysis as HTML or CSV.
+    Query: ?format=html|csv  & optional timestamp=YYYYMMDD_HHMMSS
+    Without timestamp, exports the current in-memory analysis.
+    """
+    fmt = (request.args.get('format') or 'html').lower()
+    ts = request.args.get('timestamp')
+
+    if ts:
+        data = _load_analysis(ts)
+        if data is None:
+            return jsonify({'error': f'Analysis not found for {ts}'}), 404
+    else:
+        mgr = get_manager()
+        if mgr is None or (mgr.analysis_camera1 is None and mgr.analysis_camera2 is None):
+            return jsonify({'error': 'No analysis results to export'}), 404
+        # Prefer saved JSON when available so export matches disk
+        path = mgr._analysis_json_path()
+        if path and os.path.exists(path):
+            data = load_analysis_file(path) or {}
+        else:
+            data = {
+                'timestamp': None,
+                'camera1': mgr.analysis_camera1,
+                'camera2': mgr.analysis_camera2,
+            }
+            if path:
+                m = re.search(r'analysis_(\d{8}_\d{6})\.json', path)
+                if m:
+                    data['timestamp'] = m.group(1)
+
+    scored = data.get('score') if isinstance(data.get('score'), dict) else score_analysis(data)
+    stamp = data.get('timestamp') or 'current'
+
+    if fmt == 'csv':
+        body = analysis_to_csv(data, scored)
+        return Response(
+            body,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=swing_report_{stamp}.csv'
+            },
+        )
+
+    # default HTML
+    body = analysis_to_html_report(data, scored)
+    return Response(
+        body,
+        mimetype='text/html',
+        headers={
+            'Content-Disposition': f'attachment; filename=swing_report_{stamp}.html'
+        },
+    )
 
 
 # ======================================================================

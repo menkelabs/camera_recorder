@@ -33,6 +33,12 @@ A Python application for capturing synchronized video from two USB cameras with 
   - Delta cards showing value changes between swings with color-coded indicators
   - Overlay chart with normalised timeline (swings of different lengths align on 0-100%)
   - Dashed vs solid lines for easy visual distinction
+- **Swing Score**: Overall 0–100 score and A–F grade from the same good/ok metric ranges as the dashboard
+  - Strengths and focus areas called out on the Analysis tab
+  - Score persisted with each analysis JSON
+- **Favorites & Practice Notes**: Star swings and attach notes/tags from the Recordings tab
+- **Progress Trends**: Progress tab charts score and key metrics across sessions over time
+- **Export Report**: Download HTML or CSV analysis reports (score + metric breakdown)
 - **Recording Management**: Browse, inspect, and delete recordings from the GUI
   - View all recordings with date, duration, and file sizes
   - Delete individual recordings or bulk-select and delete

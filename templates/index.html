@@ -901,6 +901,94 @@
         @media (max-width: 900px)  { .compare-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 600px)  { .compare-grid { grid-template-columns: 1fr; } }
 
+        /* ===== Swing score & export ===== */
+        .score-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .score-badge {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .score-grade {
+            font-size: 36px;
+            font-weight: 700;
+            line-height: 1;
+            min-width: 48px;
+            text-align: center;
+        }
+        .score-grade.grade-a { color: var(--green); }
+        .score-grade.grade-b { color: #3fb950; }
+        .score-grade.grade-c { color: var(--yellow); }
+        .score-grade.grade-d { color: var(--orange); }
+        .score-grade.grade-f { color: var(--red); }
+        .score-meta .score-num { font-size: 18px; font-weight: 600; color: var(--text-bright); }
+        .score-meta .score-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+        .score-focus { font-size: 12px; color: var(--text-dim); max-width: 420px; }
+        .score-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* ===== Favorites / notes ===== */
+        .fav-btn {
+            background: transparent; border: none; cursor: pointer;
+            font-size: 18px; color: var(--text-dim); padding: 2px 6px; line-height: 1;
+        }
+        .fav-btn.on { color: var(--yellow); }
+        .fav-btn:hover { color: var(--yellow); }
+        .notes-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+        }
+        .notes-btn:hover { color: var(--text); border-color: var(--accent); }
+        .notes-btn.has-notes { color: var(--cyan); border-color: var(--cyan); }
+        .rec-table .fav-col { width: 36px; text-align: center; }
+        .notes-editor {
+            display: none; margin-top: 8px; padding: 10px; background: var(--bg-card-alt);
+            border: 1px solid var(--border); border-radius: var(--radius);
+        }
+        .notes-editor.open { display: block; }
+        .notes-editor textarea {
+            width: 100%; min-height: 64px; background: var(--bg-input); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: var(--font);
+            font-size: 13px; resize: vertical;
+        }
+        .notes-editor .tags-input {
+            width: 100%; margin-top: 8px; padding: 6px 8px; background: var(--bg-input);
+            color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+        }
+
+        /* ===== Progress tab ===== */
+        .progress-layout { max-width: 1100px; }
+        .progress-stats {
+            display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px;
+            padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .progress-stat { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
+        .progress-stat .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .4px; }
+        .progress-stat .value { font-size: 20px; font-weight: 600; color: var(--text-bright); font-family: var(--font-mono); }
+        .progress-stat .value.up { color: var(--green); }
+        .progress-stat .value.down { color: var(--red); }
+        .progress-chart-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+        }
+        .progress-chart-card h3 { font-size: 14px; color: var(--cyan); margin-bottom: 10px; }
+        #progress-canvas { width: 100%; height: 280px; display: block; }
+        .progress-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .progress-empty {
+            text-align: center; padding: 60px 20px; color: var(--text-dim);
+        }
+        .progress-empty h2 { color: var(--text); font-size: 20px; margin-bottom: 8px; }
+
         /* ===== Status Bar ===== */
         .status-bar {
             padding: 8px 24px;
@@ -1083,8 +1171,11 @@
     <button class="tab-btn" data-tab="compare" onclick="switchTab('compare')">
         Compare <span class="shortcut">[6]</span>
     </button>
+    <button class="tab-btn" data-tab="progress" onclick="switchTab('progress')">
+        Progress <span class="shortcut">[7]</span>
+    </button>
     <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
-        Settings <span class="shortcut">[7]</span>
+        Settings <span class="shortcut">[8]</span>
     </button>
 </div>
 
@@ -1222,16 +1313,29 @@
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="rec-select-all" onchange="toggleSelectAll(this)"></th>
+                            <th class="fav-col"></th>
                             <th>Date / Time</th>
                             <th>Duration</th>
                             <th>Camera 1</th>
                             <th>Camera 2</th>
                             <th>Total Size</th>
+                            <th>Notes</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="recordings-tbody"></tbody>
                 </table>
+                <div class="notes-editor" id="notes-editor">
+                    <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px">
+                        Notes for <span class="mono" id="notes-ts-label"></span>
+                    </div>
+                    <textarea id="notes-text" placeholder="Practice notes for this swing..."></textarea>
+                    <input class="tags-input" id="notes-tags" placeholder="Tags (comma-separated), e.g. tempo, early-extension">
+                    <div class="btn-row" style="margin-top:8px">
+                        <button class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+                        <button class="btn" onclick="closeNotesEditor()">Cancel</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1259,6 +1363,22 @@
             </div>
             <!-- Results state -->
             <div id="analysis-results" style="display:none">
+                <!-- Score + export -->
+                <div class="score-header" id="score-header">
+                    <div class="score-badge">
+                        <div class="score-grade" id="score-grade">—</div>
+                        <div class="score-meta">
+                            <div class="score-num" id="score-num">— / 100</div>
+                            <div class="score-sub" id="score-sub">Swing score</div>
+                        </div>
+                    </div>
+                    <div class="score-focus" id="score-focus"></div>
+                    <div class="score-actions">
+                        <button class="btn" onclick="exportAnalysis('html')">Export HTML</button>
+                        <button class="btn" onclick="exportAnalysis('csv')">Export CSV</button>
+                    </div>
+                </div>
+
                 <!-- 0. Video playback panels -->
                 <div class="analysis-video-panels" id="analysis-video-panels" style="display:none">
                     <div class="analysis-video-card">
@@ -1367,6 +1487,41 @@
         </div>
     </div>
 
+    <!-- ===== Progress Tab ===== -->
+    <div id="tab-progress" class="tab-panel">
+        <div class="progress-layout">
+            <div id="progress-empty" class="progress-empty">
+                <h2>No Progress Data Yet</h2>
+                <p>Record and analyze swings to see scores and metric trends over time.</p>
+            </div>
+            <div id="progress-content" style="display:none">
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <span class="label">Swings</span>
+                        <span class="value" id="progress-count">0</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Latest Score</span>
+                        <span class="value" id="progress-latest">—</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Latest Grade</span>
+                        <span class="value" id="progress-grade">—</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Score Change</span>
+                        <span class="value" id="progress-delta">—</span>
+                    </div>
+                </div>
+                <div class="progress-chart-card">
+                    <h3>Trends Over Time</h3>
+                    <div class="progress-toggles" id="progress-toggles"></div>
+                    <canvas id="progress-canvas" width="1000" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== Settings Tab ===== -->
     <div id="tab-settings" class="tab-panel">
         <div class="settings-layout">
@@ -1434,7 +1589,7 @@
 <!-- Status Bar -->
 <div class="status-bar">
     <span id="status-msg" class="msg"></span>
-    <span class="hint">Keys: 1-7 tabs &middot; Space record &middot; A/D frame nav</span>
+    <span class="hint">Keys: 1-8 tabs &middot; Space record &middot; A/D frame nav</span>
 </div>
 
 <script>
@@ -1464,6 +1619,7 @@ function switchTab(tabName) {
     if (tabName === 'recordings') refreshRecordings();
     if (tabName === 'analysis') refreshAnalysis();
     if (tabName === 'compare') refreshCompareList();
+    if (tabName === 'progress') refreshProgress();
     if (tabName === 'settings') refreshArchiveStatus();
 }
 
@@ -1770,19 +1926,79 @@ function renderRecordings(data) {
     for (const rec of data.recordings) {
         const tr = document.createElement('tr');
         const dur = rec.duration != null ? rec.duration + 's' : '\u2014';
+        const favOn = rec.favorite ? 'on' : '';
+        const favChar = rec.favorite ? '\u2605' : '\u2606';
+        const notesCls = (rec.notes || (rec.tags && rec.tags.length)) ? 'notes-btn has-notes' : 'notes-btn';
+        const notesLabel = (rec.notes || (rec.tags && rec.tags.length)) ? 'Edit' : 'Add';
         tr.innerHTML = `
             <td><input type="checkbox" class="rec-check" data-ts="${rec.timestamp}" onchange="updateBulkBtn()"></td>
+            <td class="fav-col"><button class="fav-btn ${favOn}" title="Favorite"
+                onclick="toggleFavorite('${rec.timestamp}', this)">${favChar}</button></td>
             <td class="mono">${rec.date}</td>
             <td class="duration">${dur}</td>
             <td class="size">${formatBytes(rec.camera1_size)}</td>
             <td class="size">${formatBytes(rec.camera2_size)}</td>
             <td class="size">${formatBytes(rec.total_size)}</td>
+            <td><button class="${notesCls}" onclick="openNotesEditor('${rec.timestamp}')">${notesLabel}</button></td>
             <td><button class="del-btn" onclick="deleteRecording('${rec.timestamp}')">Delete</button></td>
         `;
         tbody.appendChild(tr);
     }
     document.getElementById('rec-select-all').checked = false;
     updateBulkBtn();
+}
+
+let notesEditingTs = null;
+
+function toggleFavorite(ts, btn) {
+    const turningOn = !btn.classList.contains('on');
+    fetch(`/api/recordings/${ts}/meta`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({favorite: turningOn}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus(data.error); return; }
+        btn.classList.toggle('on', !!data.favorite);
+        btn.textContent = data.favorite ? '\u2605' : '\u2606';
+        showStatus(data.favorite ? 'Marked favorite' : 'Removed favorite');
+    })
+    .catch(() => showStatus('Failed to update favorite'));
+}
+
+function openNotesEditor(ts) {
+    notesEditingTs = ts;
+    const rec = (recordingsData || []).find(r => r.timestamp === ts) || {};
+    document.getElementById('notes-ts-label').textContent = ts;
+    document.getElementById('notes-text').value = rec.notes || '';
+    document.getElementById('notes-tags').value = (rec.tags || []).join(', ');
+    document.getElementById('notes-editor').classList.add('open');
+}
+
+function closeNotesEditor() {
+    notesEditingTs = null;
+    document.getElementById('notes-editor').classList.remove('open');
+}
+
+function saveNotes() {
+    if (!notesEditingTs) return;
+    const notes = document.getElementById('notes-text').value;
+    const tags = document.getElementById('notes-tags').value
+        .split(',').map(s => s.trim()).filter(Boolean);
+    fetch(`/api/recordings/${notesEditingTs}/meta`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({notes, tags}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus(data.error); return; }
+        showStatus('Notes saved');
+        closeNotesEditor();
+        refreshRecordings();
+    })
+    .catch(() => showStatus('Failed to save notes'));
 }
 
 function updateBulkBtn() {
@@ -1987,6 +2203,9 @@ function renderAnalysis(data) {
     pBadge.textContent = phase;
     pBadge.className = 'phase-badge phase-' + phase.toLowerCase().replace(/[^a-z]/g, '-');
 
+    // Swing score
+    renderSwingScore(data.score);
+
     // ---------- Metric dashboard cards ----------
     renderDashboard(data);
 
@@ -1996,6 +2215,37 @@ function renderAnalysis(data) {
 
     // ---------- Camera summaries ----------
     renderCameraSummaries(data);
+}
+
+function renderSwingScore(score) {
+    const gradeEl = document.getElementById('score-grade');
+    const numEl = document.getElementById('score-num');
+    const subEl = document.getElementById('score-sub');
+    const focusEl = document.getElementById('score-focus');
+    if (!gradeEl) return;
+
+    if (!score || score.score == null) {
+        gradeEl.textContent = '—';
+        gradeEl.className = 'score-grade';
+        numEl.textContent = '— / 100';
+        subEl.textContent = 'Swing score unavailable';
+        focusEl.textContent = '';
+        return;
+    }
+
+    const grade = score.grade || '—';
+    gradeEl.textContent = grade;
+    gradeEl.className = 'score-grade grade-' + String(grade).toLowerCase();
+    numEl.textContent = score.score.toFixed(1) + ' / 100';
+    subEl.textContent = `Rated ${score.rated_count || 0} of ${score.metric_count || 0} metrics`;
+
+    const strengths = (score.strengths || []).slice(0, 3).join(', ') || '—';
+    const focus = (score.focus_areas || []).slice(0, 3).join(', ') || '—';
+    focusEl.innerHTML = `<strong>Strengths:</strong> ${strengths}<br><strong>Focus:</strong> ${focus}`;
+}
+
+function exportAnalysis(fmt) {
+    window.location.href = `/api/analysis/export?format=${encodeURIComponent(fmt)}`;
 }
 
 // ---------- Helpers ----------
@@ -2685,6 +2935,162 @@ function pollStatus() {
 }
 
 // ===================================================================
+// Progress / trends
+// ===================================================================
+
+let progressData = null;
+let activeProgressMetrics = new Set(['score', 'max_shoulder_turn', 'tempo_ratio']);
+
+function refreshProgress() {
+    fetch('/api/progress')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            progressData = data;
+            renderProgress(data);
+        })
+        .catch(() => {});
+}
+
+function renderProgress(data) {
+    const emptyEl = document.getElementById('progress-empty');
+    const contentEl = document.getElementById('progress-content');
+    if (!data || !data.count) {
+        emptyEl.style.display = 'block';
+        contentEl.style.display = 'none';
+        return;
+    }
+    emptyEl.style.display = 'none';
+    contentEl.style.display = 'block';
+
+    document.getElementById('progress-count').textContent = data.count;
+    const latest = data.latest_score;
+    document.getElementById('progress-latest').textContent =
+        latest != null ? latest.toFixed(1) : '—';
+    document.getElementById('progress-grade').textContent = data.latest_grade || '—';
+
+    const deltaEl = document.getElementById('progress-delta');
+    if (data.score_delta == null) {
+        deltaEl.textContent = '—';
+        deltaEl.className = 'value';
+    } else {
+        const sign = data.score_delta > 0 ? '+' : '';
+        deltaEl.textContent = sign + data.score_delta.toFixed(1);
+        deltaEl.className = 'value ' + (data.score_delta > 0 ? 'up' : data.score_delta < 0 ? 'down' : '');
+    }
+
+    // Toggles
+    const toggles = document.getElementById('progress-toggles');
+    toggles.innerHTML = '';
+    for (const m of (data.metrics || [])) {
+        const btn = document.createElement('button');
+        btn.className = 'btn' + (activeProgressMetrics.has(m.key) ? ' btn-primary' : '');
+        btn.textContent = m.label;
+        btn.style.fontSize = '12px';
+        btn.style.padding = '4px 10px';
+        btn.onclick = () => {
+            if (activeProgressMetrics.has(m.key)) activeProgressMetrics.delete(m.key);
+            else activeProgressMetrics.add(m.key);
+            renderProgress(progressData);
+        };
+        toggles.appendChild(btn);
+    }
+
+    drawProgressChart(data);
+}
+
+function drawProgressChart(data) {
+    const canvas = document.getElementById('progress-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const points = data.points || [];
+    if (points.length < 1) return;
+
+    const padL = 48, padR = 16, padT = 16, padB = 36;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const keys = [...activeProgressMetrics].filter(k => (data.series || {})[k]);
+    if (!keys.length) return;
+
+    // Collect values for scale
+    let vmin = Infinity, vmax = -Infinity;
+    for (const k of keys) {
+        for (const v of data.series[k]) {
+            if (v == null || Number.isNaN(v)) continue;
+            vmin = Math.min(vmin, v);
+            vmax = Math.max(vmax, v);
+        }
+    }
+    if (!Number.isFinite(vmin) || !Number.isFinite(vmax)) return;
+    if (vmin === vmax) { vmin -= 1; vmax += 1; }
+    const span = vmax - vmin;
+
+    // Grid
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (plotH * i) / 4;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        const val = vmax - (span * i) / 4;
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(val.toFixed(0), 4, y + 4);
+    }
+
+    const colors = {
+        score: '#58a6ff',
+        max_shoulder_turn: '#79c0ff',
+        max_hip_turn: '#f0883e',
+        max_x_factor: '#d29922',
+        tempo_ratio: '#3fb950',
+        max_sway_right: '#b392f0',
+        max_head_sway_right: '#f85149',
+    };
+
+    const n = points.length;
+    for (const k of keys) {
+        const vals = data.series[k];
+        ctx.strokeStyle = colors[k] || '#58a6ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < n; i++) {
+            const v = vals[i];
+            if (v == null || Number.isNaN(v)) { started = false; continue; }
+            const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+            const y = padT + plotH * (1 - (v - vmin) / span);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Dots
+        ctx.fillStyle = colors[k] || '#58a6ff';
+        for (let i = 0; i < n; i++) {
+            const v = vals[i];
+            if (v == null || Number.isNaN(v)) continue;
+            const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+            const y = padT + plotH * (1 - (v - vmin) / span);
+            ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // X labels (first / mid / last)
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px sans-serif';
+    const labelIdx = n === 1 ? [0] : n === 2 ? [0, n - 1] : [0, Math.floor((n - 1) / 2), n - 1];
+    for (const i of labelIdx) {
+        const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const label = (points[i].date || points[i].timestamp || '').slice(0, 16);
+        ctx.fillText(label, x - 30, H - 10);
+    }
+}
+
+// ===================================================================
 // Archive / Settings
 // ===================================================================
 
@@ -2791,7 +3197,8 @@ document.addEventListener('keydown', (e) => {
         case '4': switchTab('recordings'); break;
         case '5': switchTab('analysis'); break;
         case '6': switchTab('compare'); break;
-        case '7': switchTab('settings'); break;
+        case '7': switchTab('progress'); break;
+        case '8': switchTab('settings'); break;
         case ' ':
             if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
             else if (currentTab === 'analysis') { e.preventDefault(); togglePlayback(); }
