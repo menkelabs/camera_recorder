@@ -52,6 +52,11 @@ recordings/
 *.flv
 *.wmv
 
+# Per-recording practice metadata (favorites/notes) lives under recordings/
+recording_meta.json
+practice_settings.json
+archive_config.json
+
 # MediaPipe Output
 mediapipe_output/
 

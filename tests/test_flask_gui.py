@@ -61,6 +61,7 @@ class TestCameraManagerInitialization(unittest.TestCase):
         self.assertIn("Camera 2 Setup", CameraManager.TAB_NAMES)
         self.assertIn("Recording", CameraManager.TAB_NAMES)
         self.assertIn("Analysis", CameraManager.TAB_NAMES)
+        self.assertIn("Progress", CameraManager.TAB_NAMES)
 
     def test_initial_state(self):
         """Verify initial state variables."""
@@ -731,7 +732,7 @@ class TestTemplateRendering(unittest.TestCase):
         flask_gui.camera_manager = None
 
     def test_template_contains_all_tabs(self):
-        """HTML should contain all 6 tab buttons."""
+        """HTML should contain all tab buttons including Progress."""
         resp = self.client.get('/')
         html = resp.data.decode()
         self.assertIn('Camera 1 Setup', html)
@@ -740,6 +741,8 @@ class TestTemplateRendering(unittest.TestCase):
         self.assertIn('Recordings', html)
         self.assertIn('Analysis', html)
         self.assertIn('Compare', html)
+        self.assertIn('Progress', html)
+        self.assertIn('Settings', html)
 
     def test_template_contains_keyboard_hints(self):
         """HTML should include keyboard shortcut hints."""

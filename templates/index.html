@@ -901,6 +901,166 @@
         @media (max-width: 900px)  { .compare-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 600px)  { .compare-grid { grid-template-columns: 1fr; } }
 
+        /* ===== Swing score & export ===== */
+        .score-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .score-badge {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .score-grade {
+            font-size: 36px;
+            font-weight: 700;
+            line-height: 1;
+            min-width: 48px;
+            text-align: center;
+        }
+        .score-grade.grade-a { color: var(--green); }
+        .score-grade.grade-b { color: #3fb950; }
+        .score-grade.grade-c { color: var(--yellow); }
+        .score-grade.grade-d { color: var(--orange); }
+        .score-grade.grade-f { color: var(--red); }
+        .score-meta .score-num { font-size: 18px; font-weight: 600; color: var(--text-bright); }
+        .score-meta .score-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+        .score-focus { font-size: 12px; color: var(--text-dim); max-width: 420px; }
+        .score-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .drills-panel {
+            margin: 0 0 16px 0; padding: 12px 16px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .drills-panel h3 { font-size: 13px; color: var(--orange); margin: 0 0 8px; }
+        .drill-item { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
+        .drill-item strong { color: var(--text); }
+
+        /* Pre-record checklist */
+        .checklist {
+            margin-top: 14px; padding: 12px 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .checklist h3 {
+            font-size: 13px; margin: 0 0 8px; color: var(--cyan);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .checklist-item {
+            display: flex; gap: 8px; align-items: flex-start;
+            font-size: 12px; margin-bottom: 4px; color: var(--text-dim);
+        }
+        .checklist-item .mark { font-family: var(--font-mono); min-width: 14px; }
+        .checklist-item.ok .mark { color: var(--green); }
+        .checklist-item.bad .mark { color: var(--red); }
+        .checklist-item.warn .mark { color: var(--yellow); }
+        .checklist-ready { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .checklist-ready.yes { background: var(--green-dim); color: var(--green); }
+        .checklist-ready.no { background: var(--red-dim); color: #fff; }
+
+        .ref-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+        }
+        .ref-btn.on { color: var(--accent); border-color: var(--accent); }
+        .ref-btn:hover { color: var(--accent); border-color: var(--accent); }
+        .ref-banner {
+            font-size: 12px; color: var(--text-dim); margin-bottom: 10px;
+        }
+        .ref-banner strong { color: var(--accent); }
+
+        .usb-warn {
+            display: none; margin-top: 10px; padding: 10px 12px;
+            background: #3d2800; border: 1px solid var(--yellow);
+            border-radius: var(--radius); color: var(--yellow); font-size: 12px;
+        }
+        .usb-warn.show { display: block; }
+
+        .practice-tools {
+            margin-top: 14px; padding: 12px 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); display: flex; flex-direction: column; gap: 12px;
+        }
+        .practice-tools h3 { font-size: 13px; color: var(--cyan); margin: 0; }
+        .practice-row {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px;
+        }
+        .metro-beat {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: var(--border); display: inline-block;
+        }
+        .metro-beat.pulse { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+        .metro-beat.accent { background: var(--green); }
+        .session-phase {
+            font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+        }
+        .session-phase.active { color: var(--green); }
+        .role-select {
+            padding: 4px 8px; background: var(--bg-input); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+        }
+
+        /* ===== Favorites / notes ===== */
+        .fav-btn {
+            background: transparent; border: none; cursor: pointer;
+            font-size: 18px; color: var(--text-dim); padding: 2px 6px; line-height: 1;
+        }
+        .fav-btn.on { color: var(--yellow); }
+        .fav-btn:hover { color: var(--yellow); }
+        .notes-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+        }
+        .notes-btn:hover { color: var(--text); border-color: var(--accent); }
+        .notes-btn.has-notes { color: var(--cyan); border-color: var(--cyan); }
+        .rec-table .fav-col { width: 36px; text-align: center; }
+        .notes-editor {
+            display: none; margin-top: 8px; padding: 10px; background: var(--bg-card-alt);
+            border: 1px solid var(--border); border-radius: var(--radius);
+        }
+        .notes-editor.open { display: block; }
+        .notes-editor textarea {
+            width: 100%; min-height: 64px; background: var(--bg-input); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: var(--font);
+            font-size: 13px; resize: vertical;
+        }
+        .notes-editor .tags-input {
+            width: 100%; margin-top: 8px; padding: 6px 8px; background: var(--bg-input);
+            color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+        }
+
+        /* ===== Progress tab ===== */
+        .progress-layout { max-width: 1100px; }
+        .progress-stats {
+            display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px;
+            padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .progress-stat { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
+        .progress-stat .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .4px; }
+        .progress-stat .value { font-size: 20px; font-weight: 600; color: var(--text-bright); font-family: var(--font-mono); }
+        .progress-stat .value.up { color: var(--green); }
+        .progress-stat .value.down { color: var(--red); }
+        .progress-chart-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+        }
+        .progress-chart-card h3 { font-size: 14px; color: var(--cyan); margin-bottom: 10px; }
+        #progress-canvas { width: 100%; height: 280px; display: block; }
+        .progress-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .progress-empty {
+            text-align: center; padding: 60px 20px; color: var(--text-dim);
+        }
+        .progress-empty h2 { color: var(--text); font-size: 20px; margin-bottom: 8px; }
+
         /* ===== Status Bar ===== */
         .status-bar {
             padding: 8px 24px;
@@ -1083,8 +1243,11 @@
     <button class="tab-btn" data-tab="compare" onclick="switchTab('compare')">
         Compare <span class="shortcut">[6]</span>
     </button>
+    <button class="tab-btn" data-tab="progress" onclick="switchTab('progress')">
+        Progress <span class="shortcut">[7]</span>
+    </button>
     <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
-        Settings <span class="shortcut">[7]</span>
+        Settings <span class="shortcut">[8]</span>
     </button>
 </div>
 
@@ -1141,11 +1304,11 @@
             <div class="dual-preview">
                 <div class="preview-card">
                     <img src="/video_feed/1" alt="Camera 1">
-                    <div class="preview-info">Camera 1 (Face-On)</div>
+                    <div class="preview-info" id="rec-cam1-label">Camera 1 (Face-On)</div>
                 </div>
                 <div class="preview-card">
                     <img src="/video_feed/2" alt="Camera 2">
-                    <div class="preview-info">Camera 2 (Down-the-Line)</div>
+                    <div class="preview-info" id="rec-cam2-label">Camera 2 (Down-the-Line)</div>
                 </div>
             </div>
             <div class="rec-controls">
@@ -1188,6 +1351,45 @@
                 &nbsp;&middot;&nbsp;
                 <strong>Keyboard:</strong> Space to start/stop &middot; 1/2/3/4 switch tabs &middot; Q quit
             </div>
+            <div class="checklist" id="checklist-panel">
+                <h3>
+                    Pre-Record Checklist
+                    <span class="checklist-ready no" id="checklist-ready">Not Ready</span>
+                </h3>
+                <div id="checklist-items">
+                    <div class="checklist-item"><span class="mark">…</span> Checking cameras…</div>
+                </div>
+                <div class="usb-warn" id="usb-warn"></div>
+            </div>
+
+            <div class="practice-tools">
+                <h3>Practice Tools</h3>
+                <div class="practice-row">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="session-cb" onchange="toggleSession()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Session mode</span>
+                    <span class="session-phase" id="session-phase">idle</span>
+                    <span class="session-phase" id="session-count">swings: 0</span>
+                    <button class="btn" id="session-next-btn" onclick="sessionNext()" style="display:none;font-size:12px;padding:4px 10px;">
+                        Next Swing
+                    </button>
+                </div>
+                <div class="practice-row">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="metro-cb" onchange="toggleMetronome()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Tempo metronome</span>
+                    <span class="metro-beat" id="metro-beat"></span>
+                    <label style="color:var(--text-dim)">BPM</label>
+                    <input type="number" id="metro-bpm" min="40" max="120" value="60"
+                           style="width:64px;padding:4px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:4px;"
+                           onchange="saveMetronomeSettings()">
+                    <span style="color:var(--text-dim)">3:1 feel</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1222,16 +1424,30 @@
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="rec-select-all" onchange="toggleSelectAll(this)"></th>
+                            <th class="fav-col"></th>
                             <th>Date / Time</th>
                             <th>Duration</th>
                             <th>Camera 1</th>
                             <th>Camera 2</th>
                             <th>Total Size</th>
+                            <th>Notes</th>
+                            <th>Ref</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="recordings-tbody"></tbody>
                 </table>
+                <div class="notes-editor" id="notes-editor">
+                    <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px">
+                        Notes for <span class="mono" id="notes-ts-label"></span>
+                    </div>
+                    <textarea id="notes-text" placeholder="Practice notes for this swing..."></textarea>
+                    <input class="tags-input" id="notes-tags" placeholder="Tags (comma-separated), e.g. tempo, early-extension">
+                    <div class="btn-row" style="margin-top:8px">
+                        <button class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+                        <button class="btn" onclick="closeNotesEditor()">Cancel</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1259,14 +1475,37 @@
             </div>
             <!-- Results state -->
             <div id="analysis-results" style="display:none">
+                <!-- Score + export -->
+                <div class="score-header" id="score-header">
+                    <div class="score-badge">
+                        <div class="score-grade" id="score-grade">—</div>
+                        <div class="score-meta">
+                            <div class="score-num" id="score-num">— / 100</div>
+                            <div class="score-sub" id="score-sub">Swing score</div>
+                        </div>
+                    </div>
+                    <div class="score-focus" id="score-focus"></div>
+                    <div class="score-actions">
+                        <button class="btn" onclick="exportAnalysis('html')">Export HTML</button>
+                        <button class="btn" onclick="exportAnalysis('csv')">Export CSV</button>
+                        <button class="btn" onclick="exportClip(1)">Clip Cam1</button>
+                        <button class="btn" onclick="exportClip(2)">Clip Cam2</button>
+                    </div>
+                </div>
+
+                <div class="drills-panel" id="drills-panel" style="display:none">
+                    <h3>Suggested Drills</h3>
+                    <div id="drills-list"></div>
+                </div>
+
                 <!-- 0. Video playback panels -->
                 <div class="analysis-video-panels" id="analysis-video-panels" style="display:none">
                     <div class="analysis-video-card">
-                        <div class="video-card-header">Camera 1 &mdash; Face-On</div>
+                        <div class="video-card-header" id="analysis-cam1-header">Camera 1 &mdash; Face-On</div>
                         <img id="analysis-frame-cam1" src="" alt="Camera 1 analysis frame">
                     </div>
                     <div class="analysis-video-card">
-                        <div class="video-card-header">Camera 2 &mdash; Down-the-Line</div>
+                        <div class="video-card-header" id="analysis-cam2-header">Camera 2 &mdash; Down-the-Line</div>
                         <img id="analysis-frame-cam2" src="" alt="Camera 2 analysis frame">
                     </div>
                 </div>
@@ -1307,14 +1546,14 @@
                 <div class="camera-columns">
                     <div class="cam-summary">
                         <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
-                            <h4>Camera 1 (Face-On)</h4>
+                            <h4 id="cam1-summary-title">Camera 1 (Face-On)</h4>
                             <span class="chevron">&#9660;</span>
                         </div>
                         <div class="cam-summary-body open" id="cam1-summary"></div>
                     </div>
                     <div class="cam-summary">
                         <div class="cam-summary-header open" onclick="toggleCamSummary(this)">
-                            <h4>Camera 2 (Down-the-Line)</h4>
+                            <h4 id="cam2-summary-title">Camera 2 (Down-the-Line)</h4>
                             <span class="chevron">&#9660;</span>
                         </div>
                         <div class="cam-summary-body open" id="cam2-summary"></div>
@@ -1327,17 +1566,18 @@
     <!-- ===== Compare Tab ===== -->
     <div id="tab-compare" class="tab-panel">
         <div class="compare-layout">
+            <div class="ref-banner" id="ref-banner">No reference swing pinned yet. Set one from Recordings with “Set Ref”.</div>
             <!-- Swing selectors -->
             <div class="compare-selectors">
                 <div class="compare-select-group">
-                    <label>Swing A</label>
+                    <label>Swing A (reference)</label>
                     <select id="compare-a" class="compare-select" onchange="loadComparison()">
                         <option value="">-- Select a swing --</option>
                     </select>
                 </div>
                 <div class="compare-vs">vs</div>
                 <div class="compare-select-group">
-                    <label>Swing B</label>
+                    <label>Swing B (current)</label>
                     <select id="compare-b" class="compare-select" onchange="loadComparison()">
                         <option value="">-- Select a swing --</option>
                     </select>
@@ -1367,9 +1607,70 @@
         </div>
     </div>
 
+    <!-- ===== Progress Tab ===== -->
+    <div id="tab-progress" class="tab-panel">
+        <div class="progress-layout">
+            <div id="progress-empty" class="progress-empty">
+                <h2>No Progress Data Yet</h2>
+                <p>Record and analyze swings to see scores and metric trends over time.</p>
+            </div>
+            <div id="progress-content" style="display:none">
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <span class="label">Swings</span>
+                        <span class="value" id="progress-count">0</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Latest Score</span>
+                        <span class="value" id="progress-latest">—</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Latest Grade</span>
+                        <span class="value" id="progress-grade">—</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="label">Score Change</span>
+                        <span class="value" id="progress-delta">—</span>
+                    </div>
+                </div>
+                <div class="progress-chart-card">
+                    <h3>Trends Over Time</h3>
+                    <div class="progress-toggles" id="progress-toggles"></div>
+                    <canvas id="progress-canvas" width="1000" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== Settings Tab ===== -->
     <div id="tab-settings" class="tab-panel">
         <div class="settings-layout">
+
+            <!-- Camera Roles -->
+            <div class="settings-section">
+                <h3>Camera Roles</h3>
+                <p style="font-size:13px;color:var(--text-dim);margin:0 0 16px 0">
+                    Assign Face-On vs Down-the-Line. Labels and scoring follow roles; files stay camera1/camera2.
+                </p>
+                <div class="setting-row">
+                    <label>Camera 1</label>
+                    <select id="cam1-role" class="role-select">
+                        <option value="face_on">Face-On</option>
+                        <option value="dtl">Down-the-Line</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Camera 2</label>
+                    <select id="cam2-role" class="role-select">
+                        <option value="face_on">Face-On</option>
+                        <option value="dtl">Down-the-Line</option>
+                    </select>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" onclick="swapCameraRoles()">Swap Roles</button>
+                    <button class="btn btn-primary" onclick="saveCameraRoles()">Save Roles</button>
+                </div>
+            </div>
 
             <!-- Archive Configuration -->
             <div class="settings-section">
@@ -1434,7 +1735,7 @@
 <!-- Status Bar -->
 <div class="status-bar">
     <span id="status-msg" class="msg"></span>
-    <span class="hint">Keys: 1-7 tabs &middot; Space record &middot; A/D frame nav</span>
+    <span class="hint">Keys: 1-8 tabs &middot; Space record &middot; A/D frame nav</span>
 </div>
 
 <script>
@@ -1461,10 +1762,12 @@ function switchTab(tabName) {
     // Refresh properties when switching to a camera setup tab
     if (tabName === 'camera1') refreshProperties(1);
     if (tabName === 'camera2') refreshProperties(2);
+    if (tabName === 'recording') refreshChecklist();
     if (tabName === 'recordings') refreshRecordings();
     if (tabName === 'analysis') refreshAnalysis();
     if (tabName === 'compare') refreshCompareList();
-    if (tabName === 'settings') refreshArchiveStatus();
+    if (tabName === 'progress') refreshProgress();
+    if (tabName === 'settings') { refreshArchiveStatus(); loadPracticeSettings(); }
 }
 
 // ===================================================================
@@ -1590,7 +1893,10 @@ function toggleRecording() {
             .then(r => r.json())
             .then(data => {
                 if (data.success) showStatus('Recording started');
-                else showStatus('Error: ' + (data.error || 'Unknown'));
+                else {
+                    showStatus('Error: ' + (data.error || 'Unknown'));
+                    if (data.checklist) renderChecklist(data.checklist);
+                }
             });
     }
 }
@@ -1668,12 +1974,54 @@ function toggleAutoDetect() {
     fetch('/api/auto-detect/toggle', {method: 'POST'})
         .then(r => r.json())
         .then(data => {
-            if (data.error) { showStatus('Error: ' + data.error); return; }
+            if (data.error) {
+                showStatus('Error: ' + data.error);
+                const cb = document.getElementById('auto-detect-cb');
+                if (cb) cb.checked = false;
+                if (data.checklist) renderChecklist(data.checklist);
+                return;
+            }
             const cb = document.getElementById('auto-detect-cb');
             cb.checked = data.enabled;
             updateAutoDetectUI(data.enabled, data.status || {});
             showStatus(data.enabled ? 'Auto-detect enabled' : 'Auto-detect disabled');
         });
+}
+
+function refreshChecklist() {
+    fetch('/api/checklist')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            renderChecklist(data);
+        })
+        .catch(() => {});
+}
+
+function renderChecklist(data) {
+    const wrap = document.getElementById('checklist-items');
+    const readyEl = document.getElementById('checklist-ready');
+    if (!wrap || !readyEl) return;
+    readyEl.textContent = data.ready ? 'Ready' : 'Not Ready';
+    readyEl.className = 'checklist-ready ' + (data.ready ? 'yes' : 'no');
+    wrap.innerHTML = (data.items || []).map(item => {
+        const cls = item.ok ? 'ok' : (item.required ? 'bad' : 'warn');
+        const mark = item.ok ? '✓' : '✗';
+        return `<div class="checklist-item ${cls}"><span class="mark">${mark}</span>` +
+               `<span><strong>${item.label}</strong> — ${item.detail}</span></div>`;
+    }).join('');
+
+    const usbWarn = document.getElementById('usb-warn');
+    if (usbWarn) {
+        if (data.usb_warning) {
+            usbWarn.textContent = data.usb_warning;
+            usbWarn.classList.add('show');
+        } else {
+            usbWarn.textContent = '';
+            usbWarn.classList.remove('show');
+        }
+    }
+    if (data.camera_labels) applyCameraLabels(data.camera_labels);
 }
 
 function updateAutoDetectUI(enabled, status) {
@@ -1770,19 +2118,98 @@ function renderRecordings(data) {
     for (const rec of data.recordings) {
         const tr = document.createElement('tr');
         const dur = rec.duration != null ? rec.duration + 's' : '\u2014';
+        const favOn = rec.favorite ? 'on' : '';
+        const favChar = rec.favorite ? '\u2605' : '\u2606';
+        const notesCls = (rec.notes || (rec.tags && rec.tags.length)) ? 'notes-btn has-notes' : 'notes-btn';
+        const notesLabel = (rec.notes || (rec.tags && rec.tags.length)) ? 'Edit' : 'Add';
+        const refOn = rec.is_reference ? 'on' : '';
+        const refLabel = rec.is_reference ? 'Ref' : 'Set Ref';
         tr.innerHTML = `
             <td><input type="checkbox" class="rec-check" data-ts="${rec.timestamp}" onchange="updateBulkBtn()"></td>
+            <td class="fav-col"><button class="fav-btn ${favOn}" title="Favorite"
+                onclick="toggleFavorite('${rec.timestamp}', this)">${favChar}</button></td>
             <td class="mono">${rec.date}</td>
             <td class="duration">${dur}</td>
             <td class="size">${formatBytes(rec.camera1_size)}</td>
             <td class="size">${formatBytes(rec.camera2_size)}</td>
             <td class="size">${formatBytes(rec.total_size)}</td>
+            <td><button class="${notesCls}" onclick="openNotesEditor('${rec.timestamp}')">${notesLabel}</button></td>
+            <td><button class="ref-btn ${refOn}" onclick="setReference('${rec.timestamp}', ${rec.is_reference ? 'true' : 'false'})">${refLabel}</button></td>
             <td><button class="del-btn" onclick="deleteRecording('${rec.timestamp}')">Delete</button></td>
         `;
         tbody.appendChild(tr);
     }
     document.getElementById('rec-select-all').checked = false;
     updateBulkBtn();
+}
+
+function setReference(ts, currentlyRef) {
+    const body = currentlyRef ? {timestamp: null} : {timestamp: ts};
+    fetch('/api/reference', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus(data.error); return; }
+        showStatus(currentlyRef ? 'Reference cleared' : 'Reference swing set');
+        refreshRecordings();
+    })
+    .catch(() => showStatus('Failed to update reference'));
+}
+
+let notesEditingTs = null;
+
+function toggleFavorite(ts, btn) {
+    const turningOn = !btn.classList.contains('on');
+    fetch(`/api/recordings/${ts}/meta`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({favorite: turningOn}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus(data.error); return; }
+        btn.classList.toggle('on', !!data.favorite);
+        btn.textContent = data.favorite ? '\u2605' : '\u2606';
+        showStatus(data.favorite ? 'Marked favorite' : 'Removed favorite');
+    })
+    .catch(() => showStatus('Failed to update favorite'));
+}
+
+function openNotesEditor(ts) {
+    notesEditingTs = ts;
+    const rec = (recordingsData || []).find(r => r.timestamp === ts) || {};
+    document.getElementById('notes-ts-label').textContent = ts;
+    document.getElementById('notes-text').value = rec.notes || '';
+    document.getElementById('notes-tags').value = (rec.tags || []).join(', ');
+    document.getElementById('notes-editor').classList.add('open');
+}
+
+function closeNotesEditor() {
+    notesEditingTs = null;
+    document.getElementById('notes-editor').classList.remove('open');
+}
+
+function saveNotes() {
+    if (!notesEditingTs) return;
+    const notes = document.getElementById('notes-text').value;
+    const tags = document.getElementById('notes-tags').value
+        .split(',').map(s => s.trim()).filter(Boolean);
+    fetch(`/api/recordings/${notesEditingTs}/meta`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({notes, tags}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus(data.error); return; }
+        showStatus('Notes saved');
+        closeNotesEditor();
+        refreshRecordings();
+    })
+    .catch(() => showStatus('Failed to save notes'));
 }
 
 function updateBulkBtn() {
@@ -1987,6 +2414,11 @@ function renderAnalysis(data) {
     pBadge.textContent = phase;
     pBadge.className = 'phase-badge phase-' + phase.toLowerCase().replace(/[^a-z]/g, '-');
 
+    // Swing score
+    renderSwingScore(data.score);
+
+    if (data.camera_labels) applyCameraLabels(data.camera_labels);
+
     // ---------- Metric dashboard cards ----------
     renderDashboard(data);
 
@@ -1996,6 +2428,68 @@ function renderAnalysis(data) {
 
     // ---------- Camera summaries ----------
     renderCameraSummaries(data);
+}
+
+function renderSwingScore(score) {
+    const gradeEl = document.getElementById('score-grade');
+    const numEl = document.getElementById('score-num');
+    const subEl = document.getElementById('score-sub');
+    const focusEl = document.getElementById('score-focus');
+    const drillsPanel = document.getElementById('drills-panel');
+    const drillsList = document.getElementById('drills-list');
+    if (!gradeEl) return;
+
+    if (!score || score.score == null) {
+        gradeEl.textContent = '—';
+        gradeEl.className = 'score-grade';
+        numEl.textContent = '— / 100';
+        subEl.textContent = 'Swing score unavailable';
+        focusEl.textContent = '';
+        if (drillsPanel) drillsPanel.style.display = 'none';
+        return;
+    }
+
+    const grade = score.grade || '—';
+    gradeEl.textContent = grade;
+    gradeEl.className = 'score-grade grade-' + String(grade).toLowerCase();
+    numEl.textContent = score.score.toFixed(1) + ' / 100';
+    subEl.textContent = `Rated ${score.rated_count || 0} of ${score.metric_count || 0} metrics`;
+
+    const strengths = (score.strengths || []).slice(0, 3).join(', ') || '—';
+    const focus = (score.focus_areas || []).slice(0, 3).join(', ') || '—';
+    focusEl.innerHTML = `<strong>Strengths:</strong> ${strengths}<br><strong>Focus:</strong> ${focus}`;
+
+    const drills = score.drills || [];
+    if (drillsPanel && drillsList) {
+        if (drills.length === 0) {
+            drillsPanel.style.display = 'none';
+        } else {
+            drillsPanel.style.display = 'block';
+            drillsList.innerHTML = drills.map(d =>
+                `<div class="drill-item"><strong>${d.label}:</strong> ${d.tip}</div>`
+            ).join('');
+        }
+    }
+}
+
+function exportAnalysis(fmt) {
+    window.location.href = `/api/analysis/export?format=${encodeURIComponent(fmt)}`;
+}
+
+function exportClip(cameraNum) {
+    showStatus('Exporting annotated clip…');
+    fetch('/api/analysis/export-clip', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({camera: cameraNum, fps: 30}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { showStatus('Clip export failed: ' + data.error); return; }
+        showStatus(`Clip saved: ${data.filename} (${data.frame_count} frames)`);
+        window.location.href = '/api/analysis/clip/' + encodeURIComponent(data.filename);
+    })
+    .catch(() => showStatus('Clip export failed'));
 }
 
 // ---------- Helpers ----------
@@ -2346,19 +2840,36 @@ function refreshCompareList() {
             const selB = document.getElementById('compare-b');
             const prevA = selA.value;
             const prevB = selB.value;
+            const ref = data.reference_timestamp;
+            const banner = document.getElementById('ref-banner');
+            if (banner) {
+                if (ref) {
+                    const refItem = (data.analyses || []).find(a => a.timestamp === ref);
+                    const label = refItem ? refItem.date : ref;
+                    banner.innerHTML = `Reference swing: <strong>${label}</strong> (auto-selected as Swing A)`;
+                } else {
+                    banner.textContent = 'No reference swing pinned yet. Set one from Recordings with “Set Ref”.';
+                }
+            }
             const opts = '<option value="">-- Select a swing --</option>' +
-                (data.analyses || []).map(a =>
-                    `<option value="${a.timestamp}">${a.date}</option>`
-                ).join('');
+                (data.analyses || []).map(a => {
+                    const mark = a.is_reference ? ' ★' : '';
+                    return `<option value="${a.timestamp}">${a.date}${mark}</option>`;
+                }).join('');
             selA.innerHTML = opts;
             selB.innerHTML = opts;
-            // Restore selections
+            // Prefer previous selection, else reference as A and newest as B
             if (prevA) selA.value = prevA;
+            else if (ref) selA.value = ref;
             if (prevB) selB.value = prevB;
-            // If only 2 available and nothing selected, auto-select
-            if (!prevA && !prevB && data.analyses && data.analyses.length >= 2) {
-                selA.value = data.analyses[1].timestamp;  // older
-                selB.value = data.analyses[0].timestamp;  // newer
+            if (!selA.value && !selB.value && data.analyses && data.analyses.length >= 2) {
+                selA.value = ref || data.analyses[1].timestamp;
+                selB.value = data.analyses[0].timestamp;
+                if (selA.value === selB.value && data.analyses.length > 1) {
+                    selB.value = data.analyses[1].timestamp;
+                }
+            }
+            if (selA.value && selB.value && selA.value !== selB.value) {
                 loadComparison();
             }
         })
@@ -2676,12 +3187,393 @@ function pollStatus() {
             if (adCb && adCb.checked !== data.auto_detect_enabled) adCb.checked = data.auto_detect_enabled;
             updateAutoDetectUI(data.auto_detect_enabled, data.auto_detect_status || {});
             if (data.status_message) showStatus(data.status_message);
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            if (data.session) updateSessionUI(data.session);
             // Auto-refresh analysis when on that tab
             if (currentTab === 'analysis' && (data.is_analyzing || analysisData === null)) {
                 refreshAnalysis();
             }
+            if (currentTab === 'recording' && !data.is_recording) {
+                refreshChecklist();
+            }
+            // Session review: jump to Analysis once when phase flips
+            if (data.session && data.session.enabled && data.session.phase === 'review'
+                && _lastSessionPhase !== 'review' && !data.is_analyzing) {
+                switchTab('analysis');
+                refreshAnalysis();
+            }
+            _lastSessionPhase = data.session ? data.session.phase : null;
         })
         .catch(() => {});
+}
+
+// ===================================================================
+// Practice: camera roles, metronome, session mode
+// ===================================================================
+let _lastSessionPhase = null;
+let _metroCtx = null;
+let _metroTimer = null;
+let _metroBeat = 0;
+let _metroEnabled = false;
+let _metroSyncing = false;
+
+function applyCameraLabels(labels) {
+    if (!labels) return;
+    const c1 = labels.camera1 || 'Face-On';
+    const c2 = labels.camera2 || 'Down-the-Line';
+    const rec1 = document.getElementById('rec-cam1-label');
+    const rec2 = document.getElementById('rec-cam2-label');
+    if (rec1) rec1.textContent = 'Camera 1 (' + c1 + ')';
+    if (rec2) rec2.textContent = 'Camera 2 (' + c2 + ')';
+    const a1 = document.getElementById('analysis-cam1-header');
+    const a2 = document.getElementById('analysis-cam2-header');
+    if (a1) a1.innerHTML = 'Camera 1 &mdash; ' + c1;
+    if (a2) a2.innerHTML = 'Camera 2 &mdash; ' + c2;
+    const s1 = document.getElementById('cam1-summary-title');
+    const s2 = document.getElementById('cam2-summary-title');
+    if (s1) s1.textContent = 'Camera 1 (' + c1 + ')';
+    if (s2) s2.textContent = 'Camera 2 (' + c2 + ')';
+}
+
+function loadPracticeSettings() {
+    fetch('/api/practice/settings')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            const roles = data.camera_roles || {};
+            const r1 = document.getElementById('cam1-role');
+            const r2 = document.getElementById('cam2-role');
+            if (r1 && roles.camera1) r1.value = roles.camera1;
+            if (r2 && roles.camera2) r2.value = roles.camera2;
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            if (data.metronome) syncMetronomeFromSettings(data.metronome);
+            if (data.session) {
+                const cb = document.getElementById('session-cb');
+                if (cb) cb.checked = !!data.session.enabled;
+            }
+        })
+        .catch(() => {});
+}
+
+function saveCameraRoles() {
+    const r1 = document.getElementById('cam1-role').value;
+    const r2 = document.getElementById('cam2-role').value;
+    fetch('/api/practice/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({camera_roles: {camera1: r1, camera2: r2}})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showStatus(data.error); return; }
+            const roles = data.camera_roles || {};
+            document.getElementById('cam1-role').value = roles.camera1;
+            document.getElementById('cam2-role').value = roles.camera2;
+            if (data.camera_labels) applyCameraLabels(data.camera_labels);
+            showStatus('Camera roles saved');
+        })
+        .catch(() => showStatus('Failed to save roles'));
+}
+
+function swapCameraRoles() {
+    const r1 = document.getElementById('cam1-role');
+    const r2 = document.getElementById('cam2-role');
+    const tmp = r1.value;
+    r1.value = r2.value;
+    r2.value = tmp;
+    saveCameraRoles();
+}
+
+function updateSessionUI(session) {
+    if (!session) return;
+    const cb = document.getElementById('session-cb');
+    if (cb && cb.checked !== !!session.enabled) cb.checked = !!session.enabled;
+    const phaseEl = document.getElementById('session-phase');
+    const countEl = document.getElementById('session-count');
+    const nextBtn = document.getElementById('session-next-btn');
+    if (phaseEl) {
+        phaseEl.textContent = session.phase || 'idle';
+        phaseEl.classList.toggle('active', !!session.enabled && session.phase !== 'idle');
+    }
+    if (countEl) countEl.textContent = 'swings: ' + (session.count || 0);
+    if (nextBtn) {
+        nextBtn.style.display = (session.enabled && session.phase === 'review') ? '' : 'none';
+    }
+}
+
+function toggleSession() {
+    const enabled = document.getElementById('session-cb').checked;
+    fetch('/api/session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                showStatus(data.error);
+                document.getElementById('session-cb').checked = false;
+                if (data.checklist) renderChecklist(data.checklist);
+            }
+            updateSessionUI(data);
+            if (data.enabled) switchTab('recording');
+        })
+        .catch(() => {
+            document.getElementById('session-cb').checked = false;
+            showStatus('Session toggle failed');
+        });
+}
+
+function sessionNext() {
+    fetch('/api/session/next', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) showStatus(data.error);
+            updateSessionUI(data);
+            if (data.phase === 'armed') switchTab('recording');
+        })
+        .catch(() => showStatus('Next swing failed'));
+}
+
+function syncMetronomeFromSettings(metro) {
+    if (!metro || _metroSyncing) return;
+    _metroSyncing = true;
+    const bpmEl = document.getElementById('metro-bpm');
+    const cb = document.getElementById('metro-cb');
+    if (bpmEl && document.activeElement !== bpmEl) bpmEl.value = metro.bpm || 60;
+    if (cb) cb.checked = !!metro.enabled;
+    // Do not auto-start audio here (browsers require a user gesture).
+    _metroSyncing = false;
+}
+
+function toggleMetronome() {
+    const enabled = document.getElementById('metro-cb').checked;
+    if (enabled) startMetronome();
+    else stopMetronome();
+    saveMetronomeSettings();
+}
+
+function saveMetronomeSettings() {
+    if (_metroSyncing) return;
+    const bpm = parseInt(document.getElementById('metro-bpm').value, 10) || 60;
+    const enabled = document.getElementById('metro-cb').checked;
+    fetch('/api/practice/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({metronome: {enabled: enabled, bpm: bpm, ratio: '3:1'}})
+    }).catch(() => {});
+    if (_metroEnabled) {
+        stopMetronome();
+        startMetronome();
+    }
+}
+
+function _ensureAudio() {
+    if (!_metroCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        _metroCtx = new AC();
+    }
+    if (_metroCtx.state === 'suspended') _metroCtx.resume();
+    return _metroCtx;
+}
+
+function _click(accent) {
+    const ctx = _ensureAudio();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = accent ? 880 : 660;
+    gain.gain.value = accent ? 0.18 : 0.1;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    osc.stop(ctx.currentTime + 0.07);
+}
+
+function startMetronome() {
+    stopMetronome();
+    _metroEnabled = true;
+    _metroBeat = 0;
+    const tick = () => {
+        if (!_metroEnabled) return;
+        const bpm = parseInt(document.getElementById('metro-bpm').value, 10) || 60;
+        const accent = (_metroBeat % 4) === 0;
+        _click(accent);
+        const beatEl = document.getElementById('metro-beat');
+        if (beatEl) {
+            beatEl.classList.remove('pulse', 'accent');
+            void beatEl.offsetWidth;
+            beatEl.classList.add(accent ? 'accent' : 'pulse');
+        }
+        _metroBeat += 1;
+        _metroTimer = setTimeout(tick, Math.round(60000 / bpm));
+    };
+    tick();
+}
+
+function stopMetronome() {
+    _metroEnabled = false;
+    if (_metroTimer) { clearTimeout(_metroTimer); _metroTimer = null; }
+    const beatEl = document.getElementById('metro-beat');
+    if (beatEl) beatEl.classList.remove('pulse', 'accent');
+}
+
+// ===================================================================
+// Progress / trends
+// ===================================================================
+
+let progressData = null;
+let activeProgressMetrics = new Set(['score', 'max_shoulder_turn', 'tempo_ratio']);
+
+function refreshProgress() {
+    fetch('/api/progress')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            progressData = data;
+            renderProgress(data);
+        })
+        .catch(() => {});
+}
+
+function renderProgress(data) {
+    const emptyEl = document.getElementById('progress-empty');
+    const contentEl = document.getElementById('progress-content');
+    if (!data || !data.count) {
+        emptyEl.style.display = 'block';
+        contentEl.style.display = 'none';
+        return;
+    }
+    emptyEl.style.display = 'none';
+    contentEl.style.display = 'block';
+
+    document.getElementById('progress-count').textContent = data.count;
+    const latest = data.latest_score;
+    document.getElementById('progress-latest').textContent =
+        latest != null ? latest.toFixed(1) : '—';
+    document.getElementById('progress-grade').textContent = data.latest_grade || '—';
+
+    const deltaEl = document.getElementById('progress-delta');
+    if (data.score_delta == null) {
+        deltaEl.textContent = '—';
+        deltaEl.className = 'value';
+    } else {
+        const sign = data.score_delta > 0 ? '+' : '';
+        deltaEl.textContent = sign + data.score_delta.toFixed(1);
+        deltaEl.className = 'value ' + (data.score_delta > 0 ? 'up' : data.score_delta < 0 ? 'down' : '');
+    }
+
+    // Toggles
+    const toggles = document.getElementById('progress-toggles');
+    toggles.innerHTML = '';
+    for (const m of (data.metrics || [])) {
+        const btn = document.createElement('button');
+        btn.className = 'btn' + (activeProgressMetrics.has(m.key) ? ' btn-primary' : '');
+        btn.textContent = m.label;
+        btn.style.fontSize = '12px';
+        btn.style.padding = '4px 10px';
+        btn.onclick = () => {
+            if (activeProgressMetrics.has(m.key)) activeProgressMetrics.delete(m.key);
+            else activeProgressMetrics.add(m.key);
+            renderProgress(progressData);
+        };
+        toggles.appendChild(btn);
+    }
+
+    drawProgressChart(data);
+}
+
+function drawProgressChart(data) {
+    const canvas = document.getElementById('progress-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const points = data.points || [];
+    if (points.length < 1) return;
+
+    const padL = 48, padR = 16, padT = 16, padB = 36;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const keys = [...activeProgressMetrics].filter(k => (data.series || {})[k]);
+    if (!keys.length) return;
+
+    // Collect values for scale
+    let vmin = Infinity, vmax = -Infinity;
+    for (const k of keys) {
+        for (const v of data.series[k]) {
+            if (v == null || Number.isNaN(v)) continue;
+            vmin = Math.min(vmin, v);
+            vmax = Math.max(vmax, v);
+        }
+    }
+    if (!Number.isFinite(vmin) || !Number.isFinite(vmax)) return;
+    if (vmin === vmax) { vmin -= 1; vmax += 1; }
+    const span = vmax - vmin;
+
+    // Grid
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (plotH * i) / 4;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        const val = vmax - (span * i) / 4;
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(val.toFixed(0), 4, y + 4);
+    }
+
+    const colors = {
+        score: '#58a6ff',
+        max_shoulder_turn: '#79c0ff',
+        max_hip_turn: '#f0883e',
+        max_x_factor: '#d29922',
+        tempo_ratio: '#3fb950',
+        max_sway_right: '#b392f0',
+        max_head_sway_right: '#f85149',
+    };
+
+    const n = points.length;
+    for (const k of keys) {
+        const vals = data.series[k];
+        ctx.strokeStyle = colors[k] || '#58a6ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < n; i++) {
+            const v = vals[i];
+            if (v == null || Number.isNaN(v)) { started = false; continue; }
+            const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+            const y = padT + plotH * (1 - (v - vmin) / span);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Dots
+        ctx.fillStyle = colors[k] || '#58a6ff';
+        for (let i = 0; i < n; i++) {
+            const v = vals[i];
+            if (v == null || Number.isNaN(v)) continue;
+            const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+            const y = padT + plotH * (1 - (v - vmin) / span);
+            ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // X labels (first / mid / last)
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px sans-serif';
+    const labelIdx = n === 1 ? [0] : n === 2 ? [0, n - 1] : [0, Math.floor((n - 1) / 2), n - 1];
+    for (const i of labelIdx) {
+        const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const label = (points[i].date || points[i].timestamp || '').slice(0, 16);
+        ctx.fillText(label, x - 30, H - 10);
+    }
 }
 
 // ===================================================================
@@ -2791,7 +3683,8 @@ document.addEventListener('keydown', (e) => {
         case '4': switchTab('recordings'); break;
         case '5': switchTab('analysis'); break;
         case '6': switchTab('compare'); break;
-        case '7': switchTab('settings'); break;
+        case '7': switchTab('progress'); break;
+        case '8': switchTab('settings'); break;
         case ' ':
             if (currentTab === 'recording') { e.preventDefault(); toggleRecording(); }
             else if (currentTab === 'analysis') { e.preventDefault(); togglePlayback(); }
@@ -2812,6 +3705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial property fetch
     refreshProperties(1);
     refreshProperties(2);
+    loadPracticeSettings();
     pollStatus();
 
     // Poll status every 500ms

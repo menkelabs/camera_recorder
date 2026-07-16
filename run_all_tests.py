@@ -39,6 +39,7 @@ UNIT_TEST_MODULES = [
     'test_recording_management',
     'test_swing_detector',
     'test_archive',
+    'test_practice_features',
 ]
 
 # Standalone scripts that open real cameras / write video
