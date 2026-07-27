@@ -79,19 +79,19 @@ Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
 
 ## Quick Start
 
-### GUI v2 (React — recommended on `cursor/gui-v2-react-600c`)
+### GUI (Vue — default on `master` after Vue PR; React baseline tagged `v2.0.0`)
 
 ```bash
 # terminal 1 — API + cameras + MJPEG
 python scripts/flask_gui.py --port 5000
 
-# terminal 2 — React UI with HMR
+# terminal 2 — Vue UI with HMR
 cd frontend && npm install && npm run dev
 ```
 
 Open **http://localhost:5173**. Full v1 UI remains at **http://localhost:5000/legacy**.
 
-To have Flask serve the production React build on port 5000:
+To have Flask serve the production Vue build on port 5000:
 
 ```bash
 cd frontend && npm run build
@@ -418,7 +418,7 @@ python run_all_tests.py --unit
 # Mock dual-camera soak (record → preview → analyze → export)
 python scripts/dual_camera_soak.py --mock
 
-# Frontend unit (Vitest + React Testing Library)
+# Frontend unit (Vitest + Vue Testing Library)
 cd frontend && npm test
 
 # Playwright E2E (builds dist, starts Flask with --skip-cameras)
@@ -436,17 +436,17 @@ python run_all_tests.py --all
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.json` /
 `config_linux.json` and `camera_utils` keep tests portable.
 
-## GUI v2.0 (in progress)
+## GUI versions
 
-The current browser UI is a single Flask template (`templates/index.html`). Branch
-`cursor/gui-v2-react-600c` tracks a React (Vite + TypeScript) frontend that will
-replace it as the default experience while keeping the Flask camera/analysis API.
+- **`v1.0.0`** — last Flask `templates/index.html` monolith (kept at `/legacy`)
+- **`v2.0.0`** — React cutover (tagged baseline)
+- **Active:** Vue 3 + Vite + Pinia in `frontend/` (`cursor/gui-vue-600c`) — same Flask API + `frontend/dist` packaging
 
-Plan and phased cutover: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
+Plan: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
 
 ## Technical Details
 
-- **Architecture**: Flask web server with MJPEG streaming, REST API, and single-page HTML/JS frontend
+- **Architecture**: Flask web server with MJPEG streaming, REST API, and Vue SPA (`frontend/dist`)
 - **Threading**: Separate capture thread per camera to avoid V4L2 contention
 - **Buffering**: Minimal buffering (buffer size 1) to reduce latency
 - **Codecs**: Automatically selects best available codec (H.264 > XVID > mp4v)

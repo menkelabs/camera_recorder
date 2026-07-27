@@ -1,10 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-/**
- * Export/clip UI without needing a real analysis run: stub API responses
- * then assert the React Analysis page exposes the same actions as v1.
- */
-test.describe('Analysis export / clip UI', () => {
+test.describe('Analysis export / clip UI (Vue)', () => {
   test('shows export actions when results are available', async ({ page }) => {
     await page.route('**/api/status', async (route) => {
       await route.fulfill({

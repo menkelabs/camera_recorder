@@ -1,7 +1,9 @@
 # GUI v2.0 — React Experience Plan
 
-**Branch:** `cursor/gui-v2-react-600c`  
-**Goal:** Replace the monolithic Flask `templates/index.html` SPA with a React frontend, while keeping the Python/Flask camera + analysis backend. Eventually merge to `master` as the default UI.
+**Branch:** `cursor/gui-vue-600c` (Vue) · shipped React cutover as `v2.0.0` on `master`  
+**Goal:** Replace the monolithic Flask `templates/index.html` SPA with a modern SPA frontend, while keeping the Python/Flask camera + analysis backend.
+
+**Current direction:** Vue 3 + Vite + Pinia (aligns with other product work). React v2.0.0 remains the tagged baseline; Vue is the active UI track.
 
 **Non-goals for v2.0:** Rewrite MediaPipe/analysis, replace OpenCV capture, or drop the REST API surface.
 
@@ -30,7 +32,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  frontend/   Vite + React 18 + TypeScript                   │
+│  frontend/   Vite + Vue 3 + TypeScript + Pinia              │
 │  - App shell, tabs, status store                            │
 │  - CameraPreview (mount/unmount stream)                     │
 │  - AnalysisPlayback (serialized seek / frame cache)         │
@@ -45,7 +47,7 @@
 
 **Stack choices**
 
-- **Vite + React + TypeScript** — fast HMR, standard tooling, good for eventual replacement of main.
+- **Vite + Vue 3 + TypeScript + Pinia** — fast HMR; same static `dist` packaging story as React.
 - **No Next.js** — app is local/LAN, not SSR; Flask remains the server.
 - **CSS:** CSS modules or a single `tokens.css` port of current variables (`--bg`, `--accent`, …). Avoid heavy UI kits unless needed; keep the dark GitHub-like look initially for familiarity, then refine.
 - **State:** lightweight (`zustand` or React context). Avoid Redux.
