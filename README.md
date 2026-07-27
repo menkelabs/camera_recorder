@@ -444,6 +444,12 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.j
 
 Plan: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
 
+## Local stats DB (SQLite)
+
+User practice stats (favorites, notes, settings, Progress trends) live in
+`recordings/swinglab.db`. Legacy JSON is migrated on first open and kept as a
+mirror. See [docs/LOCAL_DB.md](docs/LOCAL_DB.md).
+
 ## Technical Details
 
 - **Architecture**: Flask web server with MJPEG streaming, REST API, and Vue SPA (`frontend/dist`)

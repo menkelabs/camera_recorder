@@ -38,9 +38,11 @@ from recording_meta import (
     get_recording_meta,
     update_recording_meta,
 )
+from local_db import get_db
 from practice_reports import (
     analysis_to_csv,
     analysis_to_html_report,
+    build_progress_from_stats,
     build_progress_series,
     load_analysis_file,
 )
@@ -1130,6 +1132,15 @@ class CameraManager:
             print(f"Analysis saved to {path}")
         except Exception as e:
             print(f"Failed to save analysis JSON: {e}")
+        # Index score/trends in local SQLite (survives archive of bulky JSON)
+        try:
+            get_db(_get_recordings_dir()).upsert_swing_stats(payload, source_path=path)
+            get_db(_get_recordings_dir()).add_event(
+                'analyze', timestamp=payload.get('timestamp'),
+                payload={'score': (payload.get('score') or {}).get('score')},
+            )
+        except Exception as e:
+            print(f"Failed to update local stats DB: {e}")
 
     # ------------------------------------------------------------------
     # Re-initialize cameras (e.g. after plugging in)
@@ -1828,6 +1839,15 @@ def api_list_recordings():
     })
 
 
+@app.route('/api/db/status')
+def api_db_status():
+    """Local SQLite stats DB health + counts (for packaging / diagnostics)."""
+    try:
+        return jsonify(get_db(_get_recordings_dir()).stats_summary())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/recordings/stats')
 def api_recordings_stats():
     """Return recording count, total disk usage, oldest/newest dates."""
@@ -2044,7 +2064,17 @@ def api_update_recording_meta(timestamp):
 
 @app.route('/api/progress')
 def api_progress():
-    """Aggregate saved analyses into progress / trend series."""
+    """Aggregate swing stats into progress / trend series (SQLite first)."""
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        rows = db.list_swing_stats()
+        if rows:
+            return jsonify(build_progress_from_stats(rows))
+    except Exception as e:
+        print(f"Progress DB read failed, falling back to JSON: {e}")
+
+    # Fallback: scan analysis_*.json (pre-DB installs / empty index)
     analyses_meta = _list_saved_analyses()
     loaded = []
     for item in analyses_meta:
@@ -2053,10 +2083,13 @@ def api_progress():
             continue
         data.setdefault('timestamp', item['timestamp'])
         data.setdefault('date', item.get('date'))
-        # Recompute score if older JSON lacks it
         if 'score' not in data:
             data['score'] = score_analysis(data)
         loaded.append(data)
+        try:
+            get_db(rec_dir).upsert_swing_stats(data)
+        except Exception:
+            pass
     return jsonify(build_progress_series(loaded))
 
 

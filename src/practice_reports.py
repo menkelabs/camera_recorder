@@ -97,6 +97,49 @@ def build_progress_series(analyses: List[Dict]) -> Dict[str, Any]:
     }
 
 
+def build_progress_from_stats(stats_rows: List[Dict]) -> Dict[str, Any]:
+    """
+    Build Progress payload from local SQLite ``swing_stats`` rows.
+
+    Each row should look like LocalDB.list_swing_stats() output.
+    """
+    items = sorted(stats_rows, key=lambda a: a.get('timestamp') or '')
+    series = {m['key']: [] for m in TREND_METRICS}
+    points = []
+
+    for row in items:
+        metrics = dict(row.get('metrics') or {})
+        point = {
+            'timestamp': row.get('timestamp'),
+            'date': row.get('date'),
+            'score': row.get('score'),
+            'grade': row.get('grade'),
+            'metrics': {},
+        }
+        for m in TREND_METRICS:
+            val = metrics.get(m['key'], row.get(m['key']))
+            if m['key'] == 'score' and val is None:
+                val = row.get('score')
+            series[m['key']].append(val)
+            point['metrics'][m['key']] = val
+        points.append(point)
+
+    scored_pts = [p for p in points if p['score'] is not None]
+    delta = None
+    if len(scored_pts) >= 2:
+        delta = round(scored_pts[-1]['score'] - scored_pts[0]['score'], 1)
+
+    return {
+        'count': len(points),
+        'metrics': TREND_METRICS,
+        'points': points,
+        'series': series,
+        'score_delta': delta,
+        'latest_score': scored_pts[-1]['score'] if scored_pts else None,
+        'latest_grade': scored_pts[-1]['grade'] if scored_pts else None,
+    }
+
+
 def analysis_to_csv(analysis: Dict, scored: Optional[Dict] = None) -> str:
     """Flat CSV of summary metrics + score breakdown."""
     if scored is None:
