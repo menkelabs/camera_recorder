@@ -130,3 +130,91 @@ export const PROP_ORDER = [
   'sharpness',
   'gamma',
 ] as const
+
+export interface RecordingPair {
+  timestamp: string
+  date: string
+  camera1_file?: string | null
+  camera2_file?: string | null
+  camera1_size?: number
+  camera2_size?: number
+  total_size: number
+  duration?: number | null
+  favorite?: boolean
+  notes?: string
+  tags?: string[]
+  is_reference?: boolean
+  has_analysis?: boolean
+}
+
+export interface RecordingsResponse {
+  recordings: RecordingPair[]
+  count: number
+  total_size: number
+  oldest?: string | null
+  newest?: string | null
+  favorite_count?: number
+  reference_timestamp?: string | null
+}
+
+export interface AnalysisListItem {
+  timestamp: string
+  date: string
+  is_reference?: boolean
+}
+
+export interface CompareDelta {
+  a: number | null
+  b: number | null
+  delta: number | null
+}
+
+export interface CompareResponse {
+  swing_a: Record<string, unknown>
+  swing_b: Record<string, unknown>
+  deltas: {
+    camera1: Record<string, CompareDelta> | null
+    camera2: Record<string, CompareDelta> | null
+  }
+  error?: string
+}
+
+export interface ProgressPoint {
+  timestamp: string
+  date?: string
+  score?: number | null
+  grade?: string | null
+  metrics: Record<string, number | null | undefined>
+}
+
+export interface ProgressResponse {
+  count: number
+  metrics: Array<{ key: string; label: string; cam?: number; source?: string }>
+  points: ProgressPoint[]
+  series: Record<string, Array<number | null | undefined>>
+  score_delta?: number | null
+  latest_score?: number | null
+  latest_grade?: string | null
+}
+
+export interface DiskUsage {
+  total?: number
+  used?: number
+  free?: number
+  percent?: number
+}
+
+export interface ArchiveConfig {
+  archive_path: string
+  configured: boolean
+  available: boolean
+  disk?: DiskUsage | null
+}
+
+export interface ArchiveStatus {
+  archived_timestamps: string[]
+  archived_count: number
+  archive_path: string
+  available: boolean
+  disk?: DiskUsage | null
+}

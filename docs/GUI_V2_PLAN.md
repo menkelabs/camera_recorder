@@ -144,17 +144,16 @@ Work stays on `cursor/gui-v2-react-600c` (or stacked PRs into it). Merge to `mas
 
 Port remaining v1 tabs, matching existing REST contracts:
 
-1. Recordings library (favorites, notes, reference, delete/cleanup)
-2. Analysis complete (score, metrics cards, phase badge, canvas chart, export/clip)
-3. Compare
-4. Progress
-5. Settings (roles, archive)
-
-Also in C:
-
-- Keyboard shortcuts 1–8, Space record (when not in inputs)
-- Smarter polling: 1–2s idle; faster only while `is_recording` / `is_analyzing`
-- Optional SSE later (`/api/events`) — not required for parity
+| Item | Status |
+|------|--------|
+| Recordings library (favorites, notes, reference, delete/cleanup) | Done |
+| Analysis score/metrics/phase (export/clip optional follow-up) | Done (export/clip still v1/`/legacy`) |
+| Compare (deltas + overlay chart) | Done |
+| Progress trends | Done |
+| Settings (roles, archive) | Done |
+| Keyboard shortcuts 1–8, Space record | Done |
+| Smarter polling idle vs busy | Done |
+| Optional SSE | Deferred |
 
 **Exit:** Feature checklist vs v1 README complete; no intentional regressions.
 

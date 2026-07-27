@@ -25,14 +25,18 @@ python scripts/flask_gui.py
 # http://localhost:5000/legacy → v1 template
 ```
 
-## Phase B status
+## Feature status (Phase A–C)
 
 - Setup: property sliders, save/reset, detect/reinit
 - Recording: live preview while recording, checklist, auto-detect, session, metronome
 - Analysis: serialized playback seek, score/grade, per-frame metrics
+- Recordings: favorites, notes, reference, bulk delete, cleanup
+- Compare: summary deltas + normalized overlay chart
+- Progress: multi-metric trends
+- Settings: camera roles + archive path/run
 - Hidden tabs pause MJPEG feeds
 
-Still placeholders: Recordings, Compare, Progress, Settings (Phase C).
+Still on `/legacy` only (nice-to-have follow-up): analysis HTML/CSV/clip export UI.
 
 ## Tests
 

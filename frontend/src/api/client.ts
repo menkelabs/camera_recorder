@@ -1,9 +1,15 @@
 import type {
+  AnalysisListItem,
   AnalysisResults,
   AnalysisScore,
+  ArchiveConfig,
+  ArchiveStatus,
   CameraProperties,
   ChecklistResponse,
+  CompareResponse,
   PracticeSettings,
+  ProgressResponse,
+  RecordingsResponse,
   SessionStatus,
   StatusResponse,
 } from './types'
@@ -96,6 +102,65 @@ export const api = {
       body: JSON.stringify({ index }),
     }),
   analysisScore: () => jsonFetch<AnalysisScore>('/api/analysis/score'),
+
+  listRecordings: () => jsonFetch<RecordingsResponse>('/api/recordings'),
+  deleteRecording: (ts: string) =>
+    jsonFetch<{ deleted?: boolean; error?: string }>(`/api/recordings/${ts}`, {
+      method: 'DELETE',
+    }),
+  bulkDeleteRecordings: (timestamps: string[]) =>
+    jsonFetch<{ deleted_count: number }>('/api/recordings', {
+      method: 'DELETE',
+      body: JSON.stringify({ timestamps }),
+    }),
+  cleanupRecordings: (max_age_days: number) =>
+    jsonFetch<{ deleted_count: number; cutoff_date: string }>(
+      '/api/recordings/cleanup',
+      { method: 'POST', body: JSON.stringify({ max_age_days }) },
+    ),
+  updateRecordingMeta: (
+    ts: string,
+    patch: { favorite?: boolean; notes?: string; tags?: string[] },
+  ) =>
+    jsonFetch<{ favorite: boolean; notes: string; tags: string[] }>(
+      `/api/recordings/${ts}/meta`,
+      { method: 'POST', body: JSON.stringify(patch) },
+    ),
+  setReference: (timestamp: string | null) =>
+    jsonFetch<PracticeSettings>('/api/reference', {
+      method: 'POST',
+      body: JSON.stringify({ timestamp }),
+    }),
+  getReference: () =>
+    jsonFetch<{
+      reference_timestamp: string | null
+      date?: string | null
+      has_analysis?: boolean
+    }>('/api/reference'),
+
+  listAnalyses: () =>
+    jsonFetch<{ analyses: AnalysisListItem[]; count: number; reference_timestamp?: string | null }>(
+      '/api/analyses',
+    ),
+  compare: (a: string, b: string) =>
+    jsonFetch<CompareResponse>(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+  progress: () => jsonFetch<ProgressResponse>('/api/progress'),
+
+  archiveConfig: () => jsonFetch<ArchiveConfig>('/api/archive/config'),
+  setArchiveConfig: (archive_path: string) =>
+    jsonFetch<{ success: boolean; archive_path: string }>('/api/archive/config', {
+      method: 'POST',
+      body: JSON.stringify({ archive_path }),
+    }),
+  archiveStatus: () => jsonFetch<ArchiveStatus>('/api/archive/status'),
+  archiveRun: (timestamps?: string[]) =>
+    jsonFetch<{ archived_count?: number; results?: unknown[]; error?: string }>(
+      '/api/archive/run',
+      {
+        method: 'POST',
+        body: JSON.stringify(timestamps ? { timestamps } : {}),
+      },
+    ),
 }
 
 export function analysisFrameUrl(cameraNum: 1 | 2, index: number, bust = 0): string {

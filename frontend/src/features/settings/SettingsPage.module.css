@@ -1,0 +1,160 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+}
+
+.page h2 {
+  color: var(--text-bright);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card h3 {
+  color: var(--text-bright);
+  font-size: 1rem;
+}
+
+.help {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+
+.roles label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.roles select,
+.archiveRow input {
+  padding: 7px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+}
+
+.rolePreview {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.rolePreview strong {
+  color: var(--text);
+}
+
+.archiveRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.archiveRow input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.archiveRow button,
+.archiveStats button {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--text-bright);
+  border-radius: 6px;
+  padding: 7px 12px;
+}
+
+.archiveRow button:disabled,
+.archiveStats button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.badgeOk,
+.badgeBad,
+.badgeMuted {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.badgeOk {
+  background: #1a3a1a;
+  color: var(--green);
+}
+
+.badgeBad {
+  background: #4a1a1a;
+  color: var(--red);
+}
+
+.badgeMuted {
+  background: var(--bg-card-alt);
+  color: var(--text-dim);
+}
+
+.disk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diskBar {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.diskBar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.disk p {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.archiveStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.archiveStats strong {
+  color: var(--text-bright);
+}
+
+.message {
+  color: var(--text-dim);
+}
+
+.footnote {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
