@@ -1,116 +1,54 @@
 # GUI Tests
 
-Comprehensive test suite for the Camera Setup & Recording GUI.
+Test coverage for the Camera Setup & Recording GUI — Flask web UI (primary)
+and the legacy OpenCV desktop GUI.
 
-## Test Files
+## Primary UI (Flask)
 
-### `test_gui.py` - Unit Tests
-Comprehensive unit tests using unittest framework with mocked dependencies.
+### `test_flask_gui.py` — Unit / route tests
+CameraManager init, properties, recording controls, analysis result shaping,
+frame navigation, Flask API routes, template markers, auto-detect, JPEG frame
+endpoint, and frame compression.
 
-**Test Coverage:**
-- GUI initialization (platform defaults, explicit IDs)
-- Tab switching (cycling, direct selection)
-- Recording controls (start/stop recording)
-- Analysis integration (state, triggers, requirements)
-- Camera property adjustment
-- Analysis tab rendering (various states)
-
-**Run tests:**
 ```bash
-python3 tests/test_gui.py
+python3 -m unittest tests.test_flask_gui -v
 ```
 
-**Results:** 19 tests - all passing ✓
+### `test_gui_stability.py` — Stability + mock video captures
+Broader stability coverage against **synthetic dual-camera recordings**
+(generated at test time via OpenCV — no USB cameras, no checked-in MP4s):
 
-### `test_gui_interactive.py` - Interactive Tests
-Tests that work with actual cameras when available.
+- Full `CameraManager._analyze_videos` pipeline on mock swing / blank captures
+- Analysis JSON persistence and score payload
+- Concurrent `/api/status` + analysis-result polling while analyzing
+- MJPEG `generate_frames` multipart JPEG chunks (live + recording placeholder)
+- Analysis frame JPEG endpoint after a real mock analysis run
+- Clip export round-trip (`/api/analysis/export-clip` → readable MP4)
+- Unequal Cam1/Cam2 frame counts (navigation clamping)
+- Reinit blocked during recording; session phase → `review` after analysis
+- Preview `get_frame` copy stability under reader/writer contention
 
-**Test Coverage:**
-- GUI initialization with real cameras
-- Tab switching logic
-- Camera opening (actual hardware)
-- Method existence verification
-- State variable initialization
-
-**Run tests:**
 ```bash
-python3 tests/test_gui_interactive.py
+python3 -m unittest tests.test_gui_stability -v
 ```
 
-**Results:** 5 tests - all passing ✓
+## Legacy OpenCV GUI
 
-## Test Results Summary
+### `test_gui.py` — Unit tests (mocked cameras)
+TabbedCameraGUI init, tabs, recording, analysis gates, property ranges.
 
-### Unit Tests (test_gui.py)
-- ✓ 19/19 tests passing
-- Tests GUI logic without requiring cameras
-- Uses mocks for isolation
-- Fast execution (< 0.02s)
+### `test_gui_interactive.py` — Optional hardware
+Runs only when real cameras are present.
 
-### Interactive Tests (test_gui_interactive.py)
-- ✓ 5/5 tests passing
-- Tests with actual camera hardware
-- Verifies cameras can be opened
-- Checks method existence and state
+## Related analysis fixtures
 
-## What's Tested
+See `test_mock_video_analysis.py` and `helpers.write_mock_video` /
+`helpers.write_mock_swing_pair` for the shared synthetic capture helpers.
 
-### Initialization
-- Platform-appropriate camera defaults (Linux: 0,1 | Windows: 0,2)
-- Explicit camera ID override
-- Tab structure (4 tabs: Setup 1, Setup 2, Recording, Analysis)
-- Initial state variables
+## Running all GUI-related unit tests
 
-### Tab Switching
-- Tab cycling (Tab key)
-- Direct tab selection (1/2/3/4 keys)
-- All 4 tabs accessible
-
-### Recording Controls
-- Start recording creates DualCameraRecorder
-- Stop recording stops recording
-- Recording state tracking
-- Automatic analysis trigger after recording stops
-
-### Analysis Integration
-- Analysis state initialization
-- Analysis requires video files
-- Analysis triggered after recording stops
-- Analysis tab rendering (no results, with results, analyzing)
-
-### Camera Properties
-- Property adjustment (brightness, exposure, etc.)
-- Property ranges defined
-
-### Rendering
-- Analysis tab renders correctly in all states
-- No crashes during rendering
-
-## Running All Tests
-
-Run all GUI tests:
 ```bash
-# Unit tests (mocked)
-python3 tests/test_gui.py
-
-# Interactive tests (real cameras)
-python3 tests/test_gui_interactive.py
-
-# Run both
-python3 tests/test_gui.py && python3 tests/test_gui_interactive.py
+python run_all_tests.py --unit
+# or specifically:
+python3 -m unittest tests.test_flask_gui tests.test_gui_stability tests.test_gui -v
 ```
-
-## Test Coverage
-
-The tests cover:
-- ✓ Button/keyboard handler logic
-- ✓ Tab switching functionality
-- ✓ Recording start/stop
-- ✓ Analysis integration
-- ✓ State management
-- ✓ Platform detection
-- ✓ Camera property adjustment
-- ✓ GUI rendering logic
-
-All core GUI functionality is tested and verified to work correctly!
-

@@ -389,6 +389,10 @@ python -m unittest tests.test_platform_config -v
 # Flask GUI tests (routes, template, recording, analysis, video playback, auto-detect)
 python -m unittest tests.test_flask_gui -v
 
+# GUI stability + mock dual-camera captures (analysis pipeline, MJPEG, clip export)
+python -m unittest tests.test_gui_stability -v
+python -m unittest tests.test_mock_video_analysis -v
+
 # Swing detector / metrics / comparison / archive / recordings
 python -m unittest tests.test_swing_detector -v
 python -m unittest tests.test_sway_calculator -v

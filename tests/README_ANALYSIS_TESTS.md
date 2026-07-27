@@ -1,131 +1,57 @@
-# Analysis Navigation & Summary Tests
+# Analysis Tests
 
-Comprehensive test suite for analysis tab frame navigation, summary correctness, and live metrics.
+Coverage for frame navigation, summary correctness, and analysis tools fed by
+**mock video captures** (no USB cameras required).
 
-## Test File
+## Test modules
 
-### `test_analysis_navigation.py` - Analysis Navigation Tests
-Tests for frame navigation, summary correctness, and live metrics display.
-
-**Test Coverage:**
-- Frame navigation (forward/backward, boundaries)
-- Summary correctness for each camera
-- Live metrics access
-- Per-video summary verification
-- Analysis tab rendering with navigation
-
-**Run tests:**
-```bash
-python3 tests/test_analysis_navigation.py
-```
-
-## Test Classes
-
-### TestFrameNavigation
-Tests frame navigation functionality:
-- ✓ Frame index initialization (starts at 0)
-- ✓ Navigate forward through frames
-- ✓ Navigate backward through frames
-- ✓ Navigation respects boundaries (can't go before 0 or past max)
-- ✓ Frame index clamping to valid range
-
-### TestSummaryCorrectness
-Tests that summary metrics are correct:
-- ✓ Camera1 summary structure (max_sway_left, max_sway_right)
-- ✓ Camera2 summary structure (max_shoulder_turn, max_hip_turn, max_x_factor)
-- ✓ Max values in summary are actually maximums
-- ✓ Both cameras have summary data
-
-### TestLiveMetrics
-Tests live metrics display for current frame:
-- ✓ Current frame sway value
-- ✓ Current frame shoulder turn value
-- ✓ Current frame hip turn value
-- ✓ Current frame x-factor value
-- ✓ Access metrics for all frames
-
-### TestAnalysisTabRendering
-Tests analysis tab rendering with navigation:
-- ✓ Analysis tab renders with frame navigation
-- ✓ Frame count is calculated correctly
-
-### TestPerVideoSummary
-Tests that each video has its own summary:
-- ✓ Camera1 video summary (face-on)
-- ✓ Camera2 video summary (down-the-line)
-- ✓ Both videos maintain separate summaries
-
-## Test Results
-
-**All tests passing:** ✓
-
-## What's Tested
-
-### Frame Navigation
-- Forward/backward navigation
-- Boundary checking
-- Index clamping
-- Both cameras (different frame counts handled)
-
-### Summary Correctness
-- Summary structure for each camera
-- Max values are actually maximums
-- Both cameras have summaries
-- Independent summaries per video
-
-### Live Metrics
-- Access current frame metrics
-- All metrics available (sway, shoulder, hip, x-factor)
-- Works for all frame indices
-- Handles different frame counts between cameras
-
-### Per-Video Summary
-- Camera1 summary (face-on: sway metrics)
-- Camera2 summary (down-the-line: rotation metrics)
-- Summaries are independent
-
-## Running Tests
+### `test_analysis_navigation.py`
+Frame navigation, per-camera summaries, live metrics, and analysis-tab
+rendering for the legacy GUI data structures.
 
 ```bash
-# Run analysis navigation tests
-python3 tests/test_analysis_navigation.py
-
-# Run with verbose output
-python3 tests/test_analysis_navigation.py -v
-
-# Run all GUI tests (including analysis)
-python3 tests/test_gui.py
-python3 tests/test_analysis_navigation.py
+python3 -m unittest tests.test_analysis_navigation -v
 ```
 
-## Test Data Structure
+### `test_analysis_workflow.py`
+Legacy GUI analysis start gates (missing files, MediaPipe import errors,
+empty detections).
 
-### Camera1 Analysis Structure
-```python
-{
-    'sway': [list of per-frame sway values],
-    'summary': {
-        'max_sway_left': float,
-        'max_sway_right': float
-    },
-    'detection_rate': float
-}
+### `test_mock_video_analysis.py` — synthetic captures → analysis tools
+Generates OpenCV-readable mock MP4/AVI files at runtime and verifies:
+
+| Area | What is checked |
+|------|-----------------|
+| Fixtures | `write_mock_video` / `write_mock_swing_pair` produce readable frame counts |
+| PoseProcessor | `process_video` over mock captures with a fake landmarker (detect / no-detect) |
+| SwayCalculator | Metrics from dual mock swing sequences; blank “lab floor” stability |
+| Clip export | JPEG annotated frames → MP4 → re-decode frame count/dims |
+
+Patterns available via helpers: `swing`, `static_pose`, `solid`, `blank`.
+
+```bash
+python3 -m unittest tests.test_mock_video_analysis -v
 ```
 
-### Camera2 Analysis Structure
-```python
-{
-    'shoulder_turn': [list of per-frame shoulder turn values],
-    'hip_turn': [list of per-frame hip turn values],
-    'x_factor': [list of per-frame x-factor values],
-    'summary': {
-        'max_shoulder_turn': float,
-        'max_hip_turn': float,
-        'max_x_factor': float
-    },
-    'detection_rate': float
-}
+### Flask analysis pipeline (stability suite)
+`test_gui_stability.py` runs `CameraManager._analyze_videos` against the same
+mock swing pairs (PoseProcessor stubbed to decode the real mock files +
+SwayCalculator), then hits analysis/frame/clip HTTP endpoints.
+
+## Shared helpers (`tests/helpers.py`)
+
+- `write_mock_video(path, n_frames=..., pattern='swing')`
+- `write_mock_swing_pair(dir, timestamp=..., n_frames_cam1=..., n_frames_cam2=...)`
+- `landmarks_and_frames_from_video(path, landmark_sequence)`
+- `make_annotated_jpeg_frames(...)`
+- `make_swing_sequence` / `make_address_pose` (landmark fixtures)
+
+Mock videos are written under temp directories during tests — they are **not**
+committed (repo `.gitignore` excludes `*.mp4` / `*.avi`).
+
+## Running
+
+```bash
+python run_all_tests.py --unit
+python3 -m unittest tests.test_mock_video_analysis tests.test_analysis_navigation -v
 ```
-
-All core analysis functionality is tested and verified to work correctly!
-

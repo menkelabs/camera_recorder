@@ -23,6 +23,32 @@ from flask_gui import app, CameraManager, load_windows_config
 from test_utils import get_camera_ids
 
 
+def _seed_preview_frames(mgr, width=1280, height=720):
+    """
+    Satisfy the pre-record checklist frame gates used by start_recording /
+    toggle_auto_detect / session arming.
+    """
+    mgr.latest_frame1 = np.zeros((height, width, 3), dtype=np.uint8)
+    mgr.latest_frame2 = np.full((height, width, 3), 32, dtype=np.uint8)
+
+
+def _mock_open_cap(cap, width=1280, height=720, fps=120.0):
+    """Configure a MagicMock capture so checklist resolution checks pass."""
+    cap.isOpened.return_value = True
+
+    def _get(prop):
+        if prop == cv2.CAP_PROP_FRAME_WIDTH:
+            return float(width)
+        if prop == cv2.CAP_PROP_FRAME_HEIGHT:
+            return float(height)
+        if prop == cv2.CAP_PROP_FPS:
+            return float(fps)
+        return 128.0
+
+    cap.get.side_effect = _get
+    return cap
+
+
 # ======================================================================
 # CameraManager Initialization
 # ======================================================================
@@ -159,15 +185,12 @@ class TestRecordingControls(unittest.TestCase):
 
     def setUp(self):
         self.mgr = CameraManager()
-        self.mock_cap1 = MagicMock()
-        self.mock_cap2 = MagicMock()
-        self.mock_cap1.isOpened.return_value = True
-        self.mock_cap2.isOpened.return_value = True
-        self.mock_cap1.get.return_value = 128.0
-        self.mock_cap2.get.return_value = 128.0
+        self.mock_cap1 = _mock_open_cap(MagicMock())
+        self.mock_cap2 = _mock_open_cap(MagicMock())
         self.mgr.cap1 = self.mock_cap1
         self.mgr.cap2 = self.mock_cap2
         self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
 
     def test_start_recording_creates_recorder(self):
         """start_recording should create DualCameraRecorder and begin."""
@@ -524,15 +547,12 @@ class TestFlaskRoutes(unittest.TestCase):
         # Create a CameraManager with mocked cameras
         import flask_gui
         self.mgr = CameraManager()
-        self.mock_cap1 = MagicMock()
-        self.mock_cap2 = MagicMock()
-        self.mock_cap1.isOpened.return_value = True
-        self.mock_cap2.isOpened.return_value = True
-        self.mock_cap1.get.return_value = 128.0
-        self.mock_cap2.get.return_value = 128.0
+        self.mock_cap1 = _mock_open_cap(MagicMock())
+        self.mock_cap2 = _mock_open_cap(MagicMock())
         self.mgr.cap1 = self.mock_cap1
         self.mgr.cap2 = self.mock_cap2
         self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
         flask_gui.camera_manager = self.mgr
 
     def tearDown(self):
@@ -921,6 +941,10 @@ class TestAutoDetectEndpoints(unittest.TestCase):
         self.client = app.test_client()
         import flask_gui
         self.mgr = CameraManager()
+        self.mgr.cap1 = _mock_open_cap(MagicMock())
+        self.mgr.cap2 = _mock_open_cap(MagicMock())
+        self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
         flask_gui.camera_manager = self.mgr
 
     def tearDown(self):
