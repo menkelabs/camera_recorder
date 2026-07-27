@@ -115,6 +115,13 @@ async function deleteRecording(row: RecordingPair) {
     selected.value = next
   })
 }
+
+async function claimRecording(row: RecordingPair) {
+  await run(async () => {
+    await api.claimRecording(row.timestamp)
+    message.value = `Claimed ${row.timestamp}`
+  })
+}
 </script>
 
 <template>
@@ -193,6 +200,7 @@ async function deleteRecording(row: RecordingPair) {
             <td :class="styles.flags">
               <span v-if="row.favorite" title="Favorite">&#9733;</span>
               <span v-if="row.is_reference" title="Reference">REF</span>
+              <span v-if="row.unclaimed" title="Unclaimed">OPEN</span>
             </td>
             <td :class="styles.notes">
               <div v-if="editingNotes === row.timestamp" :class="styles.notesEdit">
@@ -204,6 +212,14 @@ async function deleteRecording(row: RecordingPair) {
               </button>
             </td>
             <td :class="styles.actions">
+              <button
+                v-if="row.unclaimed"
+                type="button"
+                :disabled="busy"
+                @click="claimRecording(row)"
+              >
+                Claim
+              </button>
               <button type="button" :disabled="busy" @click="toggleFavorite(row)">
                 {{ row.favorite ? 'Unstar' : 'Star' }}
               </button>

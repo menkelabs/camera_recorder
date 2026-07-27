@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../../api/client'
-import type { ArchiveStatus, PracticeSettings } from '../../api/types'
+import type { ArchiveStatus, LocalUser, PracticeSettings } from '../../api/types'
+import { useAppStore } from '../../store/appStore'
 import { formatBytes } from '../../utils/format'
 import styles from './SettingsPage.module.css'
 
+const appStore = useAppStore()
 const practice = ref<PracticeSettings | null>(null)
 const archivePath = ref('')
 const archiveStatus = ref<ArchiveStatus | null>(null)
@@ -13,17 +15,23 @@ const available = ref(false)
 const message = ref<string | null>(null)
 const busy = ref(false)
 const recCount = ref(0)
+const users = ref<LocalUser[]>([])
+const activeUser = ref<LocalUser | null>(null)
+const newName = ref('')
+const newPin = ref('')
 
 const role1 = computed(() => practice.value?.camera_roles?.camera1 || 'face_on')
 const unarchived = computed(() => Math.max(0, recCount.value - (archiveStatus.value?.archived_count || 0)))
 const disk = computed(() => archiveStatus.value?.disk || null)
+const recording = computed(() => Boolean(appStore.status?.is_recording))
 
 async function refresh() {
-  const [settings, config, status, recordings] = await Promise.all([
+  const [settings, config, status, recordings, userData] = await Promise.all([
     api.practiceSettings(),
     api.archiveConfig(),
     api.archiveStatus(),
     api.listRecordings(),
+    api.listUsers(),
   ])
   practice.value = settings
   archivePath.value = config.archive_path || ''
@@ -31,6 +39,15 @@ async function refresh() {
   available.value = config.available
   archiveStatus.value = status
   recCount.value = recordings.count
+  users.value = userData.users
+  activeUser.value = userData.active_user
+  if (appStore.status) {
+    appStore.setStatus({
+      ...appStore.status,
+      users: userData.users,
+      active_user: userData.active_user,
+    })
+  }
 }
 
 onMounted(() => {
@@ -78,11 +95,113 @@ async function archiveNew() {
       : `Archived ${res.archived_count ?? 0} recording(s)`
   })
 }
+
+async function addUser() {
+  await run(async () => {
+    await api.createUser({
+      name: newName.value.trim(),
+      ...(newPin.value.trim() ? { pin: newPin.value.trim() } : {}),
+    })
+    newName.value = ''
+    newPin.value = ''
+    message.value = 'Player created'
+  })
+}
+
+async function renameUser(user: LocalUser, event: Event) {
+  const name = (event.target as HTMLInputElement).value.trim()
+  if (!name || name === user.name) return
+  await run(async () => {
+    await api.updateUser(user.id, { name })
+    message.value = 'Player renamed'
+  })
+}
+
+async function setUserPin(user: LocalUser, event: Event) {
+  const pin = (event.target as HTMLInputElement).value
+  ;(event.target as HTMLInputElement).value = ''
+  await run(async () => {
+    if (!pin.trim()) {
+      await api.updateUser(user.id, { clear_pin: true })
+      message.value = 'PIN cleared'
+    } else {
+      await api.updateUser(user.id, { pin })
+      message.value = 'PIN updated'
+    }
+  })
+}
+
+async function removeUser(user: LocalUser) {
+  if (users.value.length <= 1) {
+    message.value = 'Cannot delete the last player'
+    return
+  }
+  await run(async () => {
+    await api.deleteUser(user.id)
+    message.value = `Deleted ${user.name}`
+  })
+}
 </script>
 
 <template>
   <section :class="styles.page">
     <h2>Settings</h2>
+
+    <div :class="styles.card">
+      <h3>Players</h3>
+      <p :class="styles.help">
+        Local profiles on this machine. Progress, favorites, notes, and practice settings
+        are tracked per player. Optional PIN locks profile switching.
+      </p>
+      <ul :class="styles.userList">
+        <li v-for="user in users" :key="user.id">
+          <span
+            :class="styles.swatch"
+            :style="{ background: user.color || 'var(--accent)' }"
+          />
+          <input
+            :value="user.name"
+            :disabled="busy"
+            @change="renameUser(user, $event)"
+          />
+          <input
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            :placeholder="user.has_pin ? 'Change PIN' : 'Set PIN'"
+            :disabled="busy"
+            @change="setUserPin(user, $event)"
+          />
+          <span v-if="user.is_active" :class="styles.badgeOk">Active</span>
+          <button
+            type="button"
+            :class="styles.danger"
+            :disabled="busy || recording || users.length <= 1"
+            @click="removeUser(user)"
+          >
+            Delete
+          </button>
+        </li>
+      </ul>
+      <div :class="styles.archiveRow">
+        <input v-model="newName" type="text" placeholder="New player name" :disabled="busy" />
+        <input
+          v-model="newPin"
+          type="password"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Optional PIN"
+          :disabled="busy"
+        />
+        <button
+          type="button"
+          :disabled="busy || recording || !newName.trim()"
+          @click="addUser"
+        >
+          Add player
+        </button>
+      </div>
+    </div>
 
     <div :class="styles.card">
       <h3>Camera roles</h3>

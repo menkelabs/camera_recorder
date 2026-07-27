@@ -66,3 +66,51 @@
   font-size: 0.85rem;
   color: var(--text-dim);
 }
+
+.userSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.userSwitch label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.userSwitch select,
+.userSwitch input {
+  padding: 5px 8px;
+  background: var(--bg-input, #0d1117);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  min-width: 120px;
+}
+
+.userSwitch button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  color: var(--text-bright);
+}
+
+.userSwitch button:disabled,
+.userSwitch select:disabled {
+  opacity: 0.45;
+}
+
+.userChip {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--text-bright);
+}

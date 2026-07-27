@@ -7,6 +7,7 @@ import type {
   CameraProperties,
   ChecklistResponse,
   CompareResponse,
+  LocalUser,
   PracticeSettings,
   ProgressResponse,
   RecordingsResponse,
@@ -166,6 +167,37 @@ export const api = {
   compare: (a: string, b: string) =>
     jsonFetch<CompareResponse>(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
   progress: () => jsonFetch<ProgressResponse>('/api/progress'),
+
+  listUsers: () =>
+    jsonFetch<{ users: LocalUser[]; active_user: LocalUser }>('/api/users'),
+  createUser: (body: { name: string; pin?: string; color?: string }) =>
+    jsonFetch<LocalUser>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateUser: (
+    id: number,
+    body: { name?: string; pin?: string; clear_pin?: boolean; color?: string },
+  ) =>
+    jsonFetch<LocalUser>(`/api/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteUser: (id: number) =>
+    jsonFetch<{ deleted: boolean; users: LocalUser[]; active_user: LocalUser }>(
+      `/api/users/${id}`,
+      { method: 'DELETE' },
+    ),
+  setActiveUser: (user_id: number, pin?: string) =>
+    jsonFetch<{ active_user: LocalUser; users: LocalUser[] }>('/api/users/active', {
+      method: 'POST',
+      body: JSON.stringify({ user_id, ...(pin != null ? { pin } : {}) }),
+    }),
+  claimRecording: (ts: string) =>
+    jsonFetch<{ timestamp: string; user_id: number }>(
+      `/api/recordings/${ts}/claim`,
+      { method: 'POST' },
+    ),
 
   archiveConfig: () => jsonFetch<ArchiveConfig>('/api/archive/config'),
   setArchiveConfig: (archive_path: string) =>

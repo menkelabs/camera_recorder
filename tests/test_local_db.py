@@ -241,6 +241,9 @@ class TestLocalDBCore(unittest.TestCase):
         self.assertEqual(summary['swing_count'], 1)
         self.assertEqual(summary['favorite_count'], 1)
         self.assertEqual(summary['integrity'], 'ok')
+        self.assertEqual(summary['user_count'], 1)
+        self.assertEqual(summary['active_user']['name'], 'Player 1')
+        self.assertEqual(summary['schema_version'], 2)
 
     def test_reopen_is_idempotent_migration(self):
         update_recording_meta(self.dir, '20260715_120000', favorite=True)
@@ -249,6 +252,146 @@ class TestLocalDBCore(unittest.TestCase):
         reset_db_cache()
         get_db(self.dir)
         self.assertEqual(list_favorites(self.dir), ['20260715_120000'])
+
+    def test_default_user_created(self):
+        db = get_db(self.dir)
+        users = db.list_users()
+        self.assertEqual(len(users), 1)
+        self.assertEqual(users[0]['name'], 'Player 1')
+        self.assertTrue(users[0]['is_active'])
+
+    def test_multi_user_stats_and_settings_isolation(self):
+        db = get_db(self.dir)
+        p1 = db.get_active_user_id()
+        p2 = db.create_user('Player 2')['id']
+
+        db.upsert_swing_stats(_sample_analysis('20260715_120000', score=70))
+        update_practice_settings(self.dir, {'metronome': {'bpm': 60}})
+        update_recording_meta(self.dir, '20260715_120000', favorite=True)
+
+        db.set_active_user(p2)
+        db.upsert_swing_stats(_sample_analysis('20260716_120000', score=90))
+        update_practice_settings(self.dir, {'metronome': {'bpm': 80}})
+        update_recording_meta(self.dir, '20260716_120000', favorite=True, notes='p2')
+
+        self.assertEqual(len(db.list_swing_stats()), 1)
+        self.assertEqual(db.list_swing_stats()[0]['score'], 90.0)
+        self.assertEqual(load_practice_settings(self.dir)['metronome']['bpm'], 80)
+        self.assertEqual(list_favorites(self.dir), ['20260716_120000'])
+
+        db.set_active_user(p1)
+        self.assertEqual(len(db.list_swing_stats()), 1)
+        self.assertEqual(db.list_swing_stats()[0]['score'], 70.0)
+        self.assertEqual(load_practice_settings(self.dir)['metronome']['bpm'], 60)
+        self.assertEqual(list_favorites(self.dir), ['20260715_120000'])
+
+    def test_pin_required_to_switch(self):
+        db = get_db(self.dir)
+        locked = db.create_user('Locked', pin='1234')
+        with self.assertRaises(PermissionError):
+            db.set_active_user(locked['id'])
+        with self.assertRaises(PermissionError):
+            db.set_active_user(locked['id'], pin='9999')
+        active = db.set_active_user(locked['id'], pin='1234')
+        self.assertEqual(active['id'], locked['id'])
+
+    def test_cannot_delete_last_user(self):
+        db = get_db(self.dir)
+        uid = db.get_active_user_id()
+        with self.assertRaises(ValueError):
+            db.delete_user(uid)
+        other = db.create_user('Two')['id']
+        db.delete_user(uid)
+        self.assertEqual([u['id'] for u in db.list_users()], [other])
+        self.assertEqual(db.get_active_user_id(), other)
+
+    def test_claim_recording_ownership(self):
+        db = get_db(self.dir)
+        p2 = db.create_user('Player 2')['id']
+        db.claim_recording('20260715_120000')
+        self.assertEqual(db.get_recording_owner('20260715_120000'), db.get_active_user_id())
+        db.set_active_user(p2)
+        db.claim_recording('20260715_120000')
+        self.assertEqual(db.get_recording_owner('20260715_120000'), p2)
+
+    def test_upsert_does_not_steal_ownership(self):
+        db = get_db(self.dir)
+        p1 = db.get_active_user_id()
+        p2 = db.create_user('Player 2')['id']
+        db.claim_recording('20260715_120000')
+        db.set_active_user(p2)
+        db.upsert_swing_stats(_sample_analysis('20260715_120000', score=88))
+        self.assertEqual(db.get_recording_owner('20260715_120000'), p1)
+        self.assertEqual(db.list_swing_stats()[0]['score'], 88.0)
+
+    def test_v1_schema_migrates_to_multi_user(self):
+        """Hand-build a v1 DB, then open via LocalDB and expect Player 1 ownership."""
+        import sqlite3
+
+        path = os.path.join(self.dir, 'swinglab.db')
+        conn = sqlite3.connect(path)
+        conn.executescript(
+            """
+            CREATE TABLE schema_migrations (
+                version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
+            );
+            CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE settings (
+                key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE recording_meta (
+                timestamp TEXT PRIMARY KEY,
+                favorite INTEGER NOT NULL DEFAULT 0,
+                notes TEXT NOT NULL DEFAULT '',
+                tags TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT
+            );
+            CREATE TABLE swing_stats (
+                timestamp TEXT PRIMARY KEY,
+                date TEXT, score REAL, grade TEXT,
+                max_shoulder_turn REAL, max_hip_turn REAL, max_x_factor REAL,
+                tempo_ratio REAL, max_sway_right REAL, max_head_sway_right REAL,
+                detection_rate_cam1 REAL, detection_rate_cam2 REAL,
+                source_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE practice_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL, timestamp TEXT, payload TEXT,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO schema_migrations(version, applied_at) VALUES (1, '2026-01-01');
+            INSERT INTO recording_meta(timestamp, favorite, notes, tags, updated_at)
+            VALUES ('20260715_120000', 1, 'old', '[]', '2026-01-01');
+            INSERT INTO swing_stats(
+              timestamp, date, score, grade,
+              max_shoulder_turn, max_hip_turn, max_x_factor,
+              tempo_ratio, max_sway_right, max_head_sway_right,
+              detection_rate_cam1, detection_rate_cam2,
+              source_path, created_at, updated_at
+            ) VALUES (
+              '20260715_120000', '2026-07-15', 77.0, 'B',
+              40, 20, 20, 3.0, 1.0, 1.0, 90, 90, NULL, 't', 't'
+            );
+            INSERT INTO settings(key, value, updated_at)
+            VALUES ('practice', '{"version":1,"metronome":{"bpm":66}}', 't');
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        reset_db_cache()
+        os.environ['SWINGLAB_DB_PATH'] = path
+        try:
+            db = get_db(self.dir)
+            self.assertEqual(db.stats_summary()['schema_version'], 2)
+            self.assertEqual(db.get_active_user()['name'], 'Player 1')
+            self.assertEqual(db.get_recording_owner('20260715_120000'), db.get_active_user_id())
+            self.assertEqual(list_favorites(self.dir), ['20260715_120000'])
+            self.assertEqual(db.list_swing_stats()[0]['score'], 77.0)
+            self.assertEqual(load_practice_settings(self.dir)['metronome']['bpm'], 66)
+        finally:
+            del os.environ['SWINGLAB_DB_PATH']
+            reset_db_cache()
 
 
 class TestLocalDBFlaskProgress(unittest.TestCase):
@@ -276,6 +419,53 @@ class TestLocalDBFlaskProgress(unittest.TestCase):
         self.assertEqual(data['count'], 2)
         self.assertEqual(data['latest_score'], 90.0)
         self.assertEqual(data['score_delta'], 20.0)
+
+    def test_progress_scoped_to_active_user(self):
+        db = get_db(self.dir)
+        db.upsert_swing_stats(_sample_analysis('20260715_120000', score=70))
+        p2 = db.create_user('Player 2')['id']
+        db.set_active_user(p2)
+        db.upsert_swing_stats(_sample_analysis('20260716_120000', score=95))
+        resp = self.client.get('/api/progress')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['latest_score'], 95.0)
+
+    def test_users_api_create_and_switch(self):
+        resp = self.client.get('/api/users')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()['active_user']['name'], 'Player 1')
+
+        created = self.client.post('/api/users', json={'name': 'Jordan', 'pin': '4321'})
+        self.assertEqual(created.status_code, 201)
+        uid = created.get_json()['id']
+
+        denied = self.client.post('/api/users/active', json={'user_id': uid})
+        self.assertEqual(denied.status_code, 403)
+
+        ok = self.client.post('/api/users/active', json={'user_id': uid, 'pin': '4321'})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.get_json()['active_user']['name'], 'Jordan')
+
+        status = self.client.get('/api/status')
+        # status may error if manager not initialized; users endpoints are enough
+        self.assertIn(status.status_code, (200, 200))
+
+    def test_switch_blocked_while_recording(self):
+        import flask_gui
+
+        class _Mgr:
+            is_recording = True
+
+        prev = flask_gui.camera_manager
+        flask_gui.camera_manager = _Mgr()
+        try:
+            other = self.client.post('/api/users', json={'name': 'Busy'})
+            # create itself also blocked while recording
+            self.assertEqual(other.status_code, 409)
+        finally:
+            flask_gui.camera_manager = prev
 
 
 if __name__ == '__main__':

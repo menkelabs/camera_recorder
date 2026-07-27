@@ -331,11 +331,17 @@ The Flask GUI exposes a REST API (used by the browser UI):
 | POST | `/api/cameras/detect` | Detect available camera indices |
 | POST | `/api/recording/start` | Start recording |
 | POST | `/api/recording/stop` | Stop recording + trigger analysis |
-| GET | `/api/recordings` | List all recordings with metadata |
+| GET | `/api/recordings` | List recordings for active user (+ unclaimed) |
+| POST | `/api/recordings/<timestamp>/claim` | Claim a recording for the active user |
 | GET | `/api/recordings/stats` | Recording count, disk usage, oldest/newest |
 | DELETE | `/api/recordings/<timestamp>` | Delete a recording pair |
 | DELETE | `/api/recordings` | Bulk delete recordings |
 | POST | `/api/recordings/cleanup` | Delete recordings older than N days |
+| GET | `/api/users` | List local player profiles |
+| POST | `/api/users` | Create a local profile |
+| POST | `/api/users/active` | Switch active profile (optional PIN) |
+| PATCH | `/api/users/<id>` | Rename / set PIN |
+| DELETE | `/api/users/<id>` | Delete a profile (not the last) |
 | GET | `/api/analysis/results` | Get analysis results and frame data |
 | POST | `/api/analysis/frame` | Set the current analysis frame index |
 | GET | `/api/analysis/frame/<cam>?index=N` | Get annotated JPEG frame for camera at index |
@@ -444,11 +450,12 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.j
 
 Plan: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
 
-## Local stats DB (SQLite)
+## Local stats DB (SQLite, multi-user)
 
-User practice stats (favorites, notes, settings, Progress trends) live in
-`recordings/swinglab.db`. Legacy JSON is migrated on first open and kept as a
-mirror. See [docs/LOCAL_DB.md](docs/LOCAL_DB.md).
+Practice stats (favorites, notes, settings, Progress) live in
+`recordings/swinglab.db` with **local player profiles** for shared machines.
+Legacy JSON is migrated on first open and mirrored for the active user.
+See [docs/LOCAL_DB.md](docs/LOCAL_DB.md).
 
 ## Technical Details
 
