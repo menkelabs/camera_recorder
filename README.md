@@ -407,6 +407,14 @@ python run_all_tests.py --all
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.json` /
 `config_linux.json` and `camera_utils` keep tests portable.
 
+## GUI v2.0 (in progress)
+
+The current browser UI is a single Flask template (`templates/index.html`). Branch
+`cursor/gui-v2-react-600c` tracks a React (Vite + TypeScript) frontend that will
+replace it as the default experience while keeping the Flask camera/analysis API.
+
+Plan and phased cutover: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
+
 ## Technical Details
 
 - **Architecture**: Flask web server with MJPEG streaming, REST API, and single-page HTML/JS frontend
