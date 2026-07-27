@@ -25,21 +25,24 @@ python scripts/flask_gui.py
 # http://localhost:5000/legacy → v1 template
 ```
 
-## Feature status (Phase A–C)
+## Feature status (Phase A–D)
 
 - Setup: property sliders, save/reset, detect/reinit
 - Recording: live preview while recording, checklist, auto-detect, session, metronome
-- Analysis: serialized playback seek, score/grade, per-frame metrics
+- Analysis: serialized playback seek, score/grade, per-frame metrics, **Export HTML/CSV**, **Clip Cam1/Cam2**
 - Recordings: favorites, notes, reference, bulk delete, cleanup
 - Compare: summary deltas + normalized overlay chart
 - Progress: multi-metric trends
 - Settings: camera roles + archive path/run
 - Hidden tabs pause MJPEG feeds
 
-Still on `/legacy` only (nice-to-have follow-up): analysis HTML/CSV/clip export UI.
-
 ## Tests
 
 ```bash
+# Unit (Vitest + Testing Library)
 npm test
+
+# E2E (Playwright against Flask serving frontend/dist)
+npm run test:e2e:install   # once
+npm run test:e2e
 ```

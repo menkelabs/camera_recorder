@@ -129,7 +129,19 @@ Options:
   --model-complexity {0,1,2}  MediaPipe model for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)
   --host HOST             Host to bind (default: 0.0.0.0)
   --port PORT             Port (default: 5000)
+  --skip-cameras          Skip opening USB cameras (UI/E2E smoke)
 ```
+
+### Dual-camera soak
+
+```bash
+# CI-safe mock path (record → live preview → analyze → export)
+python scripts/dual_camera_soak.py --mock
+
+# Real USB cameras (operator validation)
+python scripts/dual_camera_soak.py --hardware --seconds 30 --camera1 0 --camera2 2
+```
+
 
 For lower-end hardware (e.g. HP EliteBook 840 G5), use `--model-complexity 0` for faster analysis at the cost of slightly lower accuracy.
 

@@ -8,6 +8,8 @@ export function AnalysisPage() {
   const [results, setResults] = useState<AnalysisResults | null>(null)
   const [score, setScore] = useState<AnalysisScore | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
+  const [exportBusy, setExportBusy] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -38,6 +40,30 @@ export function AnalysisPage() {
 
   const cam1 = results?.camera1
   const phase = cam1?.current?.phase
+  const hasFrames = Boolean(results && results.max_frames > 0 && !results.is_analyzing)
+
+  const downloadReport = (format: 'html' | 'csv') => {
+    setExportMsg(null)
+    window.location.assign(api.analysisExportUrl(format))
+  }
+
+  const downloadClip = async (camera: 1 | 2) => {
+    setExportBusy(true)
+    setExportMsg(null)
+    try {
+      const data = await api.exportClip(camera, 30)
+      if (data.error || !data.filename) {
+        setExportMsg(data.error || 'Clip export failed')
+        return
+      }
+      window.location.assign(api.analysisClipUrl(data.filename))
+      setExportMsg(`Saved ${data.filename}`)
+    } catch (err) {
+      setExportMsg(err instanceof Error ? err.message : 'Clip export failed')
+    } finally {
+      setExportBusy(false)
+    }
+  }
 
   return (
     <section className={styles.page}>
@@ -46,13 +72,40 @@ export function AnalysisPage() {
           <h2>Analysis</h2>
           {phase != null && <span className={styles.phase}>{String(phase)}</span>}
         </div>
-        {score?.score != null && (
-          <div className={styles.score}>
-            <span className={styles.grade}>{score.grade || '—'}</span>
-            <span className={styles.scoreNum}>{Math.round(Number(score.score))}</span>
-          </div>
-        )}
+        <div className={styles.headerRight}>
+          {score?.score != null && (
+            <div className={styles.score}>
+              <span className={styles.grade}>{score.grade || '—'}</span>
+              <span className={styles.scoreNum}>{Math.round(Number(score.score))}</span>
+            </div>
+          )}
+          {hasFrames && (
+            <div className={styles.exportActions} role="group" aria-label="Export analysis">
+              <button type="button" onClick={() => downloadReport('html')}>
+                Export HTML
+              </button>
+              <button type="button" onClick={() => downloadReport('csv')}>
+                Export CSV
+              </button>
+              <button
+                type="button"
+                disabled={exportBusy}
+                onClick={() => void downloadClip(1)}
+              >
+                Clip Cam1
+              </button>
+              <button
+                type="button"
+                disabled={exportBusy}
+                onClick={() => void downloadClip(2)}
+              >
+                Clip Cam2
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+      {exportMsg && <p className={styles.exportMsg}>{exportMsg}</p>}
 
       {results?.is_analyzing && (
         <p className={styles.progress}>{results.progress || 'Analyzing…'}</p>

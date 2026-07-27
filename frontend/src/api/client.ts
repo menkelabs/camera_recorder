@@ -102,6 +102,27 @@ export const api = {
       body: JSON.stringify({ index }),
     }),
   analysisScore: () => jsonFetch<AnalysisScore>('/api/analysis/score'),
+  analysisExportUrl: (format: 'html' | 'csv', timestamp?: string) => {
+    const q = new URLSearchParams({ format })
+    if (timestamp) q.set('timestamp', timestamp)
+    return `/api/analysis/export?${q.toString()}`
+  },
+  exportClip: (camera: 1 | 2, fps = 30, timestamp?: string) =>
+    jsonFetch<{
+      success: boolean
+      filename: string
+      path?: string
+      frame_count?: number
+      fps?: number
+      width?: number
+      height?: number
+      error?: string
+    }>('/api/analysis/export-clip', {
+      method: 'POST',
+      body: JSON.stringify({ camera, fps, ...(timestamp ? { timestamp } : {}) }),
+    }),
+  analysisClipUrl: (filename: string) =>
+    `/api/analysis/clip/${encodeURIComponent(filename)}`,
 
   listRecordings: () => jsonFetch<RecordingsResponse>('/api/recordings'),
   deleteRecording: (ts: string) =>

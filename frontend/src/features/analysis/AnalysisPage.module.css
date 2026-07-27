@@ -27,10 +27,50 @@
   padding: 2px 8px;
 }
 
+.headerRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
 .score {
   display: flex;
   align-items: baseline;
   gap: 8px;
+}
+
+.exportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.exportActions button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, var(--bg-card));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.exportActions button:hover:not(:disabled) {
+  border-color: var(--cyan);
+  color: var(--text-bright);
+}
+
+.exportActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exportMsg {
+  color: var(--text-dim);
+  font-size: 0.85rem;
 }
 
 .grade {

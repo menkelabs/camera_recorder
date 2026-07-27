@@ -2521,6 +2521,11 @@ def main():
                         help='MediaPipe model complexity for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=5000, help='Port (default: 5000)')
+    parser.add_argument(
+        '--skip-cameras',
+        action='store_true',
+        help='Do not open USB cameras (UI/E2E smoke; API still serves)',
+    )
 
     args = parser.parse_args()
 
@@ -2533,7 +2538,11 @@ def main():
         fps=args.fps,
     )
     camera_manager.analysis_model_complexity = args.model_complexity
-    camera_manager.start()
+    if args.skip_cameras:
+        camera_manager.cameras_available = False
+        print('Starting Flask GUI with --skip-cameras (no VideoCapture open)')
+    else:
+        camera_manager.start()
 
     model_names = {0: 'lite', 1: 'full', 2: 'heavy'}
     print()
@@ -2541,6 +2550,8 @@ def main():
     print(f"  Flask GUI running at http://localhost:{args.port}")
     print(f"  Recording target: {args.fps}fps @ {args.width}x{args.height}")
     print(f"  Analysis model: {model_names.get(args.model_complexity, '?')} (complexity={args.model_complexity})")
+    if args.skip_cameras:
+        print('  Cameras: skipped (--skip-cameras)')
     print(f"  Press Ctrl+C to stop")
     print("=" * 60)
     print()

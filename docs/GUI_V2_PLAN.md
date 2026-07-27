@@ -147,7 +147,7 @@ Port remaining v1 tabs, matching existing REST contracts:
 | Item | Status |
 |------|--------|
 | Recordings library (favorites, notes, reference, delete/cleanup) | Done |
-| Analysis score/metrics/phase (export/clip optional follow-up) | Done (export/clip still v1/`/legacy`) |
+| Analysis score/metrics/phase + export HTML/CSV + clip Cam1/Cam2 | Done |
 | Compare (deltas + overlay chart) | Done |
 | Progress trends | Done |
 | Settings (roles, archive) | Done |
@@ -163,13 +163,13 @@ Port remaining v1 tabs, matching existing REST contracts:
 |------|--------|--------|
 | D0 | Tag `v1.0.0` on `master` (last Flask-template GUI) before merge | Done |
 | D1 | Default `/` → React build; `/legacy` retained one release | Done on branch (merge pending) |
-| D2 | README + quick-start updated; v1 monolith marked deprecated | Partial (README has React/legacy notes) |
-| D3 | CI: `npm test` + `npm run build` + `run_all_tests.py --unit` | Done (`.github/workflows/ci.yml`) |
+| D2 | README + quick-start updated; v1 monolith marked deprecated | Done |
+| D3 | CI: Vitest + Playwright E2E + `run_all_tests.py --unit` + mock soak | Done (`.github/workflows/ci.yml`) |
 | D4 | Remove `/legacy` + `templates/index.html` monolith in a follow-up once stable | Not started |
 
 **Exit:** Master ships React as the only supported GUI.
 
-**Pre-merge gate (honest coverage):** Must-hit backend + Vitest sequencer/preview tests are in place. v1 HTML scrapers hit `/legacy`. Checklist-gated record/auto-detect tests seed preview frames. Detect/reinit API smokes exist. Still thin: React page RTL, Playwright E2E, and mock-video suite from PR #7 (not yet on this branch).
+**Pre-merge gate:** Must-hit backend, React RTL page coverage, Playwright smoke/export UI, mock-video + GUI stability (from PR #7), dual-camera mock soak, detect/reinit, checklist seeding, `/legacy` scrapers. Optional hardware soak: `python scripts/dual_camera_soak.py --hardware`.
 
 ---
 
@@ -215,11 +215,13 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 
 | Layer | What | Status |
 |-------|------|--------|
-| Python | Flask: preview while recording; `/legacy` scrapers; checklist seed helpers; detect/reinit | On this branch |
-| Frontend unit | Playback sequencer (no overlapping seeks); CameraPreview clears src on unmount | Vitest present |
-| CI | `npm test` + `npm run build` + `run_all_tests.py --unit` | Workflow added |
-| Mock-video / GUI stability | `test_gui_stability.py` + `test_mock_video_analysis.py` | PR #7 — merge separately |
-| Manual / E2E later | Playwright: tab switch stops `/video_feed/*` | Not started |
+| Python | Flask: preview while recording; `/legacy` scrapers; checklist seed; detect/reinit | Done |
+| Mock-video / GUI stability | `test_gui_stability.py` + `test_mock_video_analysis.py` | Done (from PR #7) |
+| Dual-camera soak | `test_dual_camera_soak.py` + `scripts/dual_camera_soak.py` (`--mock` / `--hardware`) | Done |
+| Frontend unit (RTL) | App tabs, Setup, Recording, Analysis(+export), Recordings, Compare, Progress, Settings | Done |
+| Frontend unit | Playback sequencer; CameraPreview pause-on-hide | Done |
+| E2E | Playwright: React shell, tabs, `/legacy`, status API, export buttons (stubbed results) | Done |
+| CI | Vitest + build + unit + mock soak + Playwright | Done |
 
 ---
 
@@ -240,25 +242,22 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 - [x] Live dual preview throughout recording (backend + unit tests)
 - [x] Analysis play/scrub stable at 0.25x–4x (sequencer unit tests; manual confirm still recommended)
 - [x] Only active-tab camera feeds connected (`CameraPreview` unit tests)
-- [x] Feature parity with v1 tabs (export/clip UI still `/legacy` only)
+- [x] Feature parity with v1 tabs including export/clip in React
 - [x] `npm run build` artifacts served by Flask
-- [x] Unit tests (Py + Vitest) in CI path
+- [x] Unit tests (Py + Vitest RTL) in CI path
+- [x] Playwright E2E smoke + analysis export UI
+- [x] Mock-video / GUI stability suite on this branch
+- [x] Dual-camera mock soak in CI; hardware soak script documented
 - [x] README documents React dev (`npm run dev` + `python scripts/flask_gui.py`)
 - [x] `/legacy` optional safety valve for one release
 - [x] `v1.0.0` tag cut from `master` before merge
-- [x] `run_all_tests.py --unit` green locally on this branch (CI workflow added; confirm on PR)
-- [ ] Optional: merge PR #7 mock-video/stability suite before or with cutover
 
 ---
 
-## 9. Immediate next implementation steps
+## 9. Remaining after cutover
 
-When implementation starts on this branch:
-
-1. Scaffold `frontend/` Vite React TS + Flask dist/legacy routing.
-2. Implement recorder latest-frame peek + MJPEG during recording + tests.
-3. Build React `CameraPreview` + Recording/Analysis pages with seek sequencer.
-4. Parity port remaining tabs.
-5. Cut over default route; deprecate monolith.
+1. Merge this branch to `master` once CI is green.
+2. Operator hardware soak once: `python scripts/dual_camera_soak.py --hardware --seconds 30`.
+3. Phase D4 later: remove `/legacy` + `templates/index.html` after one stable release.
 
 This document is the source of truth for v2.0 scope. Change it via PR if scope shifts.
