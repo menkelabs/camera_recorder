@@ -69,7 +69,7 @@ test.describe('Analysis export / clip UI', () => {
     })
 
     await page.goto('/')
-    await page.getByRole('tab', { name: /Analysis/i }).click()
+    await page.getByRole('tab', { name: '5 Analysis' }).click()
     await expect(page.getByRole('button', { name: 'Export HTML' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Clip Cam1' })).toBeVisible()

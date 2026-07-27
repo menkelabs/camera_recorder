@@ -1,7 +1,10 @@
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test'
 
 const PORT = Number(process.env.E2E_PORT || 5055)
 const BASE = `http://127.0.0.1:${PORT}`
+const ROOT = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   testDir: './e2e',
@@ -16,10 +19,10 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npm run build && python ../scripts/flask_gui.py --host 127.0.0.1 --port ${PORT} --skip-cameras`,
+    command: `npm run build && python3 ../scripts/flask_gui.py --host 127.0.0.1 --port ${PORT} --skip-cameras`,
     url: BASE,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    cwd: __dirname,
+    cwd: ROOT,
   },
 })

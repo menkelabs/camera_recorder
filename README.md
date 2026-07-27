@@ -412,27 +412,24 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform con
 Same commands on Windows and Linux. Unit tests do not need cameras.
 
 ```bash
-# Unit tests only (default — safe in CI / cloud)
+# Python unit suite (includes mock-video, GUI stability, dual-camera mock soak)
 python run_all_tests.py --unit
 
-# Cross-platform config helpers (mocks Windows + Linux on any host)
-python -m unittest tests.test_platform_config -v
+# Mock dual-camera soak (record → preview → analyze → export)
+python scripts/dual_camera_soak.py --mock
 
-# Flask GUI tests (routes, template, recording, analysis, video playback, auto-detect)
-python -m unittest tests.test_flask_gui -v
+# Frontend unit (Vitest + React Testing Library)
+cd frontend && npm test
 
-# Swing detector / metrics / comparison / archive / recordings
-python -m unittest tests.test_swing_detector -v
-python -m unittest tests.test_sway_calculator -v
-python -m unittest tests.test_swing_comparison -v
-python -m unittest tests.test_recording_management -v
-python -m unittest tests.test_archive -v
+# Playwright E2E (builds dist, starts Flask with --skip-cameras)
+cd frontend && npm run test:e2e:install && npm run test:e2e
 
 # Hardware / camera scripts (plug cameras in first)
 python run_all_tests.py --hardware
+python scripts/dual_camera_soak.py --hardware --seconds 30
 python tests/test_cameras.py
 
-# Everything
+# Everything (Python unit + hardware scripts)
 python run_all_tests.py --all
 ```
 

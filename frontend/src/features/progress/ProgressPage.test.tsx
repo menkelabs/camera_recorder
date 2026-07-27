@@ -26,6 +26,7 @@ describe('ProgressPage', () => {
     render(<ProgressPage />)
     expect(await screen.findByRole('heading', { name: 'Progress' })).toBeInTheDocument()
     expect(screen.getByText(/Swings:/)).toBeInTheDocument()
-    expect(screen.getByText('B')).toBeInTheDocument()
+    expect(screen.getByText(/Latest:/)).toBeInTheDocument()
+    expect(screen.getByText(/B\s*88/)).toBeInTheDocument()
   })
 })
