@@ -118,25 +118,25 @@ Work stays on `cursor/gui-v2-react-600c` (or stacked PRs into it). Merge to `mas
 
 ### Phase A — Foundation + must-hit backend (first PR slice)
 
-| Item | Detail |
-|------|--------|
-| A1 | Scaffold `frontend/` (Vite React TS), proxy config, `npm` scripts |
-| A2 | Flask: serve `frontend/dist` when present; `/legacy` → old template |
-| A3 | Backend: recorder preview snapshots + MJPEG while recording |
-| A4 | Unit tests for preview-while-recording (mock recorder frames) |
-| A5 | Thin React shell: header, tab nav, status poll hook, dark tokens |
+| Item | Detail | Status |
+|------|--------|--------|
+| A1 | Scaffold `frontend/` (Vite React TS), proxy config, `npm` scripts | Done |
+| A2 | Flask: serve `frontend/dist` when present; `/legacy` → old template | Done |
+| A3 | Backend: recorder preview snapshots + MJPEG while recording | Done |
+| A4 | Unit tests for preview-while-recording (mock recorder frames) | Done |
+| A5 | Thin React shell: header, tab nav, status poll, CameraPreview, AnalysisPlayback sequencer | Done |
 
 **Exit:** `npm run dev` + Flask shows shell; MJPEG live during record works even with `/legacy` or a minimal React Recording page.
 
 ### Phase B — React shell + three UX fixes end-to-end
 
-| Item | Detail |
-|------|--------|
-| B1 | `CameraPreview` with pause-on-hide |
-| B2 | Setup Cam1 / Cam2 pages (properties, reset, save) |
-| B3 | Recording page (checklist, start/stop, auto-detect, session, metronome) using live-while-recording preview |
-| B4 | Analysis page skeleton + `AnalysisPlayback` seek fix |
-| B5 | Frontend unit tests (Vitest) for playback sequencer + preview mount logic |
+| Item | Detail | Status |
+|------|--------|--------|
+| B1 | `CameraPreview` with pause-on-hide | Done (Phase A shell) |
+| B2 | Setup Cam1 / Cam2 pages (properties, reset, save) | Next — preview only for now |
+| B3 | Recording page (checklist, start/stop, auto-detect, session, metronome) using live-while-recording preview | Partial — start/stop + live preview done |
+| B4 | Analysis page skeleton + `AnalysisPlayback` seek fix | Done (sequencer + Vitest) |
+| B5 | Frontend unit tests (Vitest) for playback sequencer + preview mount logic | Done |
 
 **Exit:** Operator can configure → record (watching live) → analyze → scrub/play without seek backlog; unused feeds stop.
 

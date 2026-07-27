@@ -1,0 +1,27 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header h2 {
+  font-size: 1.25rem;
+  color: var(--text-bright);
+}
+
+.progress {
+  color: var(--cyan);
+  font-size: 0.9rem;
+}
+
+.error {
+  width: 100%;
+  color: var(--red);
+}

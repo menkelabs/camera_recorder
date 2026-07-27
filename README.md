@@ -79,12 +79,32 @@ Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
 
 ## Quick Start
 
-Run the Flask GUI:
+### GUI v2 (React — recommended on `cursor/gui-v2-react-600c`)
+
+```bash
+# terminal 1 — API + cameras + MJPEG
+python scripts/flask_gui.py --port 5000
+
+# terminal 2 — React UI with HMR
+cd frontend && npm install && npm run dev
+```
+
+Open **http://localhost:5173**. Full v1 UI remains at **http://localhost:5000/legacy**.
+
+To have Flask serve the production React build on port 5000:
+
+```bash
+cd frontend && npm run build
+python scripts/flask_gui.py
+```
+
+### Legacy template (v1)
+
 ```bash
 python scripts/flask_gui.py
 ```
 
-Then open **http://localhost:5000** in your browser.
+Then open **http://localhost:5000** (falls back to the v1 template when `frontend/dist` is missing) or **/legacy**.
 
 ### With explicit camera IDs:
 ```bash

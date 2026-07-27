@@ -31,6 +31,7 @@ UNIT_TEST_MODULES = [
     'test_platform_config',
     'test_gui',
     'test_flask_gui',
+    'test_preview_while_recording',
     'test_config_to_record_workflow',
     'test_analysis_workflow',
     'test_analysis_navigation',

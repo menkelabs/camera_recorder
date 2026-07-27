@@ -54,7 +54,7 @@ from practice_settings import (
 from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
 from usb_health import detect_shared_usb_bus, frame_starvation_warning
 
-from flask import Flask, render_template, jsonify, request, Response, send_file
+from flask import Flask, render_template, jsonify, request, Response, send_file, send_from_directory
 
 
 def load_windows_config(config_path: str = None) -> dict:
@@ -339,7 +339,20 @@ class CameraManager:
             time.sleep(1.0 / 60)
 
     def get_frame(self, camera_num: int) -> Optional[np.ndarray]:
-        """Return the latest frame for the given camera (thread-safe copy)."""
+        """
+        Return the latest frame for the given camera (thread-safe copy).
+
+        While recording, frames come from DualCameraRecorder's non-destructive
+        preview snapshot so the browser can keep a live MJPEG view.
+        """
+        if self.is_recording and self.recorder is not None:
+            try:
+                frame = self.recorder.get_preview_frame(camera_num)
+                if frame is not None:
+                    return frame
+            except Exception:
+                pass
+            return None
         with self.frame_lock:
             if camera_num == 1 and self.latest_frame1 is not None:
                 return self.latest_frame1.copy()
@@ -1290,6 +1303,27 @@ def _placeholder_jpeg(text: str, color=(0, 200, 200)) -> bytes:
     return buf.tobytes()
 
 
+def _encode_preview_jpeg(frame: np.ndarray, recording: bool) -> bytes:
+    """
+    JPEG-encode a preview frame.
+
+    While recording, downscale and use lower quality / budget so MJPEG does not
+    compete as hard with the high-fps writers for CPU/USB headroom.
+    """
+    out = frame
+    quality = 85
+    if recording:
+        quality = 65
+        h, w = frame.shape[:2]
+        if w > 640:
+            scale = 640.0 / w
+            out = cv2.resize(frame, (640, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode('.jpg', out, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        return _placeholder_jpeg("Encode error")
+    return buf.tobytes()
+
+
 def generate_frames(camera_num: int):
     """Generator yielding MJPEG frames for a camera stream."""
     while True:
@@ -1301,36 +1335,57 @@ def generate_frames(camera_num: int):
             time.sleep(1.0)
             continue
 
-        if mgr.is_recording:
-            frame_bytes = _placeholder_jpeg("Recording in progress...")
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.5)
-            continue
-
+        recording = bool(mgr.is_recording)
         frame = mgr.get_frame(camera_num)
         if frame is not None:
-            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buf.tobytes() + b'\r\n')
-        else:
-            frame_bytes = _placeholder_jpeg(f"Camera {camera_num} not available", (0, 0, 255))
+            frame_bytes = _encode_preview_jpeg(frame, recording=recording)
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.5)
+            # ~15fps while recording, ~30fps idle preview
+            time.sleep(1.0 / 15 if recording else 1.0 / 30)
             continue
 
-        time.sleep(1.0 / 30)  # ~30fps preview in browser
+        if recording:
+            frame_bytes = _placeholder_jpeg("Recording… waiting for frames")
+        else:
+            frame_bytes = _placeholder_jpeg(f"Camera {camera_num} not available", (0, 0, 255))
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.5)
 
 
 # ------------------------------------------------------------------
-# Routes
+# Routes — GUI v2 (React dist) + legacy template
 # ------------------------------------------------------------------
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_FRONTEND_DIST = os.path.join(_PROJECT_ROOT, 'frontend', 'dist')
+
+
+def _frontend_dist_ready() -> bool:
+    return os.path.isfile(os.path.join(_FRONTEND_DIST, 'index.html'))
+
 
 @app.route('/')
 def index():
-    """Serve the main single-page UI."""
+    """Serve React GUI v2 when built; otherwise the legacy Flask template."""
+    if _frontend_dist_ready():
+        return send_from_directory(_FRONTEND_DIST, 'index.html')
     return render_template('index.html')
+
+
+@app.route('/legacy')
+def legacy_index():
+    """v1 monolithic template — safety valve during React cutover."""
+    return render_template('index.html')
+
+
+@app.route('/assets/<path:filename>')
+def frontend_assets(filename):
+    """Serve Vite-built static assets when frontend/dist is present."""
+    if not _frontend_dist_ready():
+        return jsonify({'error': 'Frontend not built'}), 404
+    return send_from_directory(os.path.join(_FRONTEND_DIST, 'assets'), filename)
 
 
 @app.route('/video_feed/<int:camera_num>')

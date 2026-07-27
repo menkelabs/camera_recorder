@@ -1,0 +1,10 @@
+.page {
+  display: grid;
+  gap: 16px;
+  max-width: 960px;
+}
+
+.note {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
