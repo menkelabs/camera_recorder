@@ -246,7 +246,7 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 - [x] README documents React dev (`npm run dev` + `python scripts/flask_gui.py`)
 - [x] `/legacy` optional safety valve for one release
 - [x] `v1.0.0` tag cut from `master` before merge
-- [ ] `run_all_tests.py --unit` green on CI for this PR
+- [x] `run_all_tests.py --unit` green locally on this branch (CI workflow added; confirm on PR)
 - [ ] Optional: merge PR #7 mock-video/stability suite before or with cutover
 
 ---
