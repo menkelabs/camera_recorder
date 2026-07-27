@@ -1,3 +1,8 @@
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -43,8 +48,8 @@ env/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Recording Output Files
-recordings/
+# Recording Output Files (repo-root data dir only — not frontend/src/features/recordings)
+/recordings/
 *.mp4
 *.avi
 *.mov
@@ -52,7 +57,7 @@ recordings/
 *.flv
 *.wmv
 
-# Per-recording practice metadata (favorites/notes) lives under recordings/
+# Per-recording practice metadata (favorites/notes) lives under /recordings/
 recording_meta.json
 practice_settings.json
 archive_config.json

@@ -23,6 +23,32 @@ from flask_gui import app, CameraManager, load_windows_config
 from test_utils import get_camera_ids
 
 
+def _seed_preview_frames(mgr, width=1280, height=720):
+    """
+    Satisfy the pre-record checklist frame gates used by start_recording /
+    toggle_auto_detect / session arming.
+    """
+    mgr.latest_frame1 = np.zeros((height, width, 3), dtype=np.uint8)
+    mgr.latest_frame2 = np.full((height, width, 3), 32, dtype=np.uint8)
+
+
+def _mock_open_cap(cap, width=1280, height=720, fps=120.0):
+    """Configure a MagicMock capture so checklist resolution checks pass."""
+    cap.isOpened.return_value = True
+
+    def _get(prop):
+        if prop == cv2.CAP_PROP_FRAME_WIDTH:
+            return float(width)
+        if prop == cv2.CAP_PROP_FRAME_HEIGHT:
+            return float(height)
+        if prop == cv2.CAP_PROP_FPS:
+            return float(fps)
+        return 128.0
+
+    cap.get.side_effect = _get
+    return cap
+
+
 # ======================================================================
 # CameraManager Initialization
 # ======================================================================
@@ -159,15 +185,12 @@ class TestRecordingControls(unittest.TestCase):
 
     def setUp(self):
         self.mgr = CameraManager()
-        self.mock_cap1 = MagicMock()
-        self.mock_cap2 = MagicMock()
-        self.mock_cap1.isOpened.return_value = True
-        self.mock_cap2.isOpened.return_value = True
-        self.mock_cap1.get.return_value = 128.0
-        self.mock_cap2.get.return_value = 128.0
+        self.mock_cap1 = _mock_open_cap(MagicMock())
+        self.mock_cap2 = _mock_open_cap(MagicMock())
         self.mgr.cap1 = self.mock_cap1
         self.mgr.cap2 = self.mock_cap2
         self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
 
     def test_start_recording_creates_recorder(self):
         """start_recording should create DualCameraRecorder and begin."""
@@ -524,15 +547,12 @@ class TestFlaskRoutes(unittest.TestCase):
         # Create a CameraManager with mocked cameras
         import flask_gui
         self.mgr = CameraManager()
-        self.mock_cap1 = MagicMock()
-        self.mock_cap2 = MagicMock()
-        self.mock_cap1.isOpened.return_value = True
-        self.mock_cap2.isOpened.return_value = True
-        self.mock_cap1.get.return_value = 128.0
-        self.mock_cap2.get.return_value = 128.0
+        self.mock_cap1 = _mock_open_cap(MagicMock())
+        self.mock_cap2 = _mock_open_cap(MagicMock())
         self.mgr.cap1 = self.mock_cap1
         self.mgr.cap2 = self.mock_cap2
         self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
         flask_gui.camera_manager = self.mgr
 
     def tearDown(self):
@@ -540,8 +560,18 @@ class TestFlaskRoutes(unittest.TestCase):
         flask_gui.camera_manager = None
 
     def test_index_returns_html(self):
-        """GET / should return the HTML page."""
+        """GET / should return React shell when dist is built, else v1 template."""
         resp = self.client.get('/')
+        self.assertEqual(resp.status_code, 200)
+        body = resp.data
+        self.assertTrue(
+            b'id="root"' in body or b'Camera Setup' in body,
+            'Expected React #root or legacy Camera Setup markup',
+        )
+
+    def test_legacy_returns_v1_template(self):
+        """GET /legacy always serves the v1 Flask template."""
+        resp = self.client.get('/legacy')
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b'Camera Setup', resp.data)
 
@@ -718,7 +748,7 @@ class TestFlaskRoutes(unittest.TestCase):
 # ======================================================================
 
 class TestTemplateRendering(unittest.TestCase):
-    """Test that the HTML template renders with all expected elements."""
+    """Test that the v1 HTML template (/legacy) renders with all expected elements."""
 
     def setUp(self):
         app.config['TESTING'] = True
@@ -733,7 +763,7 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_all_tabs(self):
         """HTML should contain all tab buttons including Progress."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('Camera 1 Setup', html)
         self.assertIn('Camera 2 Setup', html)
@@ -746,7 +776,7 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_keyboard_hints(self):
         """HTML should include keyboard shortcut hints."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('[1]', html)
         self.assertIn('[2]', html)
@@ -758,21 +788,21 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_video_feeds(self):
         """HTML should reference the MJPEG video feed URLs."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('/video_feed/1', html)
         self.assertIn('/video_feed/2', html)
 
     def test_template_contains_recording_controls(self):
         """HTML should have recording start/stop UI."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('Start Recording', html)
         self.assertIn('toggleRecording', html)
 
     def test_template_contains_analysis_sections(self):
         """HTML should have analysis result sections."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('metrics-dashboard', html)
         self.assertIn('timeseries-canvas', html)
@@ -782,7 +812,7 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_compare_tab(self):
         """HTML should have the comparison tab."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('tab-compare', html)
         self.assertIn('compare-a', html)
@@ -791,7 +821,7 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_property_controls(self):
         """HTML should have camera property sections."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('Camera 1 Properties', html)
         self.assertIn('Camera 2 Properties', html)
@@ -800,14 +830,14 @@ class TestTemplateRendering(unittest.TestCase):
 
     def test_template_contains_settings_display(self):
         """HTML should show the recording settings (fps, resolution)."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('120fps', html)
         self.assertIn('1280x720', html)
 
     def test_template_contains_frame_navigation(self):
         """HTML should have frame navigation controls."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('Prev', html)
         self.assertIn('Next', html)
@@ -921,6 +951,10 @@ class TestAutoDetectEndpoints(unittest.TestCase):
         self.client = app.test_client()
         import flask_gui
         self.mgr = CameraManager()
+        self.mgr.cap1 = _mock_open_cap(MagicMock())
+        self.mgr.cap2 = _mock_open_cap(MagicMock())
+        self.mgr.cameras_available = True
+        _seed_preview_frames(self.mgr)
         flask_gui.camera_manager = self.mgr
 
     def tearDown(self):
@@ -967,18 +1001,100 @@ class TestAutoDetectEndpoints(unittest.TestCase):
 
     def test_status_in_api_status(self):
         """GET /api/status should include auto_detect_enabled."""
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.get.return_value = 128.0
-        self.mgr.cap1 = mock_cap
-        self.mgr.cap2 = mock_cap
-        self.mgr.cameras_available = True
-
         resp = self.client.get('/api/status')
         data = json.loads(resp.data)
         self.assertIn('auto_detect_enabled', data)
         self.assertFalse(data['auto_detect_enabled'])
         self.assertIn('auto_detect_status', data)
+
+
+class TestCameraDetectReinit(unittest.TestCase):
+    """Test /api/cameras/detect and /api/cameras/reinit."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+        import flask_gui
+        self.mgr = CameraManager(camera1_id=0, camera2_id=1)
+        self.mgr.cap1 = self._live_cap()
+        self.mgr.cap2 = self._live_cap()
+        self.mgr.cameras_available = True
+        self.mgr.running = False
+        flask_gui.camera_manager = self.mgr
+
+    def tearDown(self):
+        import flask_gui
+        self.mgr.running = False
+        if self.mgr.capture_thread:
+            self.mgr.capture_thread.join(timeout=2.0)
+        if self.mgr.capture_thread2:
+            self.mgr.capture_thread2.join(timeout=2.0)
+        flask_gui.camera_manager = None
+
+    def _live_cap(self, width=1280, height=720):
+        frame = np.zeros((height, width, 3), dtype=np.uint8)
+        cap = _mock_open_cap(MagicMock(), width=width, height=height)
+        cap.read.return_value = (True, frame)
+        return cap
+
+    def _open_side_effect(self, idx):
+        # Detect probes indices 0-7; only 0 and 2 "exist" in this mock.
+        if idx in (0, 2):
+            return self._live_cap()
+        return None
+
+    @patch('flask_gui.time.sleep', return_value=None)
+    @patch('flask_gui._open_cap')
+    def test_detect_lists_available_indices(self, mock_open, _sleep):
+        mock_open.side_effect = self._open_side_effect
+        resp = self.client.post('/api/cameras/detect')
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertEqual(data.get('available_indices'), [0, 2])
+        self.assertIn('camera1_id', data)
+        self.assertIn('camera2_id', data)
+
+    @patch('flask_gui._open_cap')
+    def test_detect_blocked_while_recording(self, mock_open):
+        self.mgr.is_recording = True
+        resp = self.client.post('/api/cameras/detect')
+        self.assertEqual(resp.status_code, 400)
+        data = json.loads(resp.data)
+        self.assertIn('error', data)
+        mock_open.assert_not_called()
+
+    @patch('flask_gui.time.sleep', return_value=None)
+    @patch('flask_gui._open_cap')
+    def test_reinit_updates_ids_and_reopens(self, mock_open, _sleep):
+        opened = []
+
+        def _open(idx):
+            opened.append(idx)
+            return self._live_cap()
+
+        mock_open.side_effect = _open
+        resp = self.client.post(
+            '/api/cameras/reinit',
+            json={'camera1_id': 2, 'camera2_id': 4},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertEqual(data['camera1_id'], 2)
+        self.assertEqual(data['camera2_id'], 4)
+        self.assertEqual(self.mgr.camera1_id, 2)
+        self.assertEqual(self.mgr.camera2_id, 4)
+        self.assertIn(2, opened)
+        self.assertIn(4, opened)
+        self.assertTrue(data.get('cameras_available'))
+        self.assertTrue(data.get('camera1_available'))
+        self.assertTrue(data.get('camera2_available'))
+
+    def test_reinit_blocked_while_recording(self):
+        self.mgr.is_recording = True
+        resp = self.client.post('/api/cameras/reinit')
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertIn('error', data)
 
 
 class TestCompressFrames(unittest.TestCase):
@@ -1003,7 +1119,7 @@ class TestCompressFrames(unittest.TestCase):
 
 
 class TestTemplateNewFeatures(unittest.TestCase):
-    """Test that the template includes the new video playback and auto-detect UI."""
+    """Test that the v1 template (/legacy) includes video playback and auto-detect UI."""
 
     def setUp(self):
         app.config['TESTING'] = True
@@ -1018,7 +1134,7 @@ class TestTemplateNewFeatures(unittest.TestCase):
 
     def test_template_has_video_panels(self):
         """HTML should contain analysis video playback panels."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('analysis-video-panels', html)
         self.assertIn('analysis-frame-cam1', html)
@@ -1026,7 +1142,7 @@ class TestTemplateNewFeatures(unittest.TestCase):
 
     def test_template_has_play_button(self):
         """HTML should contain the play/pause button."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('play-btn', html)
         self.assertIn('togglePlayback', html)
@@ -1034,7 +1150,7 @@ class TestTemplateNewFeatures(unittest.TestCase):
 
     def test_template_has_auto_detect_toggle(self):
         """HTML should contain the auto-detect toggle switch."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('auto-detect-cb', html)
         self.assertIn('Auto Detect', html)
@@ -1042,7 +1158,7 @@ class TestTemplateNewFeatures(unittest.TestCase):
 
     def test_template_has_auto_detect_gauge(self):
         """HTML should contain the shoulder turn gauge."""
-        resp = self.client.get('/')
+        resp = self.client.get('/legacy')
         html = resp.data.decode()
         self.assertIn('auto-detect-gauge-fill', html)
         self.assertIn('auto-detect-badge', html)
@@ -1069,6 +1185,7 @@ def run_flask_gui_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestNewAnalysisEndpoints))
     suite.addTests(loader.loadTestsFromTestCase(TestAnalysisFrameEndpoint))
     suite.addTests(loader.loadTestsFromTestCase(TestAutoDetectEndpoints))
+    suite.addTests(loader.loadTestsFromTestCase(TestCameraDetectReinit))
     suite.addTests(loader.loadTestsFromTestCase(TestCompressFrames))
     suite.addTests(loader.loadTestsFromTestCase(TestTemplateNewFeatures))
 

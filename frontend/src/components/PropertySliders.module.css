@@ -1,0 +1,52 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 110px 1fr 52px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.label {
+  text-transform: capitalize;
+  color: var(--text-dim);
+}
+
+.value {
+  font-family: var(--font-mono);
+  text-align: right;
+  color: var(--text);
+}
+
+.row input[type='range'] {
+  width: 100%;
+}
+
+.error {
+  color: var(--red);
+  padding: 12px;
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  border-radius: var(--radius);
+}
+
+.loading {
+  color: var(--text-dim);
+  padding: 12px 0;
+}

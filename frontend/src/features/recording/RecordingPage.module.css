@@ -1,0 +1,109 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.autoActive > :first-child {
+  box-shadow: 0 0 0 2px rgba(210, 153, 34, 0.55);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.dotLive {
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(248, 81, 73, 0.25);
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.label {
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.detail {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.duration {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--red);
+  font-size: 1.1rem;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.start,
+.stop {
+  border: none;
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.start {
+  background: var(--green-dim);
+}
+
+.stop {
+  background: var(--red-dim);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.error {
+  color: var(--red);
+}
+
+@media (max-width: 800px) {
+  .dual {
+    grid-template-columns: 1fr;
+  }
+}

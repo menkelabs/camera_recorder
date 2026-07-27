@@ -1,0 +1,42 @@
+.bar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  scrollbar-width: thin;
+}
+
+.bar button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.bar button:hover {
+  color: var(--text);
+  background: var(--bg-card-alt);
+}
+
+.active {
+  color: var(--text-bright) !important;
+  background: var(--bg-card-alt) !important;
+  border-color: var(--border) !important;
+}
+
+.key {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  opacity: 0.7;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}

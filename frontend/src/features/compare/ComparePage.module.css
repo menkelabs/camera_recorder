@@ -1,0 +1,145 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header h2 {
+  color: var(--text-bright);
+  margin-bottom: 4px;
+}
+
+.header p {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pickers label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.pickers select,
+.chartHead select {
+  min-width: 220px;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+}
+
+.pickers button {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--text-bright);
+  border-radius: 6px;
+  padding: 8px 14px;
+}
+
+.deltas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.card h3 {
+  color: var(--text-bright);
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+
+.deltaGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deltaItem {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr auto;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: capitalize;
+}
+
+.deltaItem strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.deltaItem em {
+  font-style: normal;
+  font-family: var(--font-mono);
+}
+
+.up {
+  color: var(--green);
+}
+
+.down {
+  color: var(--red);
+}
+
+.flat {
+  color: var(--text-dim);
+}
+
+.chartBlock {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chartHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.chartHead h3 {
+  color: var(--text-bright);
+  font-size: 0.95rem;
+}
+
+.error {
+  color: var(--red);
+}
+
+.empty {
+  color: var(--text-dim);
+}
+
+@media (max-width: 900px) {
+  .deltas {
+    grid-template-columns: 1fr;
+  }
+}

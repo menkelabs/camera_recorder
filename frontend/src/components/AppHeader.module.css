@@ -1,0 +1,68 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 14px 24px;
+  background: rgba(22, 27, 34, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.header h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--bg);
+}
+
+.ok {
+  color: var(--green);
+  border-color: rgba(63, 185, 80, 0.4);
+}
+
+.warn {
+  color: var(--orange);
+  border-color: rgba(240, 136, 62, 0.4);
+}
+
+.rec {
+  color: var(--text-bright);
+  background: var(--red-dim);
+  border-color: var(--red);
+}
+
+.info {
+  color: var(--cyan);
+  border-color: rgba(121, 192, 255, 0.4);
+}
+
+.message {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}

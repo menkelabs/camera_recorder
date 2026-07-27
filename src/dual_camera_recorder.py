@@ -26,6 +26,10 @@ class CameraCapture:
         self.thread = None
         self.last_frame_time = None
         self.frame_count = 0
+        # Non-destructive preview snapshot (does not steal from the write queue)
+        self._preview_lock = threading.Lock()
+        self._latest_preview_frame = None
+        self._latest_preview_ts = None
         
     def start(self, width: int = 1280, height: int = 720, fps: int = 30):
         """Start camera capture thread"""
@@ -60,6 +64,10 @@ class CameraCapture:
             if ret:
                 consecutive_failures = 0
                 timestamp = time.time()
+                # Always refresh the preview snapshot (copy) before queueing for write
+                with self._preview_lock:
+                    self._latest_preview_frame = frame.copy()
+                    self._latest_preview_ts = timestamp
                 # Drop old frames if queue is full (keep latest)
                 if self.frame_queue.full():
                     try:
@@ -90,6 +98,17 @@ class CameraCapture:
         except Exception as e:
             print(f"Error getting frame from camera {self.camera_id}: {e}")
             return None
+
+    def get_preview_frame(self) -> Optional[np.ndarray]:
+        """
+        Return a copy of the most recent captured frame without consuming the
+        recording queue. Safe to call from the MJPEG preview thread while
+        recording is in progress.
+        """
+        with self._preview_lock:
+            if self._latest_preview_frame is None:
+                return None
+            return self._latest_preview_frame.copy()
     
     def stop(self):
         """Stop camera capture"""
@@ -98,6 +117,9 @@ class CameraCapture:
             self.thread.join(timeout=2.0)
         if self.cap:
             self.cap.release()
+        with self._preview_lock:
+            self._latest_preview_frame = None
+            self._latest_preview_ts = None
 
 
 class DualCameraRecorder:
@@ -341,6 +363,17 @@ class DualCameraRecorder:
             self.video_writer2.release()
         
         print("Recording stopped and saved!")
+
+    def get_preview_frame(self, camera_num: int) -> Optional[np.ndarray]:
+        """
+        Latest frame from camera 1 or 2 for live MJPEG while recording.
+
+        Does not dequeue frames from the recording pipeline.
+        """
+        cam = self.camera1 if camera_num == 1 else self.camera2 if camera_num == 2 else None
+        if cam is None:
+            return None
+        return cam.get_preview_frame()
     
     def preview(self, duration: float = 5.0):
         """Preview both camera feeds for specified duration"""

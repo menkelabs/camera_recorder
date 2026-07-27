@@ -1,0 +1,82 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.idle {
+  color: var(--text-dim);
+}
+
+.motion {
+  background: #3d2800;
+  color: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.recording {
+  background: #4a1a1a;
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.cooldown {
+  background: #1a3a1a;
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.info {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.gauge {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.gaugeLabel {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.barBg {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+
+.gaugeValue {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  min-width: 3.5rem;
+  text-align: right;
+}

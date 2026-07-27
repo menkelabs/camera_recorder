@@ -79,12 +79,32 @@ Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
 
 ## Quick Start
 
-Run the Flask GUI:
+### GUI v2 (React — recommended on `cursor/gui-v2-react-600c`)
+
+```bash
+# terminal 1 — API + cameras + MJPEG
+python scripts/flask_gui.py --port 5000
+
+# terminal 2 — React UI with HMR
+cd frontend && npm install && npm run dev
+```
+
+Open **http://localhost:5173**. Full v1 UI remains at **http://localhost:5000/legacy**.
+
+To have Flask serve the production React build on port 5000:
+
+```bash
+cd frontend && npm run build
+python scripts/flask_gui.py
+```
+
+### Legacy template (v1)
+
 ```bash
 python scripts/flask_gui.py
 ```
 
-Then open **http://localhost:5000** in your browser.
+Then open **http://localhost:5000** (falls back to the v1 template when `frontend/dist` is missing) or **/legacy**.
 
 ### With explicit camera IDs:
 ```bash
@@ -109,7 +129,19 @@ Options:
   --model-complexity {0,1,2}  MediaPipe model for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)
   --host HOST             Host to bind (default: 0.0.0.0)
   --port PORT             Port (default: 5000)
+  --skip-cameras          Skip opening USB cameras (UI/E2E smoke)
 ```
+
+### Dual-camera soak
+
+```bash
+# CI-safe mock path (record → live preview → analyze → export)
+python scripts/dual_camera_soak.py --mock
+
+# Real USB cameras (operator validation)
+python scripts/dual_camera_soak.py --hardware --seconds 30 --camera1 0 --camera2 2
+```
+
 
 For lower-end hardware (e.g. HP EliteBook 840 G5), use `--model-complexity 0` for faster analysis at the cost of slightly lower accuracy.
 
@@ -380,32 +412,37 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for detailed platform con
 Same commands on Windows and Linux. Unit tests do not need cameras.
 
 ```bash
-# Unit tests only (default — safe in CI / cloud)
+# Python unit suite (includes mock-video, GUI stability, dual-camera mock soak)
 python run_all_tests.py --unit
 
-# Cross-platform config helpers (mocks Windows + Linux on any host)
-python -m unittest tests.test_platform_config -v
+# Mock dual-camera soak (record → preview → analyze → export)
+python scripts/dual_camera_soak.py --mock
 
-# Flask GUI tests (routes, template, recording, analysis, video playback, auto-detect)
-python -m unittest tests.test_flask_gui -v
+# Frontend unit (Vitest + React Testing Library)
+cd frontend && npm test
 
-# Swing detector / metrics / comparison / archive / recordings
-python -m unittest tests.test_swing_detector -v
-python -m unittest tests.test_sway_calculator -v
-python -m unittest tests.test_swing_comparison -v
-python -m unittest tests.test_recording_management -v
-python -m unittest tests.test_archive -v
+# Playwright E2E (builds dist, starts Flask with --skip-cameras)
+cd frontend && npm run test:e2e:install && npm run test:e2e
 
 # Hardware / camera scripts (plug cameras in first)
 python run_all_tests.py --hardware
+python scripts/dual_camera_soak.py --hardware --seconds 30
 python tests/test_cameras.py
 
-# Everything
+# Everything (Python unit + hardware scripts)
 python run_all_tests.py --all
 ```
 
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.json` /
 `config_linux.json` and `camera_utils` keep tests portable.
+
+## GUI v2.0 (in progress)
+
+The current browser UI is a single Flask template (`templates/index.html`). Branch
+`cursor/gui-v2-react-600c` tracks a React (Vite + TypeScript) frontend that will
+replace it as the default experience while keeping the Flask camera/analysis API.
+
+Plan and phased cutover: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
 
 ## Technical Details
 
