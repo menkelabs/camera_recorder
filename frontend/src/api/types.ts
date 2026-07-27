@@ -37,6 +37,16 @@ export interface PracticeSettings {
   camera_labels?: { camera1?: string; camera2?: string }
 }
 
+export interface LocalUser {
+  id: number
+  name: string
+  has_pin: boolean
+  color?: string | null
+  created_at?: string
+  updated_at?: string
+  is_active?: boolean
+}
+
 export interface StatusResponse {
   cameras_available: boolean
   camera1_available?: boolean
@@ -58,6 +68,8 @@ export interface StatusResponse {
   practice?: PracticeSettings
   recording_duration?: number
   recording_files?: string[]
+  active_user?: LocalUser | null
+  users?: LocalUser[]
 }
 
 export interface ChecklistItem {
@@ -145,6 +157,10 @@ export interface RecordingPair {
   tags?: string[]
   is_reference?: boolean
   has_analysis?: boolean
+  owner_id?: number | null
+  owner_name?: string | null
+  owned_by_me?: boolean
+  unclaimed?: boolean
 }
 
 export interface RecordingsResponse {

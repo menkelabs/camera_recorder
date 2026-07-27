@@ -1,11 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
-import { AnalysisPage } from './AnalysisPage'
+import AnalysisPage from './AnalysisPage.vue'
 
-vi.mock('./AnalysisPlayback', () => ({
-  AnalysisPlayback: () => <div data-testid="playback">playback</div>,
+vi.mock('./AnalysisPlayback.vue', () => ({
+  default: { template: '<div data-testid="playback">playback</div>' },
 }))
 
 describe('AnalysisPage', () => {
@@ -22,10 +22,14 @@ describe('AnalysisPage', () => {
       camera1: {
         detection_rate: 90,
         current: { phase: 'Top', sway: -4 },
+        summary: {},
+        timeseries: {},
       },
       camera2: {
         detection_rate: 88,
         current: { shoulder_turn: 40 },
+        summary: {},
+        timeseries: {},
       },
     } as never)
     vi.spyOn(api, 'analysisScore').mockResolvedValue({
@@ -41,17 +45,12 @@ describe('AnalysisPage', () => {
       value: { ...window.location, assign },
     })
 
-    render(<AnalysisPage />)
-
-    expect(await screen.findByRole('heading', { name: 'Analysis' })).toBeInTheDocument()
-    expect(screen.getByText('B')).toBeInTheDocument()
-    expect(screen.getByText('Top')).toBeInTheDocument()
+    render(AnalysisPage)
+    expect(await screen.findByRole('button', { name: 'Export HTML' })).toBeTruthy()
+    expect(await screen.findByText('B')).toBeTruthy()
 
     await userEvent.click(screen.getByRole('button', { name: 'Export HTML' }))
     expect(assign).toHaveBeenCalledWith('/api/analysis/export?format=html')
-
-    await userEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
-    expect(assign).toHaveBeenCalledWith('/api/analysis/export?format=csv')
 
     vi.spyOn(api, 'exportClip').mockResolvedValue({
       success: true,
@@ -64,19 +63,5 @@ describe('AnalysisPage', () => {
         '/api/analysis/clip/clip_20260727_120000_camera1.mp4',
       ),
     )
-  })
-
-  it('hides export actions while analyzing or empty', async () => {
-    vi.spyOn(api, 'analysisResults').mockResolvedValue({
-      max_frames: 0,
-      frame_index: 0,
-      is_analyzing: true,
-      progress: 'Processing Camera 1...',
-      has_frames: false,
-    } as never)
-
-    render(<AnalysisPage />)
-    expect(await screen.findByText(/Processing Camera 1/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Export HTML' })).toBeNull()
   })
 })

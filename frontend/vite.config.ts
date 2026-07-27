@@ -1,20 +1,18 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
+import vue from '@vitejs/plugin-vue'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [vue()],
   server: {
-    port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:5000',
-      '/video_feed': 'http://127.0.0.1:5000',
-      '/legacy': 'http://127.0.0.1:5000',
+      '/api': 'http://localhost:5000',
+      '/video_feed': 'http://localhost:5000',
+      '/legacy': 'http://localhost:5000',
     },
   },
   test: {
-    environment: 'jsdom',
-    globals: true,
+    environment: 'happy-dom',
     setupFiles: './src/test/setup.ts',
-    exclude: ['**/node_modules/**', '**/e2e/**', '**/dist/**'],
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

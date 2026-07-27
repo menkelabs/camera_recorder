@@ -1,8 +1,8 @@
-# SwingLab GUI v2 (React)
+# SwingLab GUI (Vue)
 
-Vite + React + TypeScript frontend that replaces the monolithic Flask template.
+Vite + Vue 3 + TypeScript frontend served by the Flask API.
 
-See [`../docs/GUI_V2_PLAN.md`](../docs/GUI_V2_PLAN.md) for the full migration plan.
+Replaces the React v2.0 UI with the same REST/MJPEG contracts so packaging stays: `npm run build` → `frontend/dist` → Flask `/`.
 
 ## Dev
 
@@ -10,39 +10,33 @@ See [`../docs/GUI_V2_PLAN.md`](../docs/GUI_V2_PLAN.md) for the full migration pl
 # terminal 1 — API + MJPEG
 python scripts/flask_gui.py --port 5000
 
-# terminal 2 — React HMR (proxies /api and /video_feed)
+# terminal 2 — Vue HMR
 cd frontend && npm install && npm run dev
 ```
 
 Open http://localhost:5173
 
-## Production build (served by Flask)
+## Production build
 
 ```bash
 cd frontend && npm run build
 python scripts/flask_gui.py
-# http://localhost:5000 → React dist
+# http://localhost:5000 → Vue dist
 # http://localhost:5000/legacy → v1 template
 ```
 
-## Feature status (Phase A–D)
+## Stack
 
-- Setup: property sliders, save/reset, detect/reinit
-- Recording: live preview while recording, checklist, auto-detect, session, metronome
-- Analysis: serialized playback seek, score/grade, per-frame metrics, **Export HTML/CSV**, **Clip Cam1/Cam2**
-- Recordings: favorites, notes, reference, bulk delete, cleanup
-- Compare: summary deltas + normalized overlay chart
-- Progress: multi-metric trends
-- Settings: camera roles + archive path/run
-- Hidden tabs pause MJPEG feeds
+- Vue 3 + `<script setup>` + TypeScript
+- Pinia for app/tab/status state
+- CSS modules + `styles/tokens.css`
+- Vitest + Testing Library Vue
+- Playwright E2E against Flask + built dist
 
 ## Tests
 
 ```bash
-# Unit (Vitest + Testing Library)
 npm test
-
-# E2E (Playwright against Flask serving frontend/dist)
 npm run test:e2e:install   # once
 npm run test:e2e
 ```

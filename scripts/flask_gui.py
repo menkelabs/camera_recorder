@@ -38,9 +38,11 @@ from recording_meta import (
     get_recording_meta,
     update_recording_meta,
 )
+from local_db import get_db
 from practice_reports import (
     analysis_to_csv,
     analysis_to_html_report,
+    build_progress_from_stats,
     build_progress_series,
     load_analysis_file,
 )
@@ -641,6 +643,11 @@ class CameraManager:
 
             self.status_message = "Recording started"
             self.status_time = time.time()
+            # Bind this swing to the active local profile immediately
+            try:
+                get_db(_get_recordings_dir()).claim_recording(timestamp)
+            except Exception as e:
+                print(f"Failed to claim recording for active user: {e}")
             print(f"Recording started: {filename} @ {self.fps}fps")
             return {'success': True, 'filename': filename}
 
@@ -1130,6 +1137,15 @@ class CameraManager:
             print(f"Analysis saved to {path}")
         except Exception as e:
             print(f"Failed to save analysis JSON: {e}")
+        # Index score/trends in local SQLite (survives archive of bulky JSON)
+        try:
+            get_db(_get_recordings_dir()).upsert_swing_stats(payload, source_path=path)
+            get_db(_get_recordings_dir()).add_event(
+                'analyze', timestamp=payload.get('timestamp'),
+                payload={'score': (payload.get('score') or {}).get('score')},
+            )
+        except Exception as e:
+            print(f"Failed to update local stats DB: {e}")
 
     # ------------------------------------------------------------------
     # Re-initialize cameras (e.g. after plugging in)
@@ -1510,6 +1526,15 @@ def api_status():
     if mgr.auto_detect_enabled and mgr.swing_detector:
         auto_status = mgr.swing_detector.get_status()
 
+    active_user = None
+    users = []
+    try:
+        db = get_db(_get_recordings_dir())
+        active_user = db.get_active_user()
+        users = db.list_users()
+    except Exception as e:
+        print(f"Failed to load users for status: {e}")
+
     return jsonify({
         'cameras_available': mgr.cameras_available,
         'camera1_available': mgr.cap1 is not None and mgr.cap1.isOpened(),
@@ -1530,6 +1555,8 @@ def api_status():
         'session': mgr.get_session_status(),
         'camera_labels': camera_labels(load_practice_settings(_get_recordings_dir())),
         'practice': load_practice_settings(_get_recordings_dir()),
+        'active_user': active_user,
+        'users': users,
     })
 
 
@@ -1808,10 +1835,32 @@ def _delete_recording_pair(ts: str) -> Dict:
 
 @app.route('/api/recordings')
 def api_list_recordings():
-    """List all recording pairs with metadata."""
+    """List recording pairs for the active user (plus unclaimed by default)."""
     pairs = _list_recording_pairs()
-    pairs = attach_meta_to_pairs(_get_recordings_dir(), pairs)
-    ref = get_reference_timestamp(_get_recordings_dir())
+    rec_dir = _get_recordings_dir()
+    db = get_db(rec_dir)
+    owners = db.ownership_map()
+    users_by_id = {u['id']: u for u in db.list_users()}
+    active = db.get_active_user_id()
+    scope = (request.args.get('scope') or 'mine').lower()
+    filtered = []
+    for p in pairs:
+        ts = p.get('timestamp')
+        owner = owners.get(ts)
+        p['owner_id'] = owner
+        p['owned_by_me'] = owner == active
+        p['unclaimed'] = owner is None
+        p['owner_name'] = (users_by_id.get(owner) or {}).get('name') if owner else None
+        if scope == 'all':
+            filtered.append(p)
+        elif scope == 'unclaimed':
+            if owner is None:
+                filtered.append(p)
+        else:
+            if owner is None or owner == active:
+                filtered.append(p)
+    pairs = attach_meta_to_pairs(rec_dir, filtered)
+    ref = get_reference_timestamp(rec_dir)
     for p in pairs:
         p['is_reference'] = (p.get('timestamp') == ref)
     total_size = sum(p['total_size'] for p in pairs)
@@ -1825,6 +1874,122 @@ def api_list_recordings():
         'newest': newest,
         'favorite_count': sum(1 for p in pairs if p.get('favorite')),
         'reference_timestamp': ref,
+        'active_user': db.get_active_user(),
+        'scope': scope,
+    })
+
+
+@app.route('/api/recordings/<timestamp>/claim', methods=['POST'])
+def api_claim_recording(timestamp):
+    """Assign an unclaimed (or reassignable) recording to the active user."""
+    try:
+        claimed = get_db(_get_recordings_dir()).claim_recording(timestamp)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(claimed)
+
+
+@app.route('/api/db/status')
+def api_db_status():
+    """Local SQLite stats DB health + counts (for packaging / diagnostics)."""
+    try:
+        return jsonify(get_db(_get_recordings_dir()).stats_summary())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def _recording_blocked_response():
+    mgr = get_manager()
+    if mgr is not None and mgr.is_recording:
+        return jsonify({'error': 'Stop recording before switching users'}), 409
+    return None
+
+
+@app.route('/api/users', methods=['GET'])
+def api_list_users():
+    """List local profiles and the active user."""
+    db = get_db(_get_recordings_dir())
+    return jsonify({
+        'users': db.list_users(),
+        'active_user': db.get_active_user(),
+    })
+
+
+@app.route('/api/users', methods=['POST'])
+def api_create_user():
+    """Create a local profile. Body: {name, pin?, color?}."""
+    blocked = _recording_blocked_response()
+    if blocked:
+        return blocked
+    data = request.get_json(silent=True) or {}
+    try:
+        user = get_db(_get_recordings_dir()).create_user(
+            data.get('name'),
+            pin=data.get('pin'),
+            color=data.get('color'),
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(user), 201
+
+
+@app.route('/api/users/<int:user_id>', methods=['PATCH', 'POST', 'DELETE'])
+def api_mutate_user(user_id):
+    """Update or delete a local profile."""
+    if request.method == 'DELETE':
+        blocked = _recording_blocked_response()
+        if blocked:
+            return blocked
+        try:
+            get_db(_get_recordings_dir()).delete_user(user_id)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        db = get_db(_get_recordings_dir())
+        return jsonify({
+            'deleted': True,
+            'users': db.list_users(),
+            'active_user': db.get_active_user(),
+        })
+
+    data = request.get_json(silent=True) or {}
+    try:
+        user = get_db(_get_recordings_dir()).update_user(
+            user_id,
+            name=data.get('name') if 'name' in data else None,
+            pin=data.get('pin') if 'pin' in data else None,
+            clear_pin=bool(data.get('clear_pin')),
+            color=data.get('color') if 'color' in data else None,
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(user)
+
+
+@app.route('/api/users/active', methods=['POST'])
+def api_set_active_user():
+    """Switch active local profile. Body: {user_id, pin?}."""
+    blocked = _recording_blocked_response()
+    if blocked:
+        return blocked
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    if user_id is None:
+        return jsonify({'error': 'user_id is required'}), 400
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'user_id must be an integer'}), 400
+    try:
+        user = get_db(_get_recordings_dir()).set_active_user(
+            user_id, pin=data.get('pin'),
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except PermissionError as e:
+        return jsonify({'error': str(e)}), 403
+    return jsonify({
+        'active_user': user,
+        'users': get_db(_get_recordings_dir()).list_users(),
     })
 
 
@@ -1946,17 +2111,33 @@ def _load_analysis(ts: str) -> Optional[Dict]:
 
 @app.route('/api/analyses')
 def api_list_analyses():
-    """List all saved analysis results."""
+    """List saved analysis results for the active user's recordings."""
     analyses = _list_saved_analyses()
-    ref = get_reference_timestamp(_get_recordings_dir())
-    # Strip internal path from response
+    rec_dir = _get_recordings_dir()
+    db = get_db(rec_dir)
+    owners = db.ownership_map()
+    active = db.get_active_user_id()
+    scope = (request.args.get('scope') or 'mine').lower()
+    filtered = []
     for a in analyses:
+        ts = a.get('timestamp')
+        owner = owners.get(ts)
+        a['owner_id'] = owner
+        a['owned_by_me'] = owner == active
+        a['unclaimed'] = owner is None
+        if scope == 'all' or owner is None or owner == active:
+            filtered.append(a)
+    ref = get_reference_timestamp(rec_dir)
+    # Strip internal path from response
+    for a in filtered:
         a.pop('path', None)
         a['is_reference'] = (a.get('timestamp') == ref)
     return jsonify({
-        'analyses': analyses,
-        'count': len(analyses),
+        'analyses': filtered,
+        'count': len(filtered),
         'reference_timestamp': ref,
+        'active_user': db.get_active_user(),
+        'scope': scope,
     })
 
 
@@ -2044,7 +2225,17 @@ def api_update_recording_meta(timestamp):
 
 @app.route('/api/progress')
 def api_progress():
-    """Aggregate saved analyses into progress / trend series."""
+    """Aggregate swing stats into progress / trend series (SQLite first)."""
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        rows = db.list_swing_stats()
+        if rows:
+            return jsonify(build_progress_from_stats(rows))
+    except Exception as e:
+        print(f"Progress DB read failed, falling back to JSON: {e}")
+
+    # Fallback: scan analysis_*.json (pre-DB installs / empty index)
     analyses_meta = _list_saved_analyses()
     loaded = []
     for item in analyses_meta:
@@ -2053,10 +2244,13 @@ def api_progress():
             continue
         data.setdefault('timestamp', item['timestamp'])
         data.setdefault('date', item.get('date'))
-        # Recompute score if older JSON lacks it
         if 'score' not in data:
             data['score'] = score_analysis(data)
         loaded.append(data)
+        try:
+            get_db(rec_dir).upsert_swing_stats(data)
+        except Exception:
+            pass
     return jsonify(build_progress_series(loaded))
 
 

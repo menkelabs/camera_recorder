@@ -79,19 +79,19 @@ Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
 
 ## Quick Start
 
-### GUI v2 (React — recommended on `cursor/gui-v2-react-600c`)
+### GUI (Vue — default on `master` after Vue PR; React baseline tagged `v2.0.0`)
 
 ```bash
 # terminal 1 — API + cameras + MJPEG
 python scripts/flask_gui.py --port 5000
 
-# terminal 2 — React UI with HMR
+# terminal 2 — Vue UI with HMR
 cd frontend && npm install && npm run dev
 ```
 
 Open **http://localhost:5173**. Full v1 UI remains at **http://localhost:5000/legacy**.
 
-To have Flask serve the production React build on port 5000:
+To have Flask serve the production Vue build on port 5000:
 
 ```bash
 cd frontend && npm run build
@@ -331,11 +331,17 @@ The Flask GUI exposes a REST API (used by the browser UI):
 | POST | `/api/cameras/detect` | Detect available camera indices |
 | POST | `/api/recording/start` | Start recording |
 | POST | `/api/recording/stop` | Stop recording + trigger analysis |
-| GET | `/api/recordings` | List all recordings with metadata |
+| GET | `/api/recordings` | List recordings for active user (+ unclaimed) |
+| POST | `/api/recordings/<timestamp>/claim` | Claim a recording for the active user |
 | GET | `/api/recordings/stats` | Recording count, disk usage, oldest/newest |
 | DELETE | `/api/recordings/<timestamp>` | Delete a recording pair |
 | DELETE | `/api/recordings` | Bulk delete recordings |
 | POST | `/api/recordings/cleanup` | Delete recordings older than N days |
+| GET | `/api/users` | List local player profiles |
+| POST | `/api/users` | Create a local profile |
+| POST | `/api/users/active` | Switch active profile (optional PIN) |
+| PATCH | `/api/users/<id>` | Rename / set PIN |
+| DELETE | `/api/users/<id>` | Delete a profile (not the last) |
 | GET | `/api/analysis/results` | Get analysis results and frame data |
 | POST | `/api/analysis/frame` | Set the current analysis frame index |
 | GET | `/api/analysis/frame/<cam>?index=N` | Get annotated JPEG frame for camera at index |
@@ -418,7 +424,7 @@ python run_all_tests.py --unit
 # Mock dual-camera soak (record → preview → analyze → export)
 python scripts/dual_camera_soak.py --mock
 
-# Frontend unit (Vitest + React Testing Library)
+# Frontend unit (Vitest + Vue Testing Library)
 cd frontend && npm test
 
 # Playwright E2E (builds dist, starts Flask with --skip-cameras)
@@ -436,17 +442,24 @@ python run_all_tests.py --all
 See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.json` /
 `config_linux.json` and `camera_utils` keep tests portable.
 
-## GUI v2.0 (in progress)
+## GUI versions
 
-The current browser UI is a single Flask template (`templates/index.html`). Branch
-`cursor/gui-v2-react-600c` tracks a React (Vite + TypeScript) frontend that will
-replace it as the default experience while keeping the Flask camera/analysis API.
+- **`v1.0.0`** — last Flask `templates/index.html` monolith (kept at `/legacy`)
+- **`v2.0.0`** — React cutover (tagged baseline)
+- **Active:** Vue 3 + Vite + Pinia in `frontend/` (`cursor/gui-vue-600c`) — same Flask API + `frontend/dist` packaging
 
-Plan and phased cutover: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
+Plan: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
+
+## Local stats DB (SQLite, multi-user)
+
+Practice stats (favorites, notes, settings, Progress) live in
+`recordings/swinglab.db` with **local player profiles** for shared machines.
+Legacy JSON is migrated on first open and mirrored for the active user.
+See [docs/LOCAL_DB.md](docs/LOCAL_DB.md).
 
 ## Technical Details
 
-- **Architecture**: Flask web server with MJPEG streaming, REST API, and single-page HTML/JS frontend
+- **Architecture**: Flask web server with MJPEG streaming, REST API, and Vue SPA (`frontend/dist`)
 - **Threading**: Separate capture thread per camera to avoid V4L2 contention
 - **Buffering**: Minimal buffering (buffer size 1) to reduce latency
 - **Codecs**: Automatically selects best available codec (H.264 > XVID > mp4v)

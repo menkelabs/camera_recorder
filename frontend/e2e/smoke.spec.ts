@@ -1,10 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-test.describe('GUI v2 smoke (Flask + React dist)', () => {
-  test('serves React shell with all tabs', async ({ page }) => {
+test.describe('GUI Vue smoke (Flask + Vue dist)', () => {
+  test('serves Vue shell with all tabs', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('#root')).toBeVisible()
-    // Accessible names include shortcut digits ("3 Recording" vs "4 Recordings")
+    await expect(page.locator('#app')).toBeVisible()
     await expect(page.getByRole('tab', { name: '3 Recording' })).toBeVisible()
     await expect(page.getByRole('tab', { name: '5 Analysis' })).toBeVisible()
     await expect(page.getByRole('tab', { name: '8 Settings' })).toBeVisible()

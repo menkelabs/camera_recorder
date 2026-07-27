@@ -560,13 +560,13 @@ class TestFlaskRoutes(unittest.TestCase):
         flask_gui.camera_manager = None
 
     def test_index_returns_html(self):
-        """GET / should return React shell when dist is built, else v1 template."""
+        """GET / should return Vue/React shell when dist is built, else v1 template."""
         resp = self.client.get('/')
         self.assertEqual(resp.status_code, 200)
         body = resp.data
         self.assertTrue(
-            b'id="root"' in body or b'Camera Setup' in body,
-            'Expected React #root or legacy Camera Setup markup',
+            b'id="app"' in body or b'id="root"' in body or b'Camera Setup' in body,
+            'Expected Vue #app, React #root, or legacy Camera Setup markup',
         )
 
     def test_legacy_returns_v1_template(self):
