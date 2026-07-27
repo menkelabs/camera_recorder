@@ -149,8 +149,19 @@ class TestFrontendRouting(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b'Camera Setup', resp.data)
 
+    def test_index_serves_react_when_dist_ready(self):
+        with patch('flask_gui._frontend_dist_ready', return_value=True):
+            with patch('flask_gui.send_from_directory') as send:
+                send.return_value = app.response_class(
+                    b'<!doctype html><div id="root"></div>',
+                    mimetype='text/html',
+                )
+                resp = self.client.get('/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'id="root"', resp.data)
+        send.assert_called()
+
     def test_dist_ready_helper(self):
-        # Default checkout has no built assets
         self.assertIsInstance(_frontend_dist_ready(), bool)
 
 

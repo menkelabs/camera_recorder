@@ -159,14 +159,17 @@ Port remaining v1 tabs, matching existing REST contracts:
 
 ### Phase D — Cutover to default on master
 
-| Item | Detail |
-|------|--------|
-| D1 | Default `/` → React build; `/legacy` retained one release |
-| D2 | README + quick-start updated; v1 monolith marked deprecated |
-| D3 | CI: `npm test` + `npm run build` + `run_all_tests.py --unit` |
-| D4 | Remove `/legacy` + `templates/index.html` monolith in a follow-up once stable |
+| Item | Detail | Status |
+|------|--------|--------|
+| D0 | Tag `v1.0.0` on `master` (last Flask-template GUI) before merge | Done |
+| D1 | Default `/` → React build; `/legacy` retained one release | Done on branch (merge pending) |
+| D2 | README + quick-start updated; v1 monolith marked deprecated | Partial (README has React/legacy notes) |
+| D3 | CI: `npm test` + `npm run build` + `run_all_tests.py --unit` | Done (`.github/workflows/ci.yml`) |
+| D4 | Remove `/legacy` + `templates/index.html` monolith in a follow-up once stable | Not started |
 
 **Exit:** Master ships React as the only supported GUI.
+
+**Pre-merge gate (honest coverage):** Must-hit backend + Vitest sequencer/preview tests are in place. v1 HTML scrapers hit `/legacy`. Checklist-gated record/auto-detect tests seed preview frames. Detect/reinit API smokes exist. Still thin: React page RTL, Playwright E2E, and mock-video suite from PR #7 (not yet on this branch).
 
 ---
 
@@ -210,12 +213,13 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 
 ## 6. Testing strategy
 
-| Layer | What |
-|-------|------|
-| Python | Extend `tests/test_gui_stability.py` / Flask tests: preview frames served when `is_recording`; hidden-feed N/A on server |
-| Frontend unit | Playback sequencer (no overlapping seeks); CameraPreview clears src on unmount |
-| Manual / E2E later | Playwright against Flask+Vite: tab switch stops network to `/video_feed/*` |
-| Existing | Keep `run_all_tests.py --unit` green; mock-video analysis suite remains backend-focused |
+| Layer | What | Status |
+|-------|------|--------|
+| Python | Flask: preview while recording; `/legacy` scrapers; checklist seed helpers; detect/reinit | On this branch |
+| Frontend unit | Playback sequencer (no overlapping seeks); CameraPreview clears src on unmount | Vitest present |
+| CI | `npm test` + `npm run build` + `run_all_tests.py --unit` | Workflow added |
+| Mock-video / GUI stability | `test_gui_stability.py` + `test_mock_video_analysis.py` | PR #7 — merge separately |
+| Manual / E2E later | Playwright: tab switch stops `/video_feed/*` | Not started |
 
 ---
 
@@ -233,14 +237,17 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 
 ## 8. Cutover checklist (merge to master)
 
-- [ ] Live dual preview throughout recording
-- [ ] Analysis play/scrub stable at 0.25x–4x
-- [ ] Only active-tab camera feeds connected
-- [ ] Feature parity with v1 tabs
-- [ ] `npm run build` artifacts served by Flask
-- [ ] Unit tests (Py + Vitest) in CI path
-- [ ] README documents React dev (`npm run dev` + `python scripts/flask_gui.py`)
-- [ ] `/legacy` optional safety valve for one release
+- [x] Live dual preview throughout recording (backend + unit tests)
+- [x] Analysis play/scrub stable at 0.25x–4x (sequencer unit tests; manual confirm still recommended)
+- [x] Only active-tab camera feeds connected (`CameraPreview` unit tests)
+- [x] Feature parity with v1 tabs (export/clip UI still `/legacy` only)
+- [x] `npm run build` artifacts served by Flask
+- [x] Unit tests (Py + Vitest) in CI path
+- [x] README documents React dev (`npm run dev` + `python scripts/flask_gui.py`)
+- [x] `/legacy` optional safety valve for one release
+- [x] `v1.0.0` tag cut from `master` before merge
+- [ ] `run_all_tests.py --unit` green on CI for this PR
+- [ ] Optional: merge PR #7 mock-video/stability suite before or with cutover
 
 ---
 

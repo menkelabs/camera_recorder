@@ -261,7 +261,8 @@ class TestPracticeAPIEndpoints(unittest.TestCase):
         self.assertIn(b'Swing Score', r.data)
 
     def test_template_has_progress_and_score(self):
-        r = self.client.get('/')
+        # v1 markup lives at /legacy once frontend/dist is built
+        r = self.client.get('/legacy')
         html = r.data.decode('utf-8')
         self.assertIn('data-tab="progress"', html)
         self.assertIn('score-header', html)
