@@ -25,6 +25,15 @@ python scripts/flask_gui.py
 # http://localhost:5000/legacy → v1 template
 ```
 
+## Phase B status
+
+- Setup: property sliders, save/reset, detect/reinit
+- Recording: live preview while recording, checklist, auto-detect, session, metronome
+- Analysis: serialized playback seek, score/grade, per-frame metrics
+- Hidden tabs pause MJPEG feeds
+
+Still placeholders: Recordings, Compare, Progress, Settings (Phase C).
+
 ## Tests
 
 ```bash
