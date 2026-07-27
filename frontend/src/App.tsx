@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { api } from './api/client'
 import { AppHeader } from './components/AppHeader'
 import { TabBar } from './components/TabBar'
 import { AnalysisPage } from './features/analysis/AnalysisPage'
@@ -13,17 +14,35 @@ export default function App() {
   useStatusPoll()
   const tab = useAppStore((s) => s.tab)
   const setTab = useAppStore((s) => s.setTab)
+  const status = useAppStore((s) => s.status)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (tab !== 'recording') setTab('recording')
+        if (status?.auto_detect_enabled) return
+        const recording = Boolean(status?.is_recording)
+        void (async () => {
+          try {
+            if (recording) await api.stopRecording()
+            else await api.startRecording()
+          } catch {
+            /* status poll will surface messages */
+          }
+        })()
+        return
+      }
+
       const match = TABS.find((t) => t.shortcut === e.key)
       if (match) setTab(match.id)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setTab])
+  }, [setTab, tab, status?.auto_detect_enabled, status?.is_recording])
 
   return (
     <div className={styles.app}>

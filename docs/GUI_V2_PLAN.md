@@ -132,10 +132,10 @@ Work stays on `cursor/gui-v2-react-600c` (or stacked PRs into it). Merge to `mas
 
 | Item | Detail | Status |
 |------|--------|--------|
-| B1 | `CameraPreview` with pause-on-hide | Done (Phase A shell) |
-| B2 | Setup Cam1 / Cam2 pages (properties, reset, save) | Next — preview only for now |
-| B3 | Recording page (checklist, start/stop, auto-detect, session, metronome) using live-while-recording preview | Partial — start/stop + live preview done |
-| B4 | Analysis page skeleton + `AnalysisPlayback` seek fix | Done (sequencer + Vitest) |
+| B1 | `CameraPreview` with pause-on-hide | Done |
+| B2 | Setup Cam1 / Cam2 pages (properties, reset, save, detect/reinit) | Done |
+| B3 | Recording page (checklist, start/stop, auto-detect, session, metronome) using live-while-recording preview | Done |
+| B4 | Analysis page + `AnalysisPlayback` seek fix + score/metrics | Done |
 | B5 | Frontend unit tests (Vitest) for playback sequencer + preview mount logic | Done |
 
 **Exit:** Operator can configure → record (watching live) → analyze → scrub/play without seek backlog; unused feeds stop.
