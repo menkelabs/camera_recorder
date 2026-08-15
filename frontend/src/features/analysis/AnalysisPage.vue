@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../../api/client'
-import type { AnalysisResults, AnalysisScore } from '../../api/types'
+import type { AnalysisListItem, AnalysisResults, AnalysisScore } from '../../api/types'
+import { useAppStore } from '../../store/appStore'
 import AnalysisPlayback from './AnalysisPlayback.vue'
 import styles from './AnalysisPage.module.css'
 
 type MetricValue = number | string | null | undefined
 type MetricCurrent = Record<string, MetricValue>
 
+const appStore = useAppStore()
 const results = ref<AnalysisResults | null>(null)
 const score = ref<AnalysisScore | null>(null)
+const analyses = ref<AnalysisListItem[]>([])
+const selectedTs = ref('')
 const error = ref<string | null>(null)
 const exportMsg = ref<string | null>(null)
 const exportBusy = ref(false)
@@ -18,18 +22,19 @@ let pollInterval: ReturnType<typeof setInterval> | undefined
 const cam1 = computed(() => results.value?.camera1)
 const phase = computed(() => cam1.value?.current?.phase)
 const hasFrames = computed(() =>
-  Boolean(results.value && results.value.max_frames > 0 && !results.value.is_analyzing),
+  Boolean(results.value && results.value.max_frames > 0 && results.value.has_frames && !results.value.is_analyzing),
 )
+const isSaved = computed(() => results.value?.source === 'saved' && !hasFrames.value)
 
 const metricBlocks = computed(() => [
   {
-    title: 'Camera 1',
+    title: cam1Title.value,
     detection: cam1.value?.detection_rate,
     current: cam1.value?.current,
     keys: ['sway', 'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift'],
   },
   {
-    title: 'Camera 2',
+    title: cam2Title.value,
     detection: results.value?.camera2?.detection_rate,
     current: results.value?.camera2?.current,
     keys: ['shoulder_turn', 'hip_turn', 'x_factor', 'spine_angle', 'lead_arm_angle'],
@@ -37,16 +42,31 @@ const metricBlocks = computed(() => [
 ])
 
 const hasMetricData = computed(() => Boolean(cam1.value || results.value?.camera2))
-const hasCoach = computed(() => Boolean(score.value?.focus?.length || score.value?.strengths?.length))
+const focusAreas = computed(() => score.value?.focus_areas || score.value?.focus || [])
+const hasCoach = computed(() => Boolean(focusAreas.value.length || score.value?.strengths?.length))
+const cam1Title = computed(() => results.value?.camera_labels?.camera1 || 'Camera 1')
+const cam2Title = computed(() => results.value?.camera_labels?.camera2 || 'Camera 2')
+const canExport = computed(() => hasMetricData.value && !results.value?.is_analyzing)
+
+async function loadAnalyses() {
+  try {
+    const res = await api.listAnalyses()
+    analyses.value = res.analyses || []
+  } catch {
+    analyses.value = []
+  }
+}
 
 async function refresh() {
   try {
-    const data = await api.analysisResults()
+    const data = await api.analysisResults(selectedTs.value || undefined)
     results.value = data
     error.value = null
-    if (!data.is_analyzing && data.max_frames > 0) {
+    if (data.score) {
+      score.value = data.score
+    } else if (!data.is_analyzing && (data.max_frames > 0 || data.camera1 || data.camera2)) {
       try {
-        score.value = await api.analysisScore()
+        score.value = await api.analysisScore(selectedTs.value || undefined)
       } catch {
         score.value = null
       }
@@ -57,6 +77,16 @@ async function refresh() {
 }
 
 onMounted(() => {
+  const prefill = appStore.analysisPrefill
+  if (prefill) {
+    selectedTs.value = prefill
+    appStore.setAnalysisPrefill(null)
+  }
+  void loadAnalyses()
+  void refresh()
+})
+
+watch(selectedTs, () => {
   void refresh()
 })
 
@@ -75,14 +105,14 @@ onUnmounted(() => {
 
 function downloadReport(format: 'html' | 'csv') {
   exportMsg.value = null
-  window.location.assign(api.analysisExportUrl(format))
+  window.location.assign(api.analysisExportUrl(format, selectedTs.value || undefined))
 }
 
 async function downloadClip(camera: 1 | 2) {
   exportBusy.value = true
   exportMsg.value = null
   try {
-    const data = await api.exportClip(camera, 30)
+    const data = await api.exportClip(camera, 30, selectedTs.value || undefined)
     if (data.error || !data.filename) {
       exportMsg.value = data.error || 'Clip export failed'
       return
@@ -111,19 +141,35 @@ function formatMetric(current: MetricCurrent, key: string) {
         <span v-if="phase != null" :class="styles.phase">{{ String(phase) }}</span>
       </div>
       <div :class="styles.headerRight">
+        <label :class="styles.picker">
+          Swing
+          <select v-model="selectedTs" :disabled="Boolean(results?.is_analyzing)">
+            <option value="">Latest session</option>
+            <option v-for="item in analyses" :key="item.timestamp" :value="item.timestamp">
+              {{ item.date }}{{ item.is_reference ? ' - REF' : '' }}
+            </option>
+          </select>
+        </label>
         <div v-if="score?.score != null" :class="styles.score">
           <span :class="styles.grade">{{ score.grade || '-' }}</span>
           <span :class="styles.scoreNum">{{ Math.round(Number(score.score)) }}</span>
         </div>
-        <div v-if="hasFrames" :class="styles.exportActions" role="group" aria-label="Export analysis">
+        <div v-if="canExport" :class="styles.exportActions" role="group" aria-label="Export analysis">
           <button type="button" @click="downloadReport('html')">Export HTML</button>
           <button type="button" @click="downloadReport('csv')">Export CSV</button>
-          <button type="button" :disabled="exportBusy" @click="downloadClip(1)">Clip Cam1</button>
-          <button type="button" :disabled="exportBusy" @click="downloadClip(2)">Clip Cam2</button>
+          <button v-if="hasFrames" type="button" :disabled="exportBusy" @click="downloadClip(1)">
+            Clip Cam1
+          </button>
+          <button v-if="hasFrames" type="button" :disabled="exportBusy" @click="downloadClip(2)">
+            Clip Cam2
+          </button>
         </div>
       </div>
     </header>
     <p v-if="exportMsg" :class="styles.exportMsg">{{ exportMsg }}</p>
+    <p v-if="isSaved" :class="styles.savedNote">
+      Saved swing — score and metrics from disk. Playback frames are only available for the latest session.
+    </p>
 
     <p v-if="results?.is_analyzing" :class="styles.progress">
       {{ results.progress || 'Analyzing...' }}
@@ -133,7 +179,7 @@ function formatMetric(current: MetricCurrent, key: string) {
     </p>
 
     <AnalysisPlayback
-      :max-frames="results?.max_frames || 0"
+      :max-frames="hasFrames ? results?.max_frames || 0 : 0"
       :initial-index="results?.frame_index || 0"
       @results="results = $event as AnalysisResults"
     />
@@ -168,10 +214,10 @@ function formatMetric(current: MetricCurrent, key: string) {
           <li v-for="item in score.strengths" :key="item">{{ item }}</li>
         </ul>
       </div>
-      <div v-if="score.focus?.length">
+      <div v-if="focusAreas.length">
         <h4>Focus</h4>
         <ul>
-          <li v-for="item in score.focus" :key="item">{{ item }}</li>
+          <li v-for="item in focusAreas" :key="item">{{ item }}</li>
         </ul>
       </div>
     </div>

@@ -31,7 +31,10 @@ onMounted(() => {
       data.value = res
       const next: Record<string, boolean> = {}
       for (const metric of res.metrics || []) {
-        next[metric.key] = metric.key === 'score'
+        next[metric.key] =
+          metric.key === 'score' ||
+          metric.key === 'max_shoulder_turn' ||
+          metric.key === 'tempo_ratio'
       }
       enabled.value = next
     })
@@ -87,7 +90,7 @@ function setMetricEnabled(key: string, event: Event) {
 
     <p v-if="error" :class="styles.error">{{ error }}</p>
 
-    <template v-if="data">
+    <template v-if="data && data.count > 0">
       <div :class="styles.toggles">
         <label v-for="(metric, index) in data.metrics || []" :key="metric.key">
           <input
@@ -100,9 +103,9 @@ function setMetricEnabled(key: string, event: Event) {
         </label>
       </div>
       <LineChart :series="series" :labels="labels" :height="300" />
-      <p v-if="!data.count" :class="styles.empty">
-        No analyzed swings yet - progress appears after analysis JSON is saved.
-      </p>
     </template>
+    <p v-else-if="data && !data.count" :class="styles.empty">
+      No analyzed swings yet - progress appears after analysis JSON is saved.
+    </p>
   </section>
 </template>

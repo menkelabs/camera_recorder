@@ -174,6 +174,32 @@ class TestRecordingManagementAPI(unittest.TestCase):
         resp = self.client.delete('/api/recordings/invalid')
         self.assertEqual(resp.status_code, 400)
 
+    def test_delete_rejects_other_users_recording(self):
+        from local_db import get_db, reset_db_cache
+
+        reset_db_cache()
+        self._create_pair('20260215_140000')
+        db = get_db(self.tmpdir)
+        other = db.create_user('Player 2')['id']
+        db.claim_recording('20260215_140000', user_id=other)
+        resp = self.client.delete('/api/recordings/20260215_140000')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('another player', resp.get_json()['error'])
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, 'recording_20260215_140000_camera1.mp4')
+        ))
+        reset_db_cache()
+
+    def test_delete_fails_closed_when_owner_lookup_fails(self):
+        self._create_pair('20260215_140000')
+        with patch('flask_gui.get_db', side_effect=RuntimeError('db down')):
+            result = _delete_recording_pair('20260215_140000')
+        self.assertIn('error', result)
+        self.assertIn('verify recording owner', result['error'])
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, 'recording_20260215_140000_camera1.mp4')
+        ))
+
     def test_bulk_delete(self):
         self._create_pair('20260215_140000')
         self._create_pair('20260215_150000')
@@ -198,6 +224,54 @@ class TestRecordingManagementAPI(unittest.TestCase):
                                 json={'max_age_days': 30})
         data = json.loads(resp.data)
         self.assertEqual(data['deleted_count'], 1)
+
+    def _old_timestamp(self, days=31):
+        return (datetime.now() - timedelta(days=days)).strftime('%Y%m%d_%H%M%S')
+
+    def test_cleanup_skips_other_users_recording(self):
+        from local_db import get_db, reset_db_cache
+
+        reset_db_cache()
+        old_ts = self._old_timestamp()
+        self._create_pair(old_ts)
+        db = get_db(self.tmpdir)
+        other = db.create_user('Player 2')['id']
+        db.claim_recording(old_ts, user_id=other)
+        resp = self.client.post('/api/recordings/cleanup', json={'max_age_days': 30})
+        data = json.loads(resp.data)
+        self.assertEqual(data['deleted_count'], 0)
+        self.assertGreaterEqual(data['skipped_count'], 1)
+        self.assertTrue(any(item.get('reason') == 'owned' for item in data['skipped']))
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, f'recording_{old_ts}_camera1.mp4')
+        ))
+        reset_db_cache()
+
+    def test_cleanup_skips_reference_and_favorite(self):
+        from local_db import reset_db_cache
+        from practice_settings import set_reference_timestamp
+        from recording_meta import update_recording_meta
+
+        reset_db_cache()
+        ref_ts = self._old_timestamp(32)
+        fav_ts = self._old_timestamp(33)
+        self._create_pair(ref_ts)
+        self._create_pair(fav_ts)
+        set_reference_timestamp(self.tmpdir, ref_ts)
+        update_recording_meta(self.tmpdir, fav_ts, favorite=True)
+        resp = self.client.post('/api/recordings/cleanup', json={'max_age_days': 30})
+        data = json.loads(resp.data)
+        self.assertEqual(data['deleted_count'], 0)
+        reasons = {item['reason'] for item in data['skipped']}
+        self.assertIn('reference', reasons)
+        self.assertIn('favorite', reasons)
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, f'recording_{ref_ts}_camera1.mp4')
+        ))
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, f'recording_{fav_ts}_camera1.mp4')
+        ))
+        reset_db_cache()
 
     def test_cleanup_missing_param(self):
         resp = self.client.post('/api/recordings/cleanup', json={})

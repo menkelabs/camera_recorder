@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { cleanup, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +50,7 @@ function mountApp() {
 
 describe('App shell', () => {
   beforeEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.spyOn(api, 'startRecording').mockResolvedValue({ success: true })
     vi.spyOn(api, 'stopRecording').mockResolvedValue({ success: true })
@@ -73,5 +74,21 @@ describe('App shell', () => {
     mountApp()
     await userEvent.keyboard(' ')
     await waitFor(() => expect(api.startRecording).toHaveBeenCalled())
+  })
+
+  it('Space does not start recording from other tabs', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAppStore().$patch({
+      tab: 'analysis',
+      status: mockStatus(),
+      statusError: null,
+      streamSession: 0,
+    })
+    render(App, { global: { plugins: [pinia] } })
+    vi.mocked(api.startRecording).mockClear()
+    await userEvent.keyboard(' ')
+    expect(api.startRecording).not.toHaveBeenCalled()
+    expect(useAppStore().tab).toBe('analysis')
   })
 })

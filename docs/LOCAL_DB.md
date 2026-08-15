@@ -37,6 +37,7 @@ Schema version **2**. Full analysis timeseries remain in `analysis_*.json` (and 
 - New recordings are **claimed** for the active user when recording starts
 - Library / Progress / practice settings follow the **active** user
 - Unclaimed legacy files appear for the active user with a **Claim** action
+- Claim never steals a recording already owned by another profile (API returns 409)
 - Optional PIN required to switch into a locked profile
 - User switch blocked while recording
 - Last profile cannot be deleted; deleting a profile removes their stats/meta and reassigns file ownership to another profile
@@ -75,7 +76,9 @@ See `tests/test_local_db.py`:
 - Per-user isolation of stats / settings / meta
 - PIN gate on switch
 - Cannot delete last user
-- Claim / ownership
+- Claim / ownership (no steal; API 409 when already owned)
+- Recordings `?scope=` filter
+- Progress JSON fallback skips other users' files
 - v1 → v2 migration keeps data under Player 1
 - Progress API scoped to active user
 - Switch blocked while recording

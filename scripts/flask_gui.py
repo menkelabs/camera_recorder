@@ -36,6 +36,7 @@ from recording_meta import (
     attach_meta_to_pairs,
     delete_recording_meta,
     get_recording_meta,
+    list_favorites,
     update_recording_meta,
 )
 from local_db import get_db
@@ -48,8 +49,10 @@ from practice_reports import (
 )
 from practice_settings import (
     camera_labels,
+    face_on_camera_num,
     get_reference_timestamp,
     load_practice_settings,
+    role_aware_analysis,
     set_reference_timestamp,
     update_practice_settings,
 )
@@ -294,6 +297,34 @@ class CameraManager:
         self.capture_thread2.start()
 
         print("Camera manager started")
+        self.restore_session_from_settings()
+
+    def _face_on_camera_num(self) -> int:
+        """Physical camera used for auto-detect (Face-On view)."""
+        try:
+            return face_on_camera_num(load_practice_settings(_get_recordings_dir()))
+        except Exception:
+            return 1
+
+    def _maybe_auto_detect(self, frame, cam_num: int) -> None:
+        """Run swing detection on the Face-On camera only."""
+        if not self.auto_detect_enabled or not self.swing_detector or self.is_recording:
+            return
+        if cam_num != self._face_on_camera_num():
+            return
+        self.auto_detect_frame_counter += 1
+        if self.auto_detect_frame_counter % 4 != 0:
+            return
+        try:
+            event = self.swing_detector.process_frame(frame)
+            if event == 'start' and not self.is_recording:
+                print("[AutoDetect] Swing detected — starting recording")
+                self.start_recording()
+            elif event == 'stop' and self.is_recording:
+                print("[AutoDetect] Swing ended — stopping recording")
+                self.stop_recording()
+        except Exception as e:
+            print(f"[AutoDetect] Error: {e}")
 
     def _capture_loop_cam1(self):
         """Dedicated thread for camera 1 only."""
@@ -306,21 +337,7 @@ class CameraManager:
                 if ret:
                     with self.frame_lock:
                         self.latest_frame1 = frame
-
-                    # Auto-detect: process every 4th frame (~15 fps)
-                    if self.auto_detect_enabled and self.swing_detector and not self.is_recording:
-                        self.auto_detect_frame_counter += 1
-                        if self.auto_detect_frame_counter % 4 == 0:
-                            try:
-                                event = self.swing_detector.process_frame(frame)
-                                if event == 'start' and not self.is_recording:
-                                    print("[AutoDetect] Swing detected — starting recording")
-                                    self.start_recording()
-                                elif event == 'stop' and self.is_recording:
-                                    print("[AutoDetect] Swing ended — stopping recording")
-                                    self.stop_recording()
-                            except Exception as e:
-                                print(f"[AutoDetect] Error: {e}")
+                    self._maybe_auto_detect(frame, 1)
             time.sleep(1.0 / 60)
 
     def _capture_loop_cam2(self):
@@ -338,6 +355,7 @@ class CameraManager:
                 if ret:
                     with self.frame_lock:
                         self.latest_frame2 = frame
+                    self._maybe_auto_detect(frame, 2)
             time.sleep(1.0 / 60)
 
     def get_frame(self, camera_num: int) -> Optional[np.ndarray]:
@@ -800,7 +818,7 @@ class CameraManager:
     # Session mode
     # ------------------------------------------------------------------
 
-    def set_session_enabled(self, enabled: bool) -> dict:
+    def set_session_enabled(self, enabled: bool, *, persist: bool = True) -> dict:
         """Enable/disable practice session loop."""
         settings = load_practice_settings(_get_recordings_dir())
         session_prefs = settings.get('session') or {}
@@ -839,10 +857,22 @@ class CameraManager:
                 self.toggle_auto_detect()
             self.status_message = 'Session mode off'
             self.status_time = time.time()
-        update_practice_settings(_get_recordings_dir(), {
-            'session': {**session_prefs, 'enabled': self.session_enabled}
-        })
+        if persist:
+            update_practice_settings(_get_recordings_dir(), {
+                'session': {**session_prefs, 'enabled': self.session_enabled}
+            })
         return self.get_session_status()
+
+    def restore_session_from_settings(self) -> dict:
+        """Re-arm session mode if the active user left it enabled."""
+        try:
+            settings = load_practice_settings(_get_recordings_dir())
+        except Exception:
+            return self.get_session_status()
+        if not (settings.get('session') or {}).get('enabled'):
+            return self.get_session_status()
+        # Do not persist a failed restore — cameras may come online later.
+        return self.set_session_enabled(True, persist=False)
 
     def session_next(self) -> dict:
         """Advance from review → armed for the next swing."""
@@ -1004,88 +1034,21 @@ class CameraManager:
                 'has_frames': has_frames,
                 'camera1': None,
                 'camera2': None,
+                'source': 'live',
             }
 
-        # All per-frame metric keys we expose
-        METRIC_KEYS = [
-            'sway', 'shoulder_turn', 'hip_turn', 'x_factor',
-            'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
-            'spine_angle', 'lead_arm_angle',
-        ]
-
-        # Determine max frame count across both cameras
-        max_frames = 0
-        for cam_data in (self.analysis_camera1, self.analysis_camera2):
-            if cam_data:
-                for key in METRIC_KEYS:
-                    arr = cam_data.get(key, [])
-                    if len(arr) > max_frames:
-                        max_frames = len(arr)
-
-        # Clamp frame index
-        if max_frames > 0:
-            self.analysis_frame_index = max(0, min(max_frames - 1, self.analysis_frame_index))
-        frame_idx = self.analysis_frame_index
-
-        results = {
-            'is_analyzing': self.is_analyzing,
-            'progress': self.analysis_progress,
-            'analysis_error': self.analysis_error,
-            'frame_index': self.analysis_frame_index,
-            'max_frames': max_frames,
-            'has_frames': has_frames,
-            'camera1': None,
-            'camera2': None,
-        }
-
-        def _build_camera_block(cam_data):
-            """Build the camera result block with current values, time-series, and summary."""
-            if cam_data is None:
-                return None
-            summary = cam_data.get('summary', {})
-            # Current values for the selected frame
-            current = {}
-            for key in METRIC_KEYS:
-                arr = cam_data.get(key, [])
-                current[key] = arr[frame_idx] if frame_idx < len(arr) else None
-            # Phase label for this frame
-            phases = cam_data.get('phases', [])
-            current['phase'] = phases[frame_idx] if frame_idx < len(phases) else None
-            # Tempo (single value)
-            current['tempo'] = cam_data.get('tempo')
-            # Full time-series for the chart (None values kept for gaps)
-            timeseries = {}
-            for key in METRIC_KEYS:
-                timeseries[key] = cam_data.get(key, [])
-            timeseries['phases'] = cam_data.get('phases', [])
-            return {
-                'summary': summary,
-                'detection_rate': cam_data.get('detection_rate', 0),
-                'current': current,
-                'timeseries': timeseries,
-            }
-
-        results['camera1'] = _build_camera_block(self.analysis_camera1)
-        results['camera2'] = _build_camera_block(self.analysis_camera2)
-
-        settings = load_practice_settings(_get_recordings_dir())
-        labels = camera_labels(settings)
-        results['camera_labels'] = labels
-
-        # Score using face-on / DTL roles (swap if user assigned cam1 as DTL)
-        score_payload = {
-            'camera1': self.analysis_camera1,
-            'camera2': self.analysis_camera2,
-        }
-        roles = settings.get('camera_roles') or {}
-        if roles.get('camera1') == 'dtl':
-            score_payload = {
-                'camera1': self.analysis_camera2,
-                'camera2': self.analysis_camera1,
-            }
-        results['score'] = score_analysis(score_payload)
-        results['session'] = self.get_session_status()
-
+        results = format_analysis_results(
+            self.analysis_camera1,
+            self.analysis_camera2,
+            frame_index=self.analysis_frame_index,
+            is_analyzing=self.is_analyzing,
+            progress=self.analysis_progress,
+            analysis_error=self.analysis_error,
+            has_frames=has_frames,
+            session=self.get_session_status(),
+            source='live',
+        )
+        self.analysis_frame_index = results['frame_index']
         return results
 
     # ------------------------------------------------------------------
@@ -1130,7 +1093,8 @@ class CameraManager:
             'camera1': _serialise_cam(self.analysis_camera1),
             'camera2': _serialise_cam(self.analysis_camera2),
         }
-        payload['score'] = score_analysis(payload)
+        settings = load_practice_settings(_get_recordings_dir())
+        payload['score'] = score_analysis(role_aware_analysis(payload, settings))
         try:
             with open(path, 'w') as f:
                 json.dump(payload, f)
@@ -1652,9 +1616,122 @@ def api_auto_detect_status():
     return jsonify(mgr.get_auto_detect_status())
 
 
+_ANALYSIS_METRIC_KEYS = [
+    'sway', 'shoulder_turn', 'hip_turn', 'x_factor',
+    'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
+    'spine_angle', 'lead_arm_angle',
+]
+
+
+def format_analysis_results(
+    camera1,
+    camera2,
+    *,
+    frame_index: int = 0,
+    is_analyzing: bool = False,
+    progress: str = '',
+    analysis_error: str = '',
+    has_frames: bool = False,
+    session: Optional[Dict] = None,
+    timestamp: Optional[str] = None,
+    source: str = 'live',
+) -> Dict:
+    """Build the Analysis-tab payload from live or saved camera blocks."""
+    max_frames = 0
+    for cam_data in (camera1, camera2):
+        if not cam_data:
+            continue
+        for key in _ANALYSIS_METRIC_KEYS:
+            arr = cam_data.get(key, [])
+            if isinstance(arr, list) and len(arr) > max_frames:
+                max_frames = len(arr)
+    try:
+        frame_index = int(frame_index or 0)
+    except (TypeError, ValueError):
+        frame_index = 0
+    if max_frames > 0:
+        frame_index = max(0, min(max_frames - 1, frame_index))
+    else:
+        frame_index = 0
+
+    def _build_camera_block(cam_data):
+        if cam_data is None:
+            return None
+        summary = cam_data.get('summary', {}) or {}
+        current = {}
+        for key in _ANALYSIS_METRIC_KEYS:
+            arr = cam_data.get(key, [])
+            current[key] = arr[frame_index] if isinstance(arr, list) and frame_index < len(arr) else None
+        phases = cam_data.get('phases', [])
+        current['phase'] = phases[frame_index] if isinstance(phases, list) and frame_index < len(phases) else None
+        current['tempo'] = cam_data.get('tempo')
+        timeseries = {key: cam_data.get(key, []) for key in _ANALYSIS_METRIC_KEYS}
+        timeseries['phases'] = cam_data.get('phases', [])
+        return {
+            'summary': summary,
+            'detection_rate': cam_data.get('detection_rate', 0),
+            'current': current,
+            'timeseries': timeseries,
+        }
+
+    settings = load_practice_settings(_get_recordings_dir())
+    results = {
+        'is_analyzing': is_analyzing,
+        'progress': progress,
+        'analysis_error': analysis_error,
+        'frame_index': frame_index,
+        'max_frames': max_frames,
+        'has_frames': has_frames,
+        'camera1': _build_camera_block(camera1),
+        'camera2': _build_camera_block(camera2),
+        'camera_labels': camera_labels(settings),
+        'score': score_analysis(role_aware_analysis({
+            'camera1': camera1,
+            'camera2': camera2,
+        }, settings)),
+        'timestamp': timestamp,
+        'source': source,
+    }
+    if session is not None:
+        results['session'] = session
+    return results
+
+
+def _live_analysis_timestamp(mgr) -> Optional[str]:
+    if mgr is None:
+        return None
+    path = mgr._analysis_json_path()
+    if not path:
+        return None
+    match = re.search(r'analysis_(\d{8}_\d{6})\.json', path)
+    return match.group(1) if match else None
+
+
 @app.route('/api/analysis/results')
 def api_analysis_results():
-    """Get current analysis results and frame data."""
+    """Get live analysis results, or a saved swing via ?timestamp=."""
+    ts = request.args.get('timestamp')
+    if ts:
+        data = _load_analysis(ts)
+        if data is None:
+            return jsonify({'error': f'Analysis not found for {ts}'}), 404
+        mgr = get_manager()
+        live_ts = _live_analysis_timestamp(mgr)
+        has_frames = bool(
+            mgr is not None
+            and live_ts == ts
+            and (mgr.analysis_frames_cam1 or mgr.analysis_frames_cam2)
+        )
+        return jsonify(format_analysis_results(
+            data.get('camera1'),
+            data.get('camera2'),
+            frame_index=mgr.analysis_frame_index if has_frames and mgr else 0,
+            has_frames=has_frames,
+            session=mgr.get_session_status() if mgr else None,
+            timestamp=ts,
+            source='saved',
+        ))
+
     mgr = get_manager()
     if mgr is None:
         return jsonify({'error': 'Not initialized'})
@@ -1667,10 +1744,14 @@ def api_set_analysis_frame():
     mgr = get_manager()
     if mgr is None:
         return jsonify({'error': 'Not initialized'})
-    data = request.get_json()
-    if not data or 'index' not in data:
+    data = request.get_json(silent=True) or {}
+    if 'index' not in data:
         return jsonify({'error': 'Missing index'}), 400
-    mgr.analysis_frame_index = int(data['index'])
+    try:
+        idx = int(data['index'])
+    except (TypeError, ValueError):
+        return jsonify({'error': 'index must be an integer'}), 400
+    mgr.analysis_frame_index = idx
     return jsonify(mgr.get_analysis_results())
 
 
@@ -1785,6 +1866,19 @@ def _is_protected_timestamp(ts: str) -> bool:
     return False
 
 
+def _owned_by_other_player(ts: str) -> Optional[str]:
+    """Return an error if *ts* is owned by someone else, or owner cannot be checked."""
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        owner = db.get_recording_owner(ts)
+        if owner is not None and owner != db.get_active_user_id():
+            return "Cannot delete another player's recording"
+    except Exception as exc:
+        return f'Cannot verify recording owner: {exc}'
+    return None
+
+
 def _delete_recording_pair(ts: str) -> Dict:
     """Delete both camera files for a given timestamp. Returns status dict."""
     if not _RECORDING_PATTERN.match(f'recording_{ts}_camera1.mp4'):
@@ -1794,6 +1888,9 @@ def _delete_recording_pair(ts: str) -> Dict:
         return {'error': f'Cannot delete {ts} — currently being analyzed'}
 
     rec_dir = _get_recordings_dir()
+    blocked = _owned_by_other_player(ts)
+    if blocked:
+        return {'error': blocked, 'timestamp': ts}
     deleted = []
     errors = []
     for cam in ['camera1', 'camera2']:
@@ -1863,6 +1960,9 @@ def api_list_recordings():
     ref = get_reference_timestamp(rec_dir)
     for p in pairs:
         p['is_reference'] = (p.get('timestamp') == ref)
+        p['has_analysis'] = os.path.isfile(
+            os.path.join(rec_dir, f"analysis_{p.get('timestamp')}.json")
+        )
     total_size = sum(p['total_size'] for p in pairs)
     oldest = pairs[-1]['date'] if pairs else None
     newest = pairs[0]['date'] if pairs else None
@@ -1886,6 +1986,8 @@ def api_claim_recording(timestamp):
         claimed = get_db(_get_recordings_dir()).claim_recording(timestamp)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except PermissionError as e:
+        return jsonify({'error': str(e)}), 409
     return jsonify(claimed)
 
 
@@ -2023,20 +2125,23 @@ def api_bulk_delete_recordings():
     if not timestamps:
         return jsonify({'error': 'No timestamps provided'}), 400
 
-    results = []
-    for ts in timestamps:
-        results.append(_delete_recording_pair(ts))
-
+    results = [_delete_recording_pair(ts) for ts in timestamps]
     deleted_count = sum(1 for r in results if r.get('deleted'))
+    skipped_count = sum(1 for r in results if r.get('error'))
     return jsonify({
         'results': results,
         'deleted_count': deleted_count,
+        'skipped_count': skipped_count,
     })
 
 
 @app.route('/api/recordings/cleanup', methods=['POST'])
 def api_recordings_cleanup():
-    """Delete recordings older than max_age_days. Body: {"max_age_days": 30}"""
+    """Delete the active user's (and unclaimed) recordings older than max_age_days.
+
+    Skips other players' files, the pinned reference swing, and favorites.
+    Body: {"max_age_days": 30}
+    """
     data = request.get_json(silent=True) or {}
     max_age_days = data.get('max_age_days')
     if max_age_days is None:
@@ -2050,19 +2155,51 @@ def api_recordings_cleanup():
 
     cutoff = datetime.now() - timedelta(days=max_age_days)
     pairs = _list_recording_pairs()
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        owners = db.ownership_map()
+        active = db.get_active_user_id()
+        favorites = set(list_favorites(rec_dir))
+    except Exception as exc:
+        return jsonify({'error': f'Cannot verify recording owners: {exc}'}), 500
+    ref = get_reference_timestamp(rec_dir)
+
     results = []
+    skipped = []
     for p in pairs:
+        ts = p['timestamp']
         try:
-            dt = datetime.strptime(p['timestamp'], '%Y%m%d_%H%M%S')
+            dt = datetime.strptime(ts, '%Y%m%d_%H%M%S')
         except ValueError:
             continue
-        if dt < cutoff:
-            results.append(_delete_recording_pair(p['timestamp']))
+        if dt >= cutoff:
+            continue
+        owner = owners.get(ts)
+        if owner is not None and owner != active:
+            skipped.append({'timestamp': ts, 'reason': 'owned'})
+            continue
+        if ref and ts == ref:
+            skipped.append({'timestamp': ts, 'reason': 'reference'})
+            continue
+        if ts in favorites:
+            skipped.append({'timestamp': ts, 'reason': 'favorite'})
+            continue
+        results.append(_delete_recording_pair(ts))
 
     deleted_count = sum(1 for r in results if r.get('deleted'))
+    for item in results:
+        if item.get('error'):
+            skipped.append({
+                'timestamp': item.get('timestamp'),
+                'reason': 'error',
+                'error': item['error'],
+            })
     return jsonify({
         'results': results,
         'deleted_count': deleted_count,
+        'skipped': skipped,
+        'skipped_count': len(skipped),
         'cutoff_date': cutoff.strftime('%Y-%m-%d %H:%M:%S'),
     })
 
@@ -2237,15 +2374,28 @@ def api_progress():
 
     # Fallback: scan analysis_*.json (pre-DB installs / empty index)
     analyses_meta = _list_saved_analyses()
+    owners = {}
+    active = None
+    try:
+        db = get_db(rec_dir)
+        owners = db.ownership_map()
+        active = db.get_active_user_id()
+    except Exception:
+        pass
+    settings = load_practice_settings(rec_dir)
     loaded = []
     for item in analyses_meta:
-        data = _load_analysis(item['timestamp'])
+        ts = item['timestamp']
+        owner = owners.get(ts)
+        if owner is not None and active is not None and owner != active:
+            continue
+        data = _load_analysis(ts)
         if not data:
             continue
-        data.setdefault('timestamp', item['timestamp'])
+        data.setdefault('timestamp', ts)
         data.setdefault('date', item.get('date'))
         if 'score' not in data:
-            data['score'] = score_analysis(data)
+            data['score'] = score_analysis(role_aware_analysis(data, settings))
         loaded.append(data)
         try:
             get_db(rec_dir).upsert_swing_stats(data)
@@ -2259,20 +2409,21 @@ def api_analysis_score():
     """
     Score the current in-memory analysis, or a saved one via ?timestamp=.
     """
+    settings = load_practice_settings(_get_recordings_dir())
     ts = request.args.get('timestamp')
     if ts:
         data = _load_analysis(ts)
         if data is None:
             return jsonify({'error': f'Analysis not found for {ts}'}), 404
-        return jsonify(score_analysis(data))
+        return jsonify(score_analysis(role_aware_analysis(data, settings)))
 
     mgr = get_manager()
     if mgr is None or (mgr.analysis_camera1 is None and mgr.analysis_camera2 is None):
         return jsonify({'error': 'No analysis results'}), 404
-    return jsonify(score_analysis({
+    return jsonify(score_analysis(role_aware_analysis({
         'camera1': mgr.analysis_camera1,
         'camera2': mgr.analysis_camera2,
-    }))
+    }, settings)))
 
 
 @app.route('/api/analysis/export')
@@ -2308,7 +2459,12 @@ def api_analysis_export():
                 if m:
                     data['timestamp'] = m.group(1)
 
-    scored = data.get('score') if isinstance(data.get('score'), dict) else score_analysis(data)
+    settings = load_practice_settings(_get_recordings_dir())
+    scored = (
+        data.get('score')
+        if isinstance(data.get('score'), dict)
+        else score_analysis(role_aware_analysis(data, settings))
+    )
     stamp = data.get('timestamp') or 'current'
 
     if fmt == 'csv':

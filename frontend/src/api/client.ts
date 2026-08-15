@@ -96,13 +96,19 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  analysisResults: () => jsonFetch<AnalysisResults>('/api/analysis/results'),
+  analysisResults: (timestamp?: string) => {
+    const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
+    return jsonFetch<AnalysisResults>(`/api/analysis/results${q}`)
+  },
   setAnalysisFrame: (index: number) =>
     jsonFetch<AnalysisResults>('/api/analysis/frame', {
       method: 'POST',
       body: JSON.stringify({ index }),
     }),
-  analysisScore: () => jsonFetch<AnalysisScore>('/api/analysis/score'),
+  analysisScore: (timestamp?: string) => {
+    const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
+    return jsonFetch<AnalysisScore>(`/api/analysis/score${q}`)
+  },
   analysisExportUrl: (format: 'html' | 'csv', timestamp?: string) => {
     const q = new URLSearchParams({ format })
     if (timestamp) q.set('timestamp', timestamp)
@@ -125,18 +131,21 @@ export const api = {
   analysisClipUrl: (filename: string) =>
     `/api/analysis/clip/${encodeURIComponent(filename)}`,
 
-  listRecordings: () => jsonFetch<RecordingsResponse>('/api/recordings'),
+  listRecordings: (opts?: { scope?: 'mine' | 'all' | 'unclaimed' }) => {
+    const q = opts?.scope ? `?scope=${encodeURIComponent(opts.scope)}` : ''
+    return jsonFetch<RecordingsResponse>(`/api/recordings${q}`)
+  },
   deleteRecording: (ts: string) =>
     jsonFetch<{ deleted?: boolean; error?: string }>(`/api/recordings/${ts}`, {
       method: 'DELETE',
     }),
   bulkDeleteRecordings: (timestamps: string[]) =>
-    jsonFetch<{ deleted_count: number }>('/api/recordings', {
+    jsonFetch<{ deleted_count: number; skipped_count?: number }>('/api/recordings', {
       method: 'DELETE',
       body: JSON.stringify({ timestamps }),
     }),
   cleanupRecordings: (max_age_days: number) =>
-    jsonFetch<{ deleted_count: number; cutoff_date: string }>(
+    jsonFetch<{ deleted_count: number; skipped_count?: number; cutoff_date: string }>(
       '/api/recordings/cleanup',
       { method: 'POST', body: JSON.stringify({ max_age_days }) },
     ),

@@ -18,10 +18,18 @@ export const useAppStore = defineStore('app', {
     status: null as StatusResponse | null,
     statusError: null as string | null,
     streamSession: 0,
+    comparePrefill: null as { a?: string; b?: string } | null,
+    analysisPrefill: null as string | null,
   }),
   actions: {
     setTab(tab: TabId) {
       this.tab = tab
+    },
+    setComparePrefill(prefill: { a?: string; b?: string } | null) {
+      this.comparePrefill = prefill
+    },
+    setAnalysisPrefill(timestamp: string | null) {
+      this.analysisPrefill = timestamp
     },
     setStatus(status: StatusResponse) {
       this.status = status

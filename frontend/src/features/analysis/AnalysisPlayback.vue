@@ -62,9 +62,39 @@ function cycleSpeed() {
   speedIdx.value = (speedIdx.value + 1) % SPEEDS.length
 }
 
+function step(delta: number) {
+  if (props.maxFrames <= 0) return
+  playing.value = false
+  const next = Math.max(0, Math.min(props.maxFrames - 1, index.value + delta))
+  sequencer?.request(next)
+}
+
 function onSeek(event: Event) {
   playing.value = false
   sequencer?.request(Number((event.target as HTMLInputElement).value))
+}
+
+function isFormField(target: EventTarget | null) {
+  const tag = (target as HTMLElement | null)?.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
+
+function onKey(event: KeyboardEvent) {
+  if (isFormField(event.target) || props.maxFrames <= 0) return
+  if (event.code === 'Space') {
+    event.preventDefault()
+    togglePlaying()
+    return
+  }
+  if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') {
+    event.preventDefault()
+    step(-1)
+    return
+  }
+  if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
+    event.preventDefault()
+    step(1)
+  }
 }
 
 onMounted(() => {
@@ -78,6 +108,7 @@ onMounted(() => {
       index.value = frameIndex
     },
   )
+  window.addEventListener('keydown', onKey)
 })
 
 watch([playing, speed, () => props.maxFrames], scheduleTick)
@@ -85,6 +116,7 @@ watch([playing, speed, () => props.maxFrames], scheduleTick)
 onUnmounted(() => {
   clearPlaybackTimer()
   sequencer?.dispose()
+  window.removeEventListener('keydown', onKey)
 })
 </script>
 
@@ -109,5 +141,6 @@ onUnmounted(() => {
       />
       <span :class="styles.meta">{{ index + 1 }} / {{ maxFrames }}</span>
     </div>
+    <p :class="styles.hint">Space play/pause · ←/A prev · →/D next</p>
   </div>
 </template>

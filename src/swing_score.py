@@ -186,6 +186,7 @@ def score_analysis(analysis: Dict) -> Dict[str, Any]:
     grade = grade_from_score(score)
 
     focus_keys = [e['key'] for e in breakdown if e['rating'] == 'needs_work']
+    focus_labels = [e['label'] for e in breakdown if e['rating'] == 'needs_work']
     drills = [
         {'key': k, 'label': next(e['label'] for e in breakdown if e['key'] == k),
          'tip': DRILL_TIPS[k]}
@@ -199,6 +200,7 @@ def score_analysis(analysis: Dict) -> Dict[str, Any]:
         'metric_count': len(SCORE_METRICS),
         'breakdown': breakdown,
         'strengths': [e['label'] for e in breakdown if e['rating'] == 'good'],
-        'focus_areas': [e['label'] for e in breakdown if e['rating'] == 'needs_work'],
+        'focus_areas': focus_labels,
+        'focus': focus_labels,  # alias used by the Vue Analysis tab
         'drills': drills,
     }

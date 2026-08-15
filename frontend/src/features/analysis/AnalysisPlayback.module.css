@@ -45,6 +45,11 @@
   text-align: right;
 }
 
+.hint {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
 .empty {
   color: var(--text-dim);
   padding: 24px;
