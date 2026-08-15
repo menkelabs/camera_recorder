@@ -405,6 +405,18 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn('error', r.get_json())
 
+    def test_analysis_results_by_timestamp(self):
+        r = self.client.get('/api/analysis/results?timestamp=20260715_120000')
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertEqual(data['source'], 'saved')
+        self.assertEqual(data['timestamp'], '20260715_120000')
+        self.assertFalse(data['has_frames'])
+        self.assertIsNotNone(data['score'])
+        self.assertGreaterEqual(data['score']['score'], 80)
+        missing = self.client.get('/api/analysis/results?timestamp=19990101_000000')
+        self.assertEqual(missing.status_code, 404)
+
 
 class TestUsbHealth(unittest.TestCase):
     def test_usb_bus_root(self):

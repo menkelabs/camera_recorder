@@ -1033,80 +1033,21 @@ class CameraManager:
                 'has_frames': has_frames,
                 'camera1': None,
                 'camera2': None,
+                'source': 'live',
             }
 
-        # All per-frame metric keys we expose
-        METRIC_KEYS = [
-            'sway', 'shoulder_turn', 'hip_turn', 'x_factor',
-            'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
-            'spine_angle', 'lead_arm_angle',
-        ]
-
-        # Determine max frame count across both cameras
-        max_frames = 0
-        for cam_data in (self.analysis_camera1, self.analysis_camera2):
-            if cam_data:
-                for key in METRIC_KEYS:
-                    arr = cam_data.get(key, [])
-                    if len(arr) > max_frames:
-                        max_frames = len(arr)
-
-        # Clamp frame index
-        if max_frames > 0:
-            self.analysis_frame_index = max(0, min(max_frames - 1, self.analysis_frame_index))
-        frame_idx = self.analysis_frame_index
-
-        results = {
-            'is_analyzing': self.is_analyzing,
-            'progress': self.analysis_progress,
-            'analysis_error': self.analysis_error,
-            'frame_index': self.analysis_frame_index,
-            'max_frames': max_frames,
-            'has_frames': has_frames,
-            'camera1': None,
-            'camera2': None,
-        }
-
-        def _build_camera_block(cam_data):
-            """Build the camera result block with current values, time-series, and summary."""
-            if cam_data is None:
-                return None
-            summary = cam_data.get('summary', {})
-            # Current values for the selected frame
-            current = {}
-            for key in METRIC_KEYS:
-                arr = cam_data.get(key, [])
-                current[key] = arr[frame_idx] if frame_idx < len(arr) else None
-            # Phase label for this frame
-            phases = cam_data.get('phases', [])
-            current['phase'] = phases[frame_idx] if frame_idx < len(phases) else None
-            # Tempo (single value)
-            current['tempo'] = cam_data.get('tempo')
-            # Full time-series for the chart (None values kept for gaps)
-            timeseries = {}
-            for key in METRIC_KEYS:
-                timeseries[key] = cam_data.get(key, [])
-            timeseries['phases'] = cam_data.get('phases', [])
-            return {
-                'summary': summary,
-                'detection_rate': cam_data.get('detection_rate', 0),
-                'current': current,
-                'timeseries': timeseries,
-            }
-
-        results['camera1'] = _build_camera_block(self.analysis_camera1)
-        results['camera2'] = _build_camera_block(self.analysis_camera2)
-
-        settings = load_practice_settings(_get_recordings_dir())
-        labels = camera_labels(settings)
-        results['camera_labels'] = labels
-
-        results['score'] = score_analysis(role_aware_analysis({
-            'camera1': self.analysis_camera1,
-            'camera2': self.analysis_camera2,
-        }, settings))
-        results['session'] = self.get_session_status()
-
+        results = format_analysis_results(
+            self.analysis_camera1,
+            self.analysis_camera2,
+            frame_index=self.analysis_frame_index,
+            is_analyzing=self.is_analyzing,
+            progress=self.analysis_progress,
+            analysis_error=self.analysis_error,
+            has_frames=has_frames,
+            session=self.get_session_status(),
+            source='live',
+        )
+        self.analysis_frame_index = results['frame_index']
         return results
 
     # ------------------------------------------------------------------
@@ -1674,9 +1615,122 @@ def api_auto_detect_status():
     return jsonify(mgr.get_auto_detect_status())
 
 
+_ANALYSIS_METRIC_KEYS = [
+    'sway', 'shoulder_turn', 'hip_turn', 'x_factor',
+    'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift',
+    'spine_angle', 'lead_arm_angle',
+]
+
+
+def format_analysis_results(
+    camera1,
+    camera2,
+    *,
+    frame_index: int = 0,
+    is_analyzing: bool = False,
+    progress: str = '',
+    analysis_error: str = '',
+    has_frames: bool = False,
+    session: Optional[Dict] = None,
+    timestamp: Optional[str] = None,
+    source: str = 'live',
+) -> Dict:
+    """Build the Analysis-tab payload from live or saved camera blocks."""
+    max_frames = 0
+    for cam_data in (camera1, camera2):
+        if not cam_data:
+            continue
+        for key in _ANALYSIS_METRIC_KEYS:
+            arr = cam_data.get(key, [])
+            if isinstance(arr, list) and len(arr) > max_frames:
+                max_frames = len(arr)
+    try:
+        frame_index = int(frame_index or 0)
+    except (TypeError, ValueError):
+        frame_index = 0
+    if max_frames > 0:
+        frame_index = max(0, min(max_frames - 1, frame_index))
+    else:
+        frame_index = 0
+
+    def _build_camera_block(cam_data):
+        if cam_data is None:
+            return None
+        summary = cam_data.get('summary', {}) or {}
+        current = {}
+        for key in _ANALYSIS_METRIC_KEYS:
+            arr = cam_data.get(key, [])
+            current[key] = arr[frame_index] if isinstance(arr, list) and frame_index < len(arr) else None
+        phases = cam_data.get('phases', [])
+        current['phase'] = phases[frame_index] if isinstance(phases, list) and frame_index < len(phases) else None
+        current['tempo'] = cam_data.get('tempo')
+        timeseries = {key: cam_data.get(key, []) for key in _ANALYSIS_METRIC_KEYS}
+        timeseries['phases'] = cam_data.get('phases', [])
+        return {
+            'summary': summary,
+            'detection_rate': cam_data.get('detection_rate', 0),
+            'current': current,
+            'timeseries': timeseries,
+        }
+
+    settings = load_practice_settings(_get_recordings_dir())
+    results = {
+        'is_analyzing': is_analyzing,
+        'progress': progress,
+        'analysis_error': analysis_error,
+        'frame_index': frame_index,
+        'max_frames': max_frames,
+        'has_frames': has_frames,
+        'camera1': _build_camera_block(camera1),
+        'camera2': _build_camera_block(camera2),
+        'camera_labels': camera_labels(settings),
+        'score': score_analysis(role_aware_analysis({
+            'camera1': camera1,
+            'camera2': camera2,
+        }, settings)),
+        'timestamp': timestamp,
+        'source': source,
+    }
+    if session is not None:
+        results['session'] = session
+    return results
+
+
+def _live_analysis_timestamp(mgr) -> Optional[str]:
+    if mgr is None:
+        return None
+    path = mgr._analysis_json_path()
+    if not path:
+        return None
+    match = re.search(r'analysis_(\d{8}_\d{6})\.json', path)
+    return match.group(1) if match else None
+
+
 @app.route('/api/analysis/results')
 def api_analysis_results():
-    """Get current analysis results and frame data."""
+    """Get live analysis results, or a saved swing via ?timestamp=."""
+    ts = request.args.get('timestamp')
+    if ts:
+        data = _load_analysis(ts)
+        if data is None:
+            return jsonify({'error': f'Analysis not found for {ts}'}), 404
+        mgr = get_manager()
+        live_ts = _live_analysis_timestamp(mgr)
+        has_frames = bool(
+            mgr is not None
+            and live_ts == ts
+            and (mgr.analysis_frames_cam1 or mgr.analysis_frames_cam2)
+        )
+        return jsonify(format_analysis_results(
+            data.get('camera1'),
+            data.get('camera2'),
+            frame_index=mgr.analysis_frame_index if has_frames and mgr else 0,
+            has_frames=has_frames,
+            session=mgr.get_session_status() if mgr else None,
+            timestamp=ts,
+            source='saved',
+        ))
+
     mgr = get_manager()
     if mgr is None:
         return jsonify({'error': 'Not initialized'})
@@ -1689,10 +1743,14 @@ def api_set_analysis_frame():
     mgr = get_manager()
     if mgr is None:
         return jsonify({'error': 'Not initialized'})
-    data = request.get_json()
-    if not data or 'index' not in data:
+    data = request.get_json(silent=True) or {}
+    if 'index' not in data:
         return jsonify({'error': 'Missing index'}), 400
-    mgr.analysis_frame_index = int(data['index'])
+    try:
+        idx = int(data['index'])
+    except (TypeError, ValueError):
+        return jsonify({'error': 'index must be an integer'}), 400
+    mgr.analysis_frame_index = idx
     return jsonify(mgr.get_analysis_results())
 
 
@@ -1816,6 +1874,13 @@ def _delete_recording_pair(ts: str) -> Dict:
         return {'error': f'Cannot delete {ts} — currently being analyzed'}
 
     rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        owner = db.get_recording_owner(ts)
+        if owner is not None and owner != db.get_active_user_id():
+            return {'error': "Cannot delete another player's recording", 'timestamp': ts}
+    except Exception:
+        pass
     deleted = []
     errors = []
     for cam in ['camera1', 'camera2']:
@@ -1885,6 +1950,9 @@ def api_list_recordings():
     ref = get_reference_timestamp(rec_dir)
     for p in pairs:
         p['is_reference'] = (p.get('timestamp') == ref)
+        p['has_analysis'] = os.path.isfile(
+            os.path.join(rec_dir, f"analysis_{p.get('timestamp')}.json")
+        )
     total_size = sum(p['total_size'] for p in pairs)
     oldest = pairs[-1]['date'] if pairs else None
     newest = pairs[0]['date'] if pairs else None

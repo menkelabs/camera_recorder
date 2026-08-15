@@ -96,7 +96,10 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  analysisResults: () => jsonFetch<AnalysisResults>('/api/analysis/results'),
+  analysisResults: (timestamp?: string) => {
+    const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
+    return jsonFetch<AnalysisResults>(`/api/analysis/results${q}`)
+  },
   setAnalysisFrame: (index: number) =>
     jsonFetch<AnalysisResults>('/api/analysis/frame', {
       method: 'POST',

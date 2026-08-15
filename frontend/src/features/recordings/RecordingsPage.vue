@@ -167,6 +167,11 @@ function openCompare(row: RecordingPair) {
   appStore.setComparePrefill({ a: row.timestamp })
   appStore.setTab('compare')
 }
+
+function openAnalysis(row: RecordingPair) {
+  appStore.setAnalysisPrefill(row.timestamp)
+  appStore.setTab('analysis')
+}
 </script>
 
 <template>
@@ -284,6 +289,14 @@ function openCompare(row: RecordingPair) {
               </button>
               <button type="button" :disabled="busy" @click="toggleReference(row)">
                 {{ row.is_reference ? 'Clear ref' : 'Set ref' }}
+              </button>
+              <button
+                v-if="row.has_analysis"
+                type="button"
+                title="Open Analysis tab"
+                @click="openAnalysis(row)"
+              >
+                Analyze
               </button>
               <button type="button" title="Open Compare tab" @click="openCompare(row)">
                 Compare

@@ -115,6 +115,8 @@ export interface AnalysisResults {
   camera2: CameraAnalysisBlock | null
   score?: AnalysisScore | null
   camera_labels?: { camera1?: string; camera2?: string }
+  timestamp?: string | null
+  source?: 'live' | 'saved'
 }
 
 export interface CameraAnalysisBlock {

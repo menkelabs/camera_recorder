@@ -16,6 +16,7 @@ const sample = {
   tags: ['tempo'],
   unclaimed: true,
   owner_name: null,
+  has_analysis: true,
 }
 
 function mountPage() {
@@ -76,6 +77,13 @@ describe('RecordingsPage', () => {
         tags: ['tempo', 'range'],
       }),
     )
+  })
+
+  it('prefills Analysis from the row action', async () => {
+    mountPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Analyze' }))
+    expect(useAppStore().tab).toBe('analysis')
+    expect(useAppStore().analysisPrefill).toBe('20260715_120000')
   })
 
   it('prefills Compare from the row action', async () => {

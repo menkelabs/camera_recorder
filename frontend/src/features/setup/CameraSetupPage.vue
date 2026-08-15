@@ -76,6 +76,9 @@ async function detectCameras() {
 
 <template>
   <section :class="styles.page">
+    <p v-if="appStore.status && !appStore.status.cameras_available" :class="styles.warn">
+      Cameras offline — plug them in, then use Detect or Reinit.
+    </p>
     <div :class="styles.layout">
       <CameraPreview
         :camera-num="cameraNum"

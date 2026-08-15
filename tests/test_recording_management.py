@@ -174,6 +174,22 @@ class TestRecordingManagementAPI(unittest.TestCase):
         resp = self.client.delete('/api/recordings/invalid')
         self.assertEqual(resp.status_code, 400)
 
+    def test_delete_rejects_other_users_recording(self):
+        from local_db import get_db, reset_db_cache
+
+        reset_db_cache()
+        self._create_pair('20260215_140000')
+        db = get_db(self.tmpdir)
+        other = db.create_user('Player 2')['id']
+        db.claim_recording('20260215_140000', user_id=other)
+        resp = self.client.delete('/api/recordings/20260215_140000')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('another player', resp.get_json()['error'])
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, 'recording_20260215_140000_camera1.mp4')
+        ))
+        reset_db_cache()
+
     def test_bulk_delete(self):
         self._create_pair('20260215_140000')
         self._create_pair('20260215_150000')

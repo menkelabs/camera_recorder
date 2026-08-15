@@ -714,6 +714,12 @@ class TestFlaskRoutes(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertEqual(data['frame_index'], 25)
 
+    def test_api_set_analysis_frame_rejects_non_int(self):
+        """POST /api/analysis/frame rejects a non-integer index."""
+        resp = self.client.post('/api/analysis/frame', json={'index': 'nope'})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('integer', json.loads(resp.data)['error'])
+
     def test_api_save_settings(self):
         """POST /api/settings/save creates a JSON file."""
         with patch('builtins.open', unittest.mock.mock_open()):

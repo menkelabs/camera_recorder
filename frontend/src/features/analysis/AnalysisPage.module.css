@@ -35,6 +35,28 @@
   justify-content: flex-end;
 }
 
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.picker select {
+  min-width: 200px;
+  padding: 6px 8px;
+  background: var(--bg-input, var(--bg-card-alt));
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+}
+
+.savedNote {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
 .score {
   display: flex;
   align-items: baseline;

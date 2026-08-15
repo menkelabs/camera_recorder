@@ -35,6 +35,12 @@ describe('API query helpers', () => {
       expect.any(Object),
     )
 
+    await api.analysisResults('20260715_120000')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/analysis/results?timestamp=20260715_120000',
+      expect.any(Object),
+    )
+
     await api.listRecordings({ scope: 'unclaimed' })
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/recordings?scope=unclaimed',
