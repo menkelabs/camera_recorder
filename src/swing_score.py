@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 
-# Mirrors templates/index.html METRIC_DEFS summaryKey + good/ok ranges.
+# Mirrors the Vue Analysis / Progress good/ok ranges.
 # cam: which camera summary to read (1=face-on, 2=DTL).
 SCORE_METRICS: List[Dict[str, Any]] = [
     # Rotation (DTL)

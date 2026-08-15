@@ -1,14 +1,14 @@
 # GUI Tests
 
-Test coverage for the Camera Setup & Recording GUI — Flask web UI (primary)
+Test coverage for the Camera Setup & Recording GUI — Flask API + Vue SPA
 and the legacy OpenCV desktop GUI.
 
-## Primary UI (Flask)
+## Primary UI (Flask API + Vue)
 
 ### `test_flask_gui.py` — Unit / route tests
 CameraManager init, properties, recording controls, analysis result shaping,
-frame navigation, Flask API routes, template markers, auto-detect, JPEG frame
-endpoint, and frame compression.
+frame navigation, Flask API routes, Vue `/` vs missing-dist hint, `/legacy`
+redirect, auto-detect, JPEG frame endpoint, and frame compression.
 
 ```bash
 python3 -m unittest tests.test_flask_gui -v

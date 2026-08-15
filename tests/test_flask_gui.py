@@ -560,20 +560,20 @@ class TestFlaskRoutes(unittest.TestCase):
         flask_gui.camera_manager = None
 
     def test_index_returns_html(self):
-        """GET / should return Vue/React shell when dist is built, else v1 template."""
+        """GET / should return the Vue shell when dist is built, else the build hint."""
         resp = self.client.get('/')
         self.assertEqual(resp.status_code, 200)
         body = resp.data
         self.assertTrue(
-            b'id="app"' in body or b'id="root"' in body or b'Camera Setup' in body,
-            'Expected Vue #app, React #root, or legacy Camera Setup markup',
+            b'id="app"' in body or b'Vue UI not built' in body,
+            'Expected Vue #app or the missing-frontend hint',
         )
 
-    def test_legacy_returns_v1_template(self):
-        """GET /legacy always serves the v1 Flask template."""
-        resp = self.client.get('/legacy')
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'Camera Setup', resp.data)
+    def test_legacy_redirects_home(self):
+        """GET /legacy is retired; bookmarks follow to /."""
+        resp = self.client.get('/legacy', follow_redirects=False)
+        self.assertIn(resp.status_code, (301, 302))
+        self.assertEqual(resp.headers.get('Location'), '/')
 
     def test_api_status(self):
         """GET /api/status returns JSON with expected keys."""
@@ -747,107 +747,6 @@ class TestFlaskRoutes(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertTrue(data['is_analyzing'])
         self.assertEqual(data['analysis_progress'], "Processing Camera 1...")
-
-
-# ======================================================================
-# Template Rendering
-# ======================================================================
-
-class TestTemplateRendering(unittest.TestCase):
-    """Test that the v1 HTML template (/legacy) renders with all expected elements."""
-
-    def setUp(self):
-        app.config['TESTING'] = True
-        self.client = app.test_client()
-        import flask_gui
-        self.mgr = CameraManager()
-        flask_gui.camera_manager = self.mgr
-
-    def tearDown(self):
-        import flask_gui
-        flask_gui.camera_manager = None
-
-    def test_template_contains_all_tabs(self):
-        """HTML should contain all tab buttons including Progress."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('Camera 1 Setup', html)
-        self.assertIn('Camera 2 Setup', html)
-        self.assertIn('Recording', html)
-        self.assertIn('Recordings', html)
-        self.assertIn('Analysis', html)
-        self.assertIn('Compare', html)
-        self.assertIn('Progress', html)
-        self.assertIn('Settings', html)
-
-    def test_template_contains_keyboard_hints(self):
-        """HTML should include keyboard shortcut hints."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('[1]', html)
-        self.assertIn('[2]', html)
-        self.assertIn('[3]', html)
-        self.assertIn('[4]', html)
-        self.assertIn('[5]', html)
-        self.assertIn('[6]', html)
-        self.assertIn('Space', html)
-
-    def test_template_contains_video_feeds(self):
-        """HTML should reference the MJPEG video feed URLs."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('/video_feed/1', html)
-        self.assertIn('/video_feed/2', html)
-
-    def test_template_contains_recording_controls(self):
-        """HTML should have recording start/stop UI."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('Start Recording', html)
-        self.assertIn('toggleRecording', html)
-
-    def test_template_contains_analysis_sections(self):
-        """HTML should have analysis result sections."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('metrics-dashboard', html)
-        self.assertIn('timeseries-canvas', html)
-        self.assertIn('phase-badge', html)
-        self.assertIn('Face-On', html)
-        self.assertIn('Down-the-Line', html)
-
-    def test_template_contains_compare_tab(self):
-        """HTML should have the comparison tab."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('tab-compare', html)
-        self.assertIn('compare-a', html)
-        self.assertIn('compare-b', html)
-        self.assertIn('compare-canvas', html)
-
-    def test_template_contains_property_controls(self):
-        """HTML should have camera property sections."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('Camera 1 Properties', html)
-        self.assertIn('Camera 2 Properties', html)
-        self.assertIn('Save Settings', html)
-        self.assertIn('Reset Defaults', html)
-
-    def test_template_contains_settings_display(self):
-        """HTML should show the recording settings (fps, resolution)."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('120fps', html)
-        self.assertIn('1280x720', html)
-
-    def test_template_contains_frame_navigation(self):
-        """HTML should have frame navigation controls."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('Prev', html)
-        self.assertIn('Next', html)
-        self.assertIn('frame-slider', html)
 
 
 # ======================================================================
@@ -1122,53 +1021,6 @@ class TestCompressFrames(unittest.TestCase):
     def test_compress_empty(self):
         compressed = CameraManager._compress_frames([])
         self.assertEqual(compressed, [])
-
-
-class TestTemplateNewFeatures(unittest.TestCase):
-    """Test that the v1 template (/legacy) includes video playback and auto-detect UI."""
-
-    def setUp(self):
-        app.config['TESTING'] = True
-        self.client = app.test_client()
-        import flask_gui
-        self.mgr = CameraManager()
-        flask_gui.camera_manager = self.mgr
-
-    def tearDown(self):
-        import flask_gui
-        flask_gui.camera_manager = None
-
-    def test_template_has_video_panels(self):
-        """HTML should contain analysis video playback panels."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('analysis-video-panels', html)
-        self.assertIn('analysis-frame-cam1', html)
-        self.assertIn('analysis-frame-cam2', html)
-
-    def test_template_has_play_button(self):
-        """HTML should contain the play/pause button."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('play-btn', html)
-        self.assertIn('togglePlayback', html)
-        self.assertIn('speed-label', html)
-
-    def test_template_has_auto_detect_toggle(self):
-        """HTML should contain the auto-detect toggle switch."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('auto-detect-cb', html)
-        self.assertIn('Auto Detect', html)
-        self.assertIn('auto-detect-panel', html)
-
-    def test_template_has_auto_detect_gauge(self):
-        """HTML should contain the shoulder turn gauge."""
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('auto-detect-gauge-fill', html)
-        self.assertIn('auto-detect-badge', html)
-        self.assertIn('Shoulder Turn', html)
 
 
 # ======================================================================

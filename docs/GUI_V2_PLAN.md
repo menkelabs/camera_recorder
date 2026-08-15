@@ -164,12 +164,12 @@ Port remaining v1 tabs, matching existing REST contracts:
 | Item | Detail | Status |
 |------|--------|--------|
 | D0 | Tag `v1.0.0` on `master` (last Flask-template GUI) before merge | Done |
-| D1 | Default `/` → React build; `/legacy` retained one release | Done on branch (merge pending) |
+| D1 | Default `/` → Vue build; `/legacy` retained one release | Done |
 | D2 | README + quick-start updated; v1 monolith marked deprecated | Done |
 | D3 | CI: Vitest + Playwright E2E + `run_all_tests.py --unit` + mock soak | Done (`.github/workflows/ci.yml`) |
-| D4 | Remove `/legacy` + `templates/index.html` monolith in a follow-up once stable | Not started |
+| D4 | Remove `/legacy` + `templates/index.html` monolith | Done (`/legacy` redirects to `/`) |
 
-**Exit:** Master ships React as the only supported GUI.
+**Exit:** Master ships Vue as the only supported GUI.
 
 **Pre-merge gate:** Must-hit backend, React RTL page coverage, Playwright smoke/export UI, mock-video + GUI stability (from PR #7), dual-camera mock soak, detect/reinit, checklist seeding, `/legacy` scrapers. Optional hardware soak: `python scripts/dual_camera_soak.py --hardware`.
 
@@ -260,6 +260,6 @@ Python side stays under `scripts/` + `src/`; add only small preview APIs/helpers
 
 1. Merge this branch to `master` once CI is green.
 2. Operator hardware soak once: `python scripts/dual_camera_soak.py --hardware --seconds 30`.
-3. Phase D4 later: remove `/legacy` + `templates/index.html` after one stable release.
+3. Phase D4: `/legacy` + `templates/index.html` removed; `/legacy` redirects home.
 
 This document is the source of truth for v2.0 scope. Change it via PR if scope shifts.

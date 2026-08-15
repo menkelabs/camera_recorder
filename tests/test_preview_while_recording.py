@@ -138,27 +138,27 @@ class TestFrontendRouting(unittest.TestCase):
         app.config['TESTING'] = True
         self.client = app.test_client()
 
-    def test_legacy_route_serves_v1_template(self):
-        resp = self.client.get('/legacy')
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'Camera Setup', resp.data)
+    def test_legacy_route_redirects_home(self):
+        resp = self.client.get('/legacy', follow_redirects=False)
+        self.assertIn(resp.status_code, (301, 302))
+        self.assertEqual(resp.headers.get('Location'), '/')
 
-    def test_index_falls_back_to_template_without_dist(self):
+    def test_index_falls_back_to_build_hint_without_dist(self):
         with patch('flask_gui._frontend_dist_ready', return_value=False):
             resp = self.client.get('/')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'Camera Setup', resp.data)
+        self.assertIn(b'Vue UI not built', resp.data)
 
-    def test_index_serves_react_when_dist_ready(self):
+    def test_index_serves_vue_when_dist_ready(self):
         with patch('flask_gui._frontend_dist_ready', return_value=True):
             with patch('flask_gui.send_from_directory') as send:
                 send.return_value = app.response_class(
-                    b'<!doctype html><div id="root"></div>',
+                    b'<!doctype html><div id="app"></div>',
                     mimetype='text/html',
                 )
                 resp = self.client.get('/')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'id="root"', resp.data)
+        self.assertIn(b'id="app"', resp.data)
         send.assert_called()
 
     def test_dist_ready_helper(self):

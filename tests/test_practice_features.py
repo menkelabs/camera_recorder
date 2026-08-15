@@ -279,27 +279,6 @@ class TestPracticeAPIEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(b'Swing Score', r.data)
 
-    def test_template_has_progress_and_score(self):
-        # v1 markup lives at /legacy once frontend/dist is built
-        r = self.client.get('/legacy')
-        html = r.data.decode('utf-8')
-        self.assertIn('data-tab="progress"', html)
-        self.assertIn('score-header', html)
-        self.assertIn('Export HTML', html)
-        self.assertIn('fav-btn', html)
-        self.assertIn('checklist-panel', html)
-        self.assertIn('drills-panel', html)
-        self.assertIn('ref-btn', html)
-        self.assertIn('Clip Cam1', html)
-        self.assertIn('Pre-Record Checklist', html)
-        self.assertIn('session-cb', html)
-        self.assertIn('metro-cb', html)
-        self.assertIn('usb-warn', html)
-        self.assertIn('cam1-role', html)
-        self.assertIn('practice-tools', html)
-        self.assertIn('Session mode', html)
-        self.assertIn('Tempo metronome', html)
-
 
 class TestDrillsAndReference(unittest.TestCase):
     def test_poor_swing_includes_drills(self):
