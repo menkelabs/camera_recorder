@@ -1,5 +1,7 @@
 # Camera Setup Guide
 
+> **Historical.** Machine-specific camera indices (0 and 2). In the product UI use **Detect** / **Reinit** on Camera tabs, or `python scripts/flask_gui.py --camera1 0 --camera2 2`. See [HOW_TO_USE.md](HOW_TO_USE.md).
+
 ## Important: Camera IDs
 
 Your system has 3 cameras:

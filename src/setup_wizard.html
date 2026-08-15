@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SwingLab setup</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --radius: 8px;
+      --font: "Segoe UI", "IBM Plex Sans", sans-serif;
+      --mono: "SF Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+      font: 15px/1.5 var(--font);
+    }
+    .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    nav {
+      border-right: 1px solid var(--border); padding: 1.5rem 1rem; background: #0b0f14;
+    }
+    .brand { font-weight: 700; letter-spacing: .02em; margin: 0 0 .25rem; }
+    .sub { color: var(--dim); font-size: 12px; margin: 0 0 1.5rem; }
+    nav ol { list-style: none; margin: 0; padding: 0; }
+    nav li {
+      padding: .45rem .6rem; border-radius: 6px; color: var(--dim); margin-bottom: .25rem;
+    }
+    nav li.active { background: #1f6feb33; color: var(--text); }
+    nav li.done { color: var(--green); }
+    main { padding: 2rem 2.25rem 6rem; max-width: 720px; }
+    h1 { font-size: 1.4rem; margin: 0 0 .5rem; }
+    p.lead { color: var(--dim); margin: 0 0 1.25rem; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem 1.1rem; margin-bottom: 1rem;
+    }
+    .row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+    label { display: flex; flex-direction: column; gap: .25rem; font-size: 13px; color: var(--dim); }
+    input, select {
+      background: #0d1117; color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: .45rem .55rem; min-width: 8rem; font: inherit;
+    }
+    button {
+      background: var(--accent); color: #041018; border: 0; border-radius: 6px;
+      padding: .5rem .9rem; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: #21262d; color: var(--text); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .check { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem 0; }
+    .ok { color: var(--green); }
+    .bad { color: var(--red); }
+    .warn { color: var(--yellow); }
+    pre.log {
+      background: #010409; border: 1px solid var(--border); border-radius: 6px;
+      padding: .75rem; max-height: 220px; overflow: auto; font: 12px/1.4 var(--mono);
+      white-space: pre-wrap;
+    }
+    footer.bar {
+      position: fixed; bottom: 0; left: 240px; right: 0; padding: .85rem 2.25rem;
+      background: #0b0f14; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; gap: 1rem;
+    }
+    .msg { margin-top: .75rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: .35rem .4rem; border-bottom: 1px solid var(--border); }
+    @media (max-width: 720px) {
+      .shell { grid-template-columns: 1fr; }
+      nav { border-right: 0; border-bottom: 1px solid var(--border); }
+      footer.bar { left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav>
+      <p class="brand">SwingLab</p>
+      <p class="sub">Setup wizard</p>
+      <ol id="steps"></ol>
+    </nav>
+    <main>
+      <section id="panel"></section>
+      <p class="msg" id="msg"></p>
+    </main>
+  </div>
+  <footer class="bar">
+    <button type="button" class="secondary" id="back">Back</button>
+    <div class="row">
+      <button type="button" class="secondary" id="skip" hidden>Skip cameras</button>
+      <button type="button" id="next">Continue</button>
+    </div>
+  </footer>
+  <script>
+    const STEPS = [
+      { id: "welcome", label: "Welcome" },
+      { id: "check", label: "Prerequisites" },
+      { id: "python", label: "Python packages" },
+      { id: "ui", label: "Web UI" },
+      { id: "cameras", label: "Cameras" },
+      { id: "studio", label: "Studio" },
+      { id: "done", label: "Finish" },
+    ];
+    let step = 0;
+    let checks = [];
+    let cameras = [];
+    let settings = {
+      camera1_id: 0,
+      camera2_id: 1,
+      camera_roles: { camera1: "face_on", camera2: "dtl" },
+      width: 1280,
+      height: 720,
+      fps: 120,
+      model_complexity: 2,
+      host: "0.0.0.0",
+      port: 5000,
+      recordings_dir: "recordings",
+      player_name: "Player 1",
+      desktop_shortcut: false,
+    };
+    let finishInfo = null;
+    let pollTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function renderNav() {
+      $("steps").innerHTML = STEPS.map((s, i) => {
+        const cls = i === step ? "active" : i < step ? "done" : "";
+        return `<li class="${cls}">${i + 1}. ${s.label}</li>`;
+      }).join("");
+    }
+
+    async function api(path, opts) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+
+    function setMsg(text, cls) {
+      $("msg").className = "msg " + (cls || "");
+      $("msg").textContent = text || "";
+    }
+
+    function renderWelcome() {
+      $("panel").innerHTML = `
+        <h1>Set up this machine</h1>
+        <p class="lead">This wizard installs Python packages, builds the Vue UI, and writes camera / studio settings. You only need Python 3.10+ to start it. Node.js is required for the web UI step.</p>
+        <div class="card">
+          <p>You will:</p>
+          <ol>
+            <li>Check Python, Node, disk, and write access</li>
+            <li>Create <code>.venv</code> and install requirements</li>
+            <li>Run <code>npm install</code> and <code>npm run build</code></li>
+            <li>Pick Face-On and Down-the-Line cameras</li>
+            <li>Name the first player and choose a recordings folder</li>
+          </ol>
+        </div>
+        <p class="lead">After this, daily start is <code>python scripts/start_swinglab.py</code> (or the Start SwingLab shortcut).</p>
+      `;
+    }
+
+    function renderChecks() {
+      const rows = checks.map((c) => {
+        const cls = c.ok ? "ok" : c.required ? "bad" : "warn";
+        const mark = c.ok ? "OK" : c.required ? "Missing" : "Optional";
+        return `<div class="check"><span>${c.label}<br><small class="lead">${c.detail || ""}</small></span><strong class="${cls}">${mark}</strong></div>`;
+      }).join("");
+      $("panel").innerHTML = `
+        <h1>Prerequisites</h1>
+        <p class="lead">Required items must be OK before packages can install. Node is required to build the UI.</p>
+        <div class="card">${rows || "Click Continue to scan this machine."}</div>
+      `;
+    }
+
+    function renderJob(title, lead, job) {
+      const status = job ? job.status : "idle";
+      const log = (job && job.log) ? job.log.join("") : "";
+      $("panel").innerHTML = `
+        <h1>${title}</h1>
+        <p class="lead">${lead}</p>
+        <div class="card">
+          <p>Status: <strong>${status}</strong></p>
+          <pre class="log">${escapeHtml(log) || "Waiting…"}</pre>
+        </div>
+      `;
+    }
+
+    function renderCameras() {
+      const opts = cameras.map((c) =>
+        `<option value="${c.id}">${c.id} — ${c.width || "?"}x${c.height || "?"} ${c.status || ""}</option>`
+      ).join("");
+      const fallback = `<option value="0">0</option><option value="1">1</option><option value="2">2</option>`;
+      $("panel").innerHTML = `
+        <h1>Cameras</h1>
+        <p class="lead">Plug in both USB cameras. Put them on different USB buses if Camera 2 stays black. You can skip this and use Detect later in the app.</p>
+        <div class="card">
+          <div class="row">
+            <button type="button" class="secondary" id="detect">Detect cameras</button>
+          </div>
+          <table style="margin-top:1rem">
+            <thead><tr><th>Index</th><th>Size</th><th>Status</th></tr></thead>
+            <tbody>${cameras.map((c) => `<tr><td>${c.id}</td><td>${c.width || "—"}x${c.height || "—"}</td><td>${c.status || ""}</td></tr>`).join("") || "<tr><td colspan=3>Not scanned yet</td></tr>"}</tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="row">
+            <label>Camera 1 (index)
+              <select id="cam1">${opts || fallback}</select>
+            </label>
+            <label>Camera 1 role
+              <select id="role1">
+                <option value="face_on">Face-On</option>
+                <option value="dtl">Down-the-Line</option>
+              </select>
+            </label>
+            <label>Camera 2 (index)
+              <select id="cam2">${opts || fallback}</select>
+            </label>
+          </div>
+          <p class="lead">Camera 2 gets the opposite role automatically.</p>
+        </div>
+      `;
+      $("cam1").value = String(settings.camera1_id);
+      $("cam2").value = String(settings.camera2_id);
+      $("role1").value = settings.camera_roles.camera1;
+      $("detect").onclick = detectCameras;
+    }
+
+    function renderStudio() {
+      $("panel").innerHTML = `
+        <h1>Studio settings</h1>
+        <p class="lead">These are written to <code>swinglab.local.json</code> and used when you start the app.</p>
+        <div class="card">
+          <div class="row">
+            <label>First player name <input id="player" value="${escapeAttr(settings.player_name)}"></label>
+            <label>Recordings folder <input id="recdir" value="${escapeAttr(settings.recordings_dir)}"></label>
+            <label>Port <input id="port" type="number" min="1" max="65535" value="${settings.port}"></label>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <label>Width <input id="width" type="number" value="${settings.width}"></label>
+            <label>Height <input id="height" type="number" value="${settings.height}"></label>
+            <label>FPS <input id="fps" type="number" value="${settings.fps}"></label>
+            <label>Analysis model
+              <select id="model">
+                <option value="0">0 — lite (laptop)</option>
+                <option value="1">1 — full</option>
+                <option value="2">2 — heavy</option>
+              </select>
+            </label>
+          </div>
+          <label class="row" style="flex-direction:row;margin-top:.75rem">
+            <input id="shortcut" type="checkbox" ${settings.desktop_shortcut ? "checked" : ""}>
+            Create a desktop shortcut
+          </label>
+        </div>
+      `;
+      $("model").value = String(settings.model_complexity);
+    }
+
+    function renderDone() {
+      const url = finishInfo && finishInfo.url ? finishInfo.url : "http://localhost:5000";
+      $("panel").innerHTML = `
+        <h1>Ready</h1>
+        <p class="lead">This machine is configured. Daily start does not need the wizard again unless you move cameras or reinstall.</p>
+        <div class="card">
+          <p>App URL: <a href="${url}" style="color:var(--accent)">${url}</a></p>
+          <p>Start: <code>python scripts/start_swinglab.py</code></p>
+          <p>Or double-click <code>Start SwingLab.bat</code> / <code>start-swinglab.sh</code></p>
+        </div>
+        <div class="row">
+          <button type="button" id="launch">Start SwingLab now</button>
+        </div>
+      `;
+      $("launch").onclick = launchApp;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+    }
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/"/g, "&quot;");
+    }
+
+    function readStudio() {
+      settings.player_name = $("player").value.trim() || "Player 1";
+      settings.recordings_dir = $("recdir").value.trim() || "recordings";
+      settings.port = Number($("port").value) || 5000;
+      settings.width = Number($("width").value) || 1280;
+      settings.height = Number($("height").value) || 720;
+      settings.fps = Number($("fps").value) || 120;
+      settings.model_complexity = Number($("model").value);
+      settings.desktop_shortcut = $("shortcut").checked;
+    }
+
+    function readCameras() {
+      settings.camera1_id = Number($("cam1").value);
+      settings.camera2_id = Number($("cam2").value);
+      const role1 = $("role1").value;
+      settings.camera_roles = {
+        camera1: role1,
+        camera2: role1 === "face_on" ? "dtl" : "face_on",
+      };
+    }
+
+    async function detectCameras() {
+      setMsg("Scanning camera indices…");
+      try {
+        const data = await api("/api/cameras/detect", { method: "POST", body: "{}" });
+        cameras = data.cameras || [];
+        if (data.suggested) {
+          settings.camera1_id = data.suggested.camera1_id;
+          settings.camera2_id = data.suggested.camera2_id;
+        }
+        setMsg(data.message || `Found ${cameras.length} camera(s).`, cameras.length ? "ok" : "warn");
+        renderCameras();
+      } catch (err) {
+        setMsg(err.message, "bad");
+      }
+    }
+
+    async function launchApp() {
+      try {
+        const data = await api("/api/start", { method: "POST", body: "{}" });
+        setMsg(data.message || "Started.", "ok");
+        if (data.url) window.open(data.url, "_blank");
+      } catch (err) {
+        setMsg(err.message, "bad");
+      }
+    }
+
+    async function pollJob(name, title, lead) {
+      const data = await api("/api/jobs");
+      const job = data.jobs[name];
+      renderJob(title, lead, job);
+      if (!job || job.status === "running") return false;
+      if (job.status === "error") {
+        setMsg(job.error || "Step failed. See the log.", "bad");
+        return "error";
+      }
+      setMsg("Step finished.", "ok");
+      return "ok";
+    }
+
+    async function startJob(name, title, lead) {
+      await api("/api/jobs/" + name, { method: "POST", body: "{}" });
+      if (pollTimer) clearInterval(pollTimer);
+      return new Promise((resolve) => {
+        pollTimer = setInterval(async () => {
+          const result = await pollJob(name, title, lead);
+          if (result) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            resolve(result);
+          }
+        }, 600);
+      });
+    }
+
+    function requiredChecksOk() {
+      return checks.length && checks.filter((c) => c.required).every((c) => c.ok);
+    }
+
+    async function onNext() {
+      setMsg("");
+      const id = STEPS[step].id;
+      try {
+        if (id === "welcome") {
+          step += 1;
+          await refresh();
+          const data = await api("/api/check", { method: "POST", body: "{}" });
+          checks = data.checks || [];
+        } else if (id === "check") {
+          if (!requiredChecksOk()) {
+            const data = await api("/api/check", { method: "POST", body: "{}" });
+            checks = data.checks || [];
+            if (!requiredChecksOk()) {
+              setMsg("Install the missing required tools, then Continue again.", "bad");
+              await refresh();
+              return;
+            }
+          }
+          step += 1;
+          await refresh();
+          const result = await startJob("python", "Python packages", "Creates .venv and runs pip install -r requirements.txt. This can take several minutes (OpenCV, MediaPipe).");
+          if (result !== "ok") return;
+        } else if (id === "python") {
+          step += 1;
+          await refresh();
+          const result = await startJob("ui", "Web UI", "Runs npm install and npm run build in frontend/. Flask serves frontend/dist afterward.");
+          if (result !== "ok") return;
+        } else if (id === "ui") {
+          step += 1;
+        } else if (id === "cameras") {
+          readCameras();
+          step += 1;
+        } else if (id === "studio") {
+          readStudio();
+          const data = await api("/api/finish", { method: "POST", body: JSON.stringify(settings) });
+          finishInfo = data;
+          step += 1;
+        }
+      } catch (err) {
+        setMsg(err.message, "bad");
+      }
+      await refresh();
+    }
+
+    async function onBack() {
+      if (step > 0) step -= 1;
+      setMsg("");
+      await refresh();
+    }
+
+    async function onSkip() {
+      step += 1;
+      setMsg("Cameras skipped — use Detect in the app later.", "warn");
+      await refresh();
+    }
+
+    async function refresh() {
+      renderNav();
+      $("skip").hidden = STEPS[step].id !== "cameras";
+      $("back").disabled = step === 0;
+      $("next").hidden = STEPS[step].id === "done";
+      $("next").textContent = STEPS[step].id === "studio" ? "Save and finish" : "Continue";
+      const id = STEPS[step].id;
+      if (id === "welcome") renderWelcome();
+      else if (id === "check") renderChecks();
+      else if (id === "python") {
+        const data = await api("/api/jobs");
+        renderJob("Python packages", "Creates .venv and installs requirements.", data.jobs.python);
+      } else if (id === "ui") {
+        const data = await api("/api/jobs");
+        renderJob("Web UI", "Builds frontend/dist.", data.jobs.ui);
+      } else if (id === "cameras") renderCameras();
+      else if (id === "studio") renderStudio();
+      else renderDone();
+    }
+
+    $("next").onclick = onNext;
+    $("back").onclick = onBack;
+    $("skip").onclick = onSkip;
+    refresh();
+  </script>
+</body>
+</html>

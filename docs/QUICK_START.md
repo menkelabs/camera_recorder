@@ -1,5 +1,7 @@
 # Quick Start Guide
 
+> **Historical.** This page is about installing Python on an old Windows machine. The product app is Vue + Flask — start with [HOW_TO_USE.md](HOW_TO_USE.md).
+
 ## Step 1: Install Python
 
 **Python is not currently installed on your system.**

@@ -73,6 +73,9 @@ fixtures/real_swings/*
 .env.local
 .env.*.local
 
+# Machine-local setup wizard profile
+swinglab.local.json
+
 # OS
 .DS_Store
 .DS_Store?

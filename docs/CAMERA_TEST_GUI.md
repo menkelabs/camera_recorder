@@ -1,5 +1,8 @@
 # Camera Test GUI Guide
 
+> Optional **lighting / focus bench** only. The product app is Vue + Flask:
+> `python scripts/flask_gui.py` — see [HOW_TO_USE.md](HOW_TO_USE.md).
+
 ## Overview
 
 The Camera Test GUI provides a high-performance, real-time interface for testing and adjusting camera properties. Perfect for:

@@ -86,7 +86,11 @@ See `tests/test_local_db.py`:
 - Concurrent meta writes
 - `SWINGLAB_DB_PATH` override
 
-## Future packaging hooks
+## Packaging / wizard
+
+The setup wizard (`python scripts/setup_wizard.py`) writes `swinglab.local.json` with a `recordings_dir`. Flask honors `SWINGLAB_RECORDINGS_DIR` first, then that profile, then `./recordings`.
+
+Still useful later:
 
 1. Resolve `recordings_dir` to a per-install writable path when frozen (PyInstaller/`sys.frozen`)
 2. Optional export/import of `swinglab.db` for backup

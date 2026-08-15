@@ -1,5 +1,7 @@
 # Code Reorganization Summary
 
+> **Historical.** Early folder shuffle. Current layout: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md). How to run: [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md).
+
 ## ✅ Reorganization Complete!
 
 The codebase has been reorganized into a clean, professional structure.

@@ -2,7 +2,11 @@
 
 Vite + Vue 3 + TypeScript frontend served by the Flask API.
 
-Replaces the React v2.0 UI with the same REST/MJPEG contracts so packaging stays: `npm run build` → `frontend/dist` → Flask `/`.
+Packaging: `npm run build` → `frontend/dist` → Flask `/`.
+
+**How to use the app (tabs, recording, players):** [docs/HOW_TO_USE.md](../docs/HOW_TO_USE.md)
+
+First-run installer: `python scripts/setup_wizard.py` (builds this UI).
 
 ## Dev
 
