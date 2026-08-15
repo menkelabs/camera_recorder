@@ -430,6 +430,9 @@ cd frontend && npm test
 # Playwright E2E (builds dist, starts Flask with --skip-cameras)
 cd frontend && npm run test:e2e:install && npm run test:e2e
 
+# Real Face-On / DTL MediaPipe smoke (downloads a small public clip if needed)
+python run_all_tests.py --smoke
+
 # Hardware / camera scripts (plug cameras in first)
 python run_all_tests.py --hardware
 python scripts/dual_camera_soak.py --hardware --seconds 30

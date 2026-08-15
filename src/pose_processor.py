@@ -140,8 +140,12 @@ class PoseProcessor:
                     y = int(landmark.y * h)
                     cv2.circle(annotated_frame, (x, y), 5, (0, 255, 0), -1)
                 
-                # Draw connections
-                connections = vision.PoseLandmarksConnections.POSE_CONNECTIONS
+                # Draw connections (MediaPipe 0.10.30+ uses POSE_LANDMARKS)
+                connections = getattr(
+                    vision.PoseLandmarksConnections, 'POSE_LANDMARKS', None,
+                ) or getattr(
+                    vision.PoseLandmarksConnections, 'POSE_CONNECTIONS', [],
+                )
                 for connection in connections:
                     start_idx = connection.start
                     end_idx = connection.end
