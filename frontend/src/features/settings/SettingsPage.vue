@@ -97,10 +97,15 @@ async function archiveNew() {
 }
 
 async function addUser() {
+  const pin = newPin.value.trim()
+  if (pin && pin.length < 4) {
+    message.value = 'PIN must be at least 4 characters'
+    return
+  }
   await run(async () => {
     await api.createUser({
       name: newName.value.trim(),
-      ...(newPin.value.trim() ? { pin: newPin.value.trim() } : {}),
+      ...(pin ? { pin } : {}),
     })
     newName.value = ''
     newPin.value = ''
@@ -120,12 +125,16 @@ async function renameUser(user: LocalUser, event: Event) {
 async function setUserPin(user: LocalUser, event: Event) {
   const pin = (event.target as HTMLInputElement).value
   ;(event.target as HTMLInputElement).value = ''
+  if (pin.trim() && pin.trim().length < 4) {
+    message.value = 'PIN must be at least 4 characters'
+    return
+  }
   await run(async () => {
     if (!pin.trim()) {
       await api.updateUser(user.id, { clear_pin: true })
       message.value = 'PIN cleared'
     } else {
-      await api.updateUser(user.id, { pin })
+      await api.updateUser(user.id, { pin: pin.trim() })
       message.value = 'PIN updated'
     }
   })
@@ -134,6 +143,9 @@ async function setUserPin(user: LocalUser, event: Event) {
 async function removeUser(user: LocalUser) {
   if (users.value.length <= 1) {
     message.value = 'Cannot delete the last player'
+    return
+  }
+  if (!window.confirm(`Delete player ${user.name}? Their notes and progress will be removed.`)) {
     return
   }
   await run(async () => {

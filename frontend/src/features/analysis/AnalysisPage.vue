@@ -23,13 +23,13 @@ const hasFrames = computed(() =>
 
 const metricBlocks = computed(() => [
   {
-    title: 'Camera 1',
+    title: cam1Title.value,
     detection: cam1.value?.detection_rate,
     current: cam1.value?.current,
     keys: ['sway', 'head_sway', 'spine_tilt', 'knee_flex', 'weight_shift'],
   },
   {
-    title: 'Camera 2',
+    title: cam2Title.value,
     detection: results.value?.camera2?.detection_rate,
     current: results.value?.camera2?.current,
     keys: ['shoulder_turn', 'hip_turn', 'x_factor', 'spine_angle', 'lead_arm_angle'],
@@ -37,7 +37,10 @@ const metricBlocks = computed(() => [
 ])
 
 const hasMetricData = computed(() => Boolean(cam1.value || results.value?.camera2))
-const hasCoach = computed(() => Boolean(score.value?.focus?.length || score.value?.strengths?.length))
+const focusAreas = computed(() => score.value?.focus_areas || score.value?.focus || [])
+const hasCoach = computed(() => Boolean(focusAreas.value.length || score.value?.strengths?.length))
+const cam1Title = computed(() => results.value?.camera_labels?.camera1 || 'Camera 1')
+const cam2Title = computed(() => results.value?.camera_labels?.camera2 || 'Camera 2')
 
 async function refresh() {
   try {
@@ -168,10 +171,10 @@ function formatMetric(current: MetricCurrent, key: string) {
           <li v-for="item in score.strengths" :key="item">{{ item }}</li>
         </ul>
       </div>
-      <div v-if="score.focus?.length">
+      <div v-if="focusAreas.length">
         <h4>Focus</h4>
         <ul>
-          <li v-for="item in score.focus" :key="item">{{ item }}</li>
+          <li v-for="item in focusAreas" :key="item">{{ item }}</li>
         </ul>
       </div>
     </div>

@@ -307,12 +307,36 @@ class TestLocalDBCore(unittest.TestCase):
 
     def test_claim_recording_ownership(self):
         db = get_db(self.dir)
+        p1 = db.get_active_user_id()
         p2 = db.create_user('Player 2')['id']
-        db.claim_recording('20260715_120000')
-        self.assertEqual(db.get_recording_owner('20260715_120000'), db.get_active_user_id())
+        first = db.claim_recording('20260715_120000')
+        self.assertEqual(first['user_id'], p1)
+        self.assertEqual(db.get_recording_owner('20260715_120000'), p1)
+        again = db.claim_recording('20260715_120000')
+        self.assertTrue(again.get('already_owned'))
         db.set_active_user(p2)
-        db.claim_recording('20260715_120000')
-        self.assertEqual(db.get_recording_owner('20260715_120000'), p2)
+        with self.assertRaises(PermissionError):
+            db.claim_recording('20260715_120000')
+        self.assertEqual(db.get_recording_owner('20260715_120000'), p1)
+
+    def test_upsert_stats_follow_camera_roles(self):
+        from practice_settings import update_practice_settings
+
+        raw = _sample_analysis('20260715_120000', score=None, shoulder=80)
+        # Physical cameras swapped: DTL metrics live on camera1
+        swapped = {
+            'timestamp': '20260715_120000',
+            'camera1': raw['camera2'],
+            'camera2': raw['camera1'],
+        }
+        update_practice_settings(self.dir, {
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        })
+        db = get_db(self.dir)
+        db.upsert_swing_stats(swapped)
+        row = db.list_swing_stats()[0]
+        self.assertEqual(row['metrics']['max_shoulder_turn'], 80)
+        self.assertEqual(row['metrics']['tempo_ratio'], 3.0)
 
     def test_upsert_does_not_steal_ownership(self):
         db = get_db(self.dir)
@@ -451,6 +475,52 @@ class TestLocalDBFlaskProgress(unittest.TestCase):
         status = self.client.get('/api/status')
         # status may error if manager not initialized; users endpoints are enough
         self.assertIn(status.status_code, (200, 200))
+
+    def test_claim_api_conflict_when_owned(self):
+        db = get_db(self.dir)
+        db.claim_recording('20260715_120000')
+        p2 = db.create_user('Player 2')['id']
+        db.set_active_user(p2)
+        resp = self.client.post('/api/recordings/20260715_120000/claim')
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn('already claimed', resp.get_json()['error'])
+        self.assertEqual(db.get_recording_owner('20260715_120000'), db.list_users()[0]['id'])
+
+    def test_claim_api_success_unclaimed(self):
+        resp = self.client.post('/api/recordings/20260715_120000/claim')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['timestamp'], '20260715_120000')
+        self.assertEqual(data['user_id'], get_db(self.dir).get_active_user_id())
+
+    def test_list_recordings_scope_unclaimed(self):
+        db = get_db(self.dir)
+        db.claim_recording('20260715_120000')
+        rec_dir = self.dir
+        for ts, cam in (('20260715_120000', 'camera1'), ('20260716_120000', 'camera1')):
+            open(os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4'), 'wb').close()
+        mine = self.client.get('/api/recordings?scope=mine')
+        self.assertEqual(mine.status_code, 200)
+        unclaimed = self.client.get('/api/recordings?scope=unclaimed')
+        self.assertEqual(unclaimed.status_code, 200)
+        unclaimed_ts = {r['timestamp'] for r in unclaimed.get_json()['recordings']}
+        self.assertIn('20260716_120000', unclaimed_ts)
+        self.assertNotIn('20260715_120000', unclaimed_ts)
+
+    def test_progress_fallback_skips_other_users_files(self):
+        db = get_db(self.dir)
+        p1 = db.get_active_user_id()
+        p2 = db.create_user('Player 2')['id']
+        other = _sample_analysis('20260715_120000', score=55)
+        path = os.path.join(self.dir, 'analysis_20260715_120000.json')
+        with open(path, 'w') as f:
+            json.dump(other, f)
+        db.claim_recording('20260715_120000', user_id=p2)
+        # Active user is still p1; no swing_stats rows yet → JSON fallback
+        resp = self.client.get('/api/progress')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()['count'], 0)
+        self.assertEqual(db.get_recording_owner('20260715_120000'), p2)
 
     def test_switch_blocked_while_recording(self):
         import flask_gui

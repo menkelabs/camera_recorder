@@ -7,21 +7,36 @@ import { formatBytes, formatDuration } from '../../utils/format'
 import styles from './RecordingsPage.module.css'
 
 type Filter = 'all' | 'favorites' | 'reference'
+type Scope = 'mine' | 'unclaimed' | 'all'
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: 'All',
+  favorites: '★ Favorites',
+  reference: 'Reference',
+}
+const SCOPE_LABELS: Record<Scope, string> = {
+  mine: 'Mine',
+  unclaimed: 'Unclaimed',
+  all: 'Everyone',
+}
 
 const appStore = useAppStore()
 const rows = ref<RecordingPair[]>([])
 const stats = ref({ count: 0, total_size: 0, favorites: 0, reference: null as string | null })
 const selected = ref<Set<string>>(new Set())
 const filter = ref<Filter>('all')
+const scope = ref<Scope>('mine')
 const cleanupDays = ref(30)
 const message = ref<string | null>(null)
 const editingNotes = ref<string | null>(null)
 const notesDraft = ref('')
+const tagsDraft = ref('')
 const busy = ref(false)
 const filters: Filter[] = ['all', 'favorites', 'reference']
+const scopes: Scope[] = ['mine', 'unclaimed', 'all']
 
 async function refresh() {
-  const data = await api.listRecordings()
+  const data = await api.listRecordings({ scope: scope.value })
   rows.value = data.recordings || []
   stats.value = {
     count: data.count,
@@ -41,6 +56,11 @@ const visible = computed(() => {
   if (filter.value === 'favorites') return rows.value.filter((row) => row.favorite)
   if (filter.value === 'reference') return rows.value.filter((row) => row.is_reference)
   return rows.value
+})
+
+const emptyLabel = computed(() => {
+  if (rows.value.length === 0) return 'No recordings yet'
+  return 'No recordings match this filter'
 })
 
 function toggleSelect(timestamp: string) {
@@ -70,9 +90,24 @@ function updateCleanupDays(event: Event) {
 function startEditing(row: RecordingPair) {
   editingNotes.value = row.timestamp
   notesDraft.value = row.notes || ''
+  tagsDraft.value = (row.tags || []).join(', ')
+}
+
+function parseTags(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+}
+
+async function setScope(next: Scope) {
+  scope.value = next
+  await run(async () => undefined)
 }
 
 async function deleteSelected() {
+  if (selected.value.size === 0) return
+  if (!window.confirm(`Delete ${selected.value.size} recording(s)? This cannot be undone.`)) return
   await run(async () => {
     const res = await api.bulkDeleteRecordings([...selected.value])
     selected.value = new Set()
@@ -81,6 +116,7 @@ async function deleteSelected() {
 }
 
 async function cleanupOld() {
+  if (!window.confirm(`Delete recordings older than ${cleanupDays.value} days?`)) return
   await run(async () => {
     const res = await api.cleanupRecordings(cleanupDays.value)
     message.value = `Cleaned ${res.deleted_count} (before ${res.cutoff_date})`
@@ -89,7 +125,10 @@ async function cleanupOld() {
 
 async function saveNotes(row: RecordingPair) {
   await run(async () => {
-    await api.updateRecordingMeta(row.timestamp, { notes: notesDraft.value })
+    await api.updateRecordingMeta(row.timestamp, {
+      notes: notesDraft.value,
+      tags: parseTags(tagsDraft.value),
+    })
     editingNotes.value = null
   })
 }
@@ -108,6 +147,7 @@ async function toggleReference(row: RecordingPair) {
 }
 
 async function deleteRecording(row: RecordingPair) {
+  if (!window.confirm(`Delete recording ${row.date}? This cannot be undone.`)) return
   await run(async () => {
     await api.deleteRecording(row.timestamp)
     const next = new Set(selected.value)
@@ -122,6 +162,11 @@ async function claimRecording(row: RecordingPair) {
     message.value = `Claimed ${row.timestamp}`
   })
 }
+
+function openCompare(row: RecordingPair) {
+  appStore.setComparePrefill({ a: row.timestamp })
+  appStore.setTab('compare')
+}
 </script>
 
 <template>
@@ -135,7 +180,18 @@ async function claimRecording(row: RecordingPair) {
 
     <div :class="styles.toolbar">
       <button type="button" :disabled="busy" @click="refresh">Refresh</button>
-      <div :class="styles.filters">
+      <div :class="styles.filters" role="group" aria-label="Recording scope">
+        <button
+          v-for="item in scopes"
+          :key="item"
+          type="button"
+          :class="scope === item ? styles.activeFilter : undefined"
+          @click="setScope(item)"
+        >
+          {{ SCOPE_LABELS[item] }}
+        </button>
+      </div>
+      <div :class="styles.filters" role="group" aria-label="Recording filters">
         <button
           v-for="item in filters"
           :key="item"
@@ -143,7 +199,7 @@ async function claimRecording(row: RecordingPair) {
           :class="filter === item ? styles.activeFilter : undefined"
           @click="filter = item"
         >
-          {{ item }}
+          {{ FILTER_LABELS[item] }}
         </button>
       </div>
       <button
@@ -174,6 +230,7 @@ async function claimRecording(row: RecordingPair) {
             <th>Date</th>
             <th>Duration</th>
             <th>Size</th>
+            <th>Player</th>
             <th>Flags</th>
             <th>Notes</th>
             <th>Actions</th>
@@ -181,7 +238,7 @@ async function claimRecording(row: RecordingPair) {
         </thead>
         <tbody>
           <tr v-if="visible.length === 0">
-            <td :colspan="7" :class="styles.empty">No recordings yet</td>
+            <td :colspan="8" :class="styles.empty">{{ emptyLabel }}</td>
           </tr>
           <tr v-for="row in visible" :key="row.timestamp">
             <td>
@@ -197,6 +254,7 @@ async function claimRecording(row: RecordingPair) {
             </td>
             <td>{{ formatDuration(row.duration) }}</td>
             <td>{{ formatBytes(row.total_size) }}</td>
+            <td>{{ row.unclaimed ? 'Unclaimed' : row.owner_name || '—' }}</td>
             <td :class="styles.flags">
               <span v-if="row.favorite" title="Favorite">&#9733;</span>
               <span v-if="row.is_reference" title="Reference">REF</span>
@@ -204,11 +262,12 @@ async function claimRecording(row: RecordingPair) {
             </td>
             <td :class="styles.notes">
               <div v-if="editingNotes === row.timestamp" :class="styles.notesEdit">
-                <textarea v-model="notesDraft" rows="2" />
+                <textarea v-model="notesDraft" rows="2" placeholder="Notes" />
+                <input v-model="tagsDraft" type="text" placeholder="Tags, comma-separated" />
                 <button type="button" :disabled="busy" @click="saveNotes(row)">Save</button>
               </div>
               <button v-else type="button" :class="styles.linkish" @click="startEditing(row)">
-                {{ row.notes || 'Add note...' }}
+                {{ row.notes || (row.tags && row.tags.length ? row.tags.join(', ') : 'Add note...') }}
               </button>
             </td>
             <td :class="styles.actions">
@@ -226,7 +285,7 @@ async function claimRecording(row: RecordingPair) {
               <button type="button" :disabled="busy" @click="toggleReference(row)">
                 {{ row.is_reference ? 'Clear ref' : 'Set ref' }}
               </button>
-              <button type="button" title="Open Compare tab" @click="appStore.setTab('compare')">
+              <button type="button" title="Open Compare tab" @click="openCompare(row)">
                 Compare
               </button>
               <button

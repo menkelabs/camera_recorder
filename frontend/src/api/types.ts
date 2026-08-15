@@ -114,6 +114,7 @@ export interface AnalysisResults {
   camera1: CameraAnalysisBlock | null
   camera2: CameraAnalysisBlock | null
   score?: AnalysisScore | null
+  camera_labels?: { camera1?: string; camera2?: string }
 }
 
 export interface CameraAnalysisBlock {
@@ -128,6 +129,7 @@ export interface AnalysisScore {
   grade?: string | null
   strengths?: string[]
   focus?: string[]
+  focus_areas?: string[]
   breakdown?: Record<string, unknown>
 }
 

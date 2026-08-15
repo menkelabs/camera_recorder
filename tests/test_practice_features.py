@@ -121,6 +121,25 @@ class TestScoreAnalysis(unittest.TestCase):
         result = score_analysis(_good_analysis())
         self.assertEqual(len(result['breakdown']), 11)
 
+    def test_focus_alias_matches_focus_areas(self):
+        result = score_analysis(_poor_analysis())
+        self.assertEqual(result['focus'], result['focus_areas'])
+        self.assertTrue(result['focus'])
+
+    def test_sway_uses_worst_side_magnitude(self):
+        analysis = _good_analysis()
+        analysis['camera1']['summary']['max_sway_left'] = -80
+        analysis['camera1']['summary']['max_sway_right'] = 5
+        result = score_analysis(analysis)
+        sway = next(e for e in result['breakdown'] if e['key'] == 'sway')
+        self.assertEqual(sway['value'], -80)
+        self.assertEqual(sway['rating'], 'needs_work')
+
+    def test_rate_value_at_band_boundaries(self):
+        self.assertEqual(rate_value(60, (60, 100), (40, 60)), 'good')
+        self.assertEqual(rate_value(40, (60, 100), (40, 60)), 'ok')
+        self.assertEqual(rate_value(100, (60, 100), (40, 60)), 'good')
+
 
 class TestRecordingMeta(unittest.TestCase):
     def setUp(self):
@@ -442,6 +461,30 @@ class TestPracticeSettingsRoles(unittest.TestCase):
             self.assertEqual(fixed['camera_roles']['camera1'], 'face_on')
             self.assertEqual(fixed['camera_roles']['camera2'], 'dtl')
 
+    def test_role_aware_analysis_swaps_physical_cameras(self):
+        from practice_settings import face_on_camera_num, role_aware_analysis
+
+        raw = _good_analysis()
+        default = role_aware_analysis(raw, {
+            'camera_roles': {'camera1': 'face_on', 'camera2': 'dtl'},
+        })
+        self.assertEqual(default['camera2']['summary']['max_shoulder_turn'], 80)
+        self.assertEqual(face_on_camera_num({
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        }), 2)
+
+        swapped = {
+            'camera1': raw['camera2'],
+            'camera2': raw['camera1'],
+        }
+        mapped = role_aware_analysis(swapped, {
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        })
+        unmapped = score_analysis(swapped)
+        mapped_score = score_analysis(mapped)
+        self.assertGreater(mapped_score['score'], unmapped['score'])
+        self.assertGreaterEqual(mapped_score['score'], 80)
+
 
 class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
     def setUp(self):
@@ -485,6 +528,81 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
         # No cameras → checklist fails → session stays off
         self.assertFalse(data.get('enabled'))
         self.assertIn('error', data)
+
+    def test_session_restored_from_settings(self):
+        from practice_settings import update_practice_settings
+        from test_flask_gui import _seed_preview_frames
+        from unittest.mock import MagicMock, patch
+
+        update_practice_settings(self.tmp.name, {'session': {'enabled': True}})
+        _seed_preview_frames(self.mgr)
+        self.mgr.cap1 = MagicMock()
+        self.mgr.cap2 = MagicMock()
+        self.mgr.cap1.isOpened.return_value = True
+        self.mgr.cap2.isOpened.return_value = True
+        with patch.object(self.mgr, 'get_pre_record_checklist', return_value={
+            'ready': True, 'items': [],
+        }), patch.object(self.mgr, 'toggle_auto_detect', return_value={'enabled': True}):
+            result = self.mgr.restore_session_from_settings()
+        self.assertTrue(result['enabled'])
+        self.assertEqual(result['phase'], 'armed')
+
+    def test_session_restore_skips_when_disabled(self):
+        result = self.mgr.restore_session_from_settings()
+        self.assertFalse(result['enabled'])
+        self.assertEqual(result['phase'], 'idle')
+
+    def test_auto_detect_uses_face_on_camera(self):
+        from practice_settings import update_practice_settings
+        from unittest.mock import Mock
+        import numpy as np
+
+        detector = Mock()
+        detector.process_frame.return_value = None
+        self.mgr.auto_detect_enabled = True
+        self.mgr.swing_detector = detector
+        frame = np.zeros((8, 8, 3), dtype=np.uint8)
+
+        for _ in range(4):
+            self.mgr._maybe_auto_detect(frame, 2)
+        detector.process_frame.assert_not_called()
+        for _ in range(4):
+            self.mgr._maybe_auto_detect(frame, 1)
+        detector.process_frame.assert_called()
+
+        detector.reset_mock()
+        self.mgr.auto_detect_frame_counter = 0
+        update_practice_settings(self.tmp.name, {
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        })
+        for _ in range(4):
+            self.mgr._maybe_auto_detect(frame, 1)
+        detector.process_frame.assert_not_called()
+        for _ in range(4):
+            self.mgr._maybe_auto_detect(frame, 2)
+        detector.process_frame.assert_called()
+
+    def test_analysis_score_api_follows_camera_roles(self):
+        raw = _good_analysis()
+        swapped = {
+            'timestamp': '20260715_140000',
+            'camera1': raw['camera2'],
+            'camera2': raw['camera1'],
+        }
+        path = os.path.join(self.tmp.name, 'analysis_20260715_140000.json')
+        with open(path, 'w') as f:
+            json.dump(swapped, f)
+
+        default = self.client.get('/api/analysis/score?timestamp=20260715_140000')
+        self.assertEqual(default.status_code, 200)
+        default_score = default.get_json()['score']
+
+        self.client.post('/api/practice/settings', json={
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        })
+        swapped_roles = self.client.get('/api/analysis/score?timestamp=20260715_140000')
+        self.assertEqual(swapped_roles.status_code, 200)
+        self.assertGreater(swapped_roles.get_json()['score'], default_score)
 
     def test_session_next_when_disabled(self):
         r = self.client.post('/api/session/next')

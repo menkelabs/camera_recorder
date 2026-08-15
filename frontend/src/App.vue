@@ -27,8 +27,8 @@ function onKey(event: KeyboardEvent) {
   if (isFormField(event.target)) return
 
   if (event.code === 'Space') {
+    if (appStore.tab !== 'recording') return
     event.preventDefault()
-    if (appStore.tab !== 'recording') appStore.setTab('recording')
     if (appStore.status?.auto_detect_enabled) return
     const recording = Boolean(appStore.status?.is_recording)
     void (async () => {

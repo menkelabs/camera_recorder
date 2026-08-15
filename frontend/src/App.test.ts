@@ -74,4 +74,19 @@ describe('App shell', () => {
     await userEvent.keyboard(' ')
     await waitFor(() => expect(api.startRecording).toHaveBeenCalled())
   })
+
+  it('Space does not start recording from other tabs', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAppStore().$patch({
+      tab: 'analysis',
+      status: mockStatus(),
+      statusError: null,
+      streamSession: 0,
+    })
+    render(App, { global: { plugins: [pinia] } })
+    await userEvent.keyboard(' ')
+    expect(api.startRecording).not.toHaveBeenCalled()
+    expect(useAppStore().tab).toBe('analysis')
+  })
 })

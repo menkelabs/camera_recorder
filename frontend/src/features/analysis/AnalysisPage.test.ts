@@ -36,7 +36,7 @@ describe('AnalysisPage', () => {
       score: 82,
       grade: 'B',
       strengths: ['Tempo'],
-      focus: ['Sway'],
+      focus_areas: ['Lateral Sway'],
     } as never)
 
     const assign = vi.fn()
@@ -48,6 +48,7 @@ describe('AnalysisPage', () => {
     render(AnalysisPage)
     expect(await screen.findByRole('button', { name: 'Export HTML' })).toBeTruthy()
     expect(await screen.findByText('B')).toBeTruthy()
+    expect(await screen.findByText('Lateral Sway')).toBeTruthy()
 
     await userEvent.click(screen.getByRole('button', { name: 'Export HTML' }))
     expect(assign).toHaveBeenCalledWith('/api/analysis/export?format=html')

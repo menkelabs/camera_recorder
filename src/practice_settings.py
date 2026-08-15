@@ -111,3 +111,34 @@ def camera_labels(settings: Optional[Dict] = None) -> Dict[str, str]:
         'camera1': role_label(roles.get('camera1', 'face_on')),
         'camera2': role_label(roles.get('camera2', 'dtl')),
     }
+
+
+def face_on_camera_num(settings: Optional[Dict] = None) -> int:
+    """Physical camera index (1 or 2) assigned Face-On."""
+    roles = (settings or _empty()).get('camera_roles') or {}
+    return 2 if roles.get('camera1') == 'dtl' else 1
+
+
+def dtl_camera_num(settings: Optional[Dict] = None) -> int:
+    """Physical camera index (1 or 2) assigned Down-the-Line."""
+    return 1 if face_on_camera_num(settings) == 2 else 2
+
+
+def role_aware_analysis(
+    analysis: Optional[Dict[str, Any]],
+    settings: Optional[Dict] = None,
+) -> Dict[str, Any]:
+    """Copy *analysis* with camera1=Face-On and camera2=DTL for scoring/stats.
+
+    Saved JSON always stores physical camera1/camera2. Scoring and Progress
+    metrics follow the user's camera roles, so a swapped setup still grades
+    shoulder turn from the DTL view.
+    """
+    data = dict(analysis or {})
+    if face_on_camera_num(settings) == 1:
+        return data
+    return {
+        **data,
+        'camera1': data.get('camera2'),
+        'camera2': data.get('camera1'),
+    }

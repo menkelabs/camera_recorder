@@ -48,8 +48,10 @@ from practice_reports import (
 )
 from practice_settings import (
     camera_labels,
+    face_on_camera_num,
     get_reference_timestamp,
     load_practice_settings,
+    role_aware_analysis,
     set_reference_timestamp,
     update_practice_settings,
 )
@@ -294,6 +296,34 @@ class CameraManager:
         self.capture_thread2.start()
 
         print("Camera manager started")
+        self.restore_session_from_settings()
+
+    def _face_on_camera_num(self) -> int:
+        """Physical camera used for auto-detect (Face-On view)."""
+        try:
+            return face_on_camera_num(load_practice_settings(_get_recordings_dir()))
+        except Exception:
+            return 1
+
+    def _maybe_auto_detect(self, frame, cam_num: int) -> None:
+        """Run swing detection on the Face-On camera only."""
+        if not self.auto_detect_enabled or not self.swing_detector or self.is_recording:
+            return
+        if cam_num != self._face_on_camera_num():
+            return
+        self.auto_detect_frame_counter += 1
+        if self.auto_detect_frame_counter % 4 != 0:
+            return
+        try:
+            event = self.swing_detector.process_frame(frame)
+            if event == 'start' and not self.is_recording:
+                print("[AutoDetect] Swing detected — starting recording")
+                self.start_recording()
+            elif event == 'stop' and self.is_recording:
+                print("[AutoDetect] Swing ended — stopping recording")
+                self.stop_recording()
+        except Exception as e:
+            print(f"[AutoDetect] Error: {e}")
 
     def _capture_loop_cam1(self):
         """Dedicated thread for camera 1 only."""
@@ -306,21 +336,7 @@ class CameraManager:
                 if ret:
                     with self.frame_lock:
                         self.latest_frame1 = frame
-
-                    # Auto-detect: process every 4th frame (~15 fps)
-                    if self.auto_detect_enabled and self.swing_detector and not self.is_recording:
-                        self.auto_detect_frame_counter += 1
-                        if self.auto_detect_frame_counter % 4 == 0:
-                            try:
-                                event = self.swing_detector.process_frame(frame)
-                                if event == 'start' and not self.is_recording:
-                                    print("[AutoDetect] Swing detected — starting recording")
-                                    self.start_recording()
-                                elif event == 'stop' and self.is_recording:
-                                    print("[AutoDetect] Swing ended — stopping recording")
-                                    self.stop_recording()
-                            except Exception as e:
-                                print(f"[AutoDetect] Error: {e}")
+                    self._maybe_auto_detect(frame, 1)
             time.sleep(1.0 / 60)
 
     def _capture_loop_cam2(self):
@@ -338,6 +354,7 @@ class CameraManager:
                 if ret:
                     with self.frame_lock:
                         self.latest_frame2 = frame
+                    self._maybe_auto_detect(frame, 2)
             time.sleep(1.0 / 60)
 
     def get_frame(self, camera_num: int) -> Optional[np.ndarray]:
@@ -800,7 +817,7 @@ class CameraManager:
     # Session mode
     # ------------------------------------------------------------------
 
-    def set_session_enabled(self, enabled: bool) -> dict:
+    def set_session_enabled(self, enabled: bool, *, persist: bool = True) -> dict:
         """Enable/disable practice session loop."""
         settings = load_practice_settings(_get_recordings_dir())
         session_prefs = settings.get('session') or {}
@@ -839,10 +856,22 @@ class CameraManager:
                 self.toggle_auto_detect()
             self.status_message = 'Session mode off'
             self.status_time = time.time()
-        update_practice_settings(_get_recordings_dir(), {
-            'session': {**session_prefs, 'enabled': self.session_enabled}
-        })
+        if persist:
+            update_practice_settings(_get_recordings_dir(), {
+                'session': {**session_prefs, 'enabled': self.session_enabled}
+            })
         return self.get_session_status()
+
+    def restore_session_from_settings(self) -> dict:
+        """Re-arm session mode if the active user left it enabled."""
+        try:
+            settings = load_practice_settings(_get_recordings_dir())
+        except Exception:
+            return self.get_session_status()
+        if not (settings.get('session') or {}).get('enabled'):
+            return self.get_session_status()
+        # Do not persist a failed restore — cameras may come online later.
+        return self.set_session_enabled(True, persist=False)
 
     def session_next(self) -> dict:
         """Advance from review → armed for the next swing."""
@@ -1072,18 +1101,10 @@ class CameraManager:
         labels = camera_labels(settings)
         results['camera_labels'] = labels
 
-        # Score using face-on / DTL roles (swap if user assigned cam1 as DTL)
-        score_payload = {
+        results['score'] = score_analysis(role_aware_analysis({
             'camera1': self.analysis_camera1,
             'camera2': self.analysis_camera2,
-        }
-        roles = settings.get('camera_roles') or {}
-        if roles.get('camera1') == 'dtl':
-            score_payload = {
-                'camera1': self.analysis_camera2,
-                'camera2': self.analysis_camera1,
-            }
-        results['score'] = score_analysis(score_payload)
+        }, settings))
         results['session'] = self.get_session_status()
 
         return results
@@ -1130,7 +1151,8 @@ class CameraManager:
             'camera1': _serialise_cam(self.analysis_camera1),
             'camera2': _serialise_cam(self.analysis_camera2),
         }
-        payload['score'] = score_analysis(payload)
+        settings = load_practice_settings(_get_recordings_dir())
+        payload['score'] = score_analysis(role_aware_analysis(payload, settings))
         try:
             with open(path, 'w') as f:
                 json.dump(payload, f)
@@ -1886,6 +1908,8 @@ def api_claim_recording(timestamp):
         claimed = get_db(_get_recordings_dir()).claim_recording(timestamp)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except PermissionError as e:
+        return jsonify({'error': str(e)}), 409
     return jsonify(claimed)
 
 
@@ -2237,15 +2261,28 @@ def api_progress():
 
     # Fallback: scan analysis_*.json (pre-DB installs / empty index)
     analyses_meta = _list_saved_analyses()
+    owners = {}
+    active = None
+    try:
+        db = get_db(rec_dir)
+        owners = db.ownership_map()
+        active = db.get_active_user_id()
+    except Exception:
+        pass
+    settings = load_practice_settings(rec_dir)
     loaded = []
     for item in analyses_meta:
-        data = _load_analysis(item['timestamp'])
+        ts = item['timestamp']
+        owner = owners.get(ts)
+        if owner is not None and active is not None and owner != active:
+            continue
+        data = _load_analysis(ts)
         if not data:
             continue
-        data.setdefault('timestamp', item['timestamp'])
+        data.setdefault('timestamp', ts)
         data.setdefault('date', item.get('date'))
         if 'score' not in data:
-            data['score'] = score_analysis(data)
+            data['score'] = score_analysis(role_aware_analysis(data, settings))
         loaded.append(data)
         try:
             get_db(rec_dir).upsert_swing_stats(data)
@@ -2259,20 +2296,21 @@ def api_analysis_score():
     """
     Score the current in-memory analysis, or a saved one via ?timestamp=.
     """
+    settings = load_practice_settings(_get_recordings_dir())
     ts = request.args.get('timestamp')
     if ts:
         data = _load_analysis(ts)
         if data is None:
             return jsonify({'error': f'Analysis not found for {ts}'}), 404
-        return jsonify(score_analysis(data))
+        return jsonify(score_analysis(role_aware_analysis(data, settings)))
 
     mgr = get_manager()
     if mgr is None or (mgr.analysis_camera1 is None and mgr.analysis_camera2 is None):
         return jsonify({'error': 'No analysis results'}), 404
-    return jsonify(score_analysis({
+    return jsonify(score_analysis(role_aware_analysis({
         'camera1': mgr.analysis_camera1,
         'camera2': mgr.analysis_camera2,
-    }))
+    }, settings)))
 
 
 @app.route('/api/analysis/export')
@@ -2308,7 +2346,12 @@ def api_analysis_export():
                 if m:
                     data['timestamp'] = m.group(1)
 
-    scored = data.get('score') if isinstance(data.get('score'), dict) else score_analysis(data)
+    settings = load_practice_settings(_get_recordings_dir())
+    scored = (
+        data.get('score')
+        if isinstance(data.get('score'), dict)
+        else score_analysis(role_aware_analysis(data, settings))
+    )
     stamp = data.get('timestamp') or 'current'
 
     if fmt == 'csv':

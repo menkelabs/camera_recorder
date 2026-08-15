@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../../api/client'
-import type { AnalysisListItem, CompareResponse } from '../../api/types'
+import type { AnalysisListItem, CompareResponse, PracticeSettings } from '../../api/types'
 import LineChart from '../../components/LineChart.vue'
+import { useAppStore } from '../../store/appStore'
 import styles from './ComparePage.module.css'
 
-const CAM1_KEYS = [
+const FACE_ON_KEYS = [
   'max_sway_left',
   'max_sway_right',
   'max_head_sway_left',
@@ -13,13 +14,14 @@ const CAM1_KEYS = [
   'tempo_ratio',
   'address_knee_flex',
 ]
-const CAM2_KEYS = [
+const DTL_KEYS = [
   'max_shoulder_turn',
   'max_hip_turn',
   'max_x_factor',
   'address_spine_angle',
   'min_lead_arm_angle',
 ]
+const FACE_ON_METRICS = new Set(['sway'])
 
 function seriesFromSwing(
   swing: Record<string, unknown> | undefined,
@@ -32,7 +34,9 @@ function seriesFromSwing(
   return arr.map((v) => (typeof v === 'number' ? v : null))
 }
 
+const appStore = useAppStore()
 const analyses = ref<AnalysisListItem[]>([])
+const settings = ref<PracticeSettings | null>(null)
 const a = ref('')
 const b = ref('')
 const data = ref<CompareResponse | null>(null)
@@ -40,10 +44,27 @@ const metric = ref('shoulder_turn')
 const error = ref<string | null>(null)
 const loading = ref(false)
 
+const sameSwing = computed(() => Boolean(a.value && b.value && a.value === b.value))
+const faceOnCam = computed<'camera1' | 'camera2'>(() =>
+  settings.value?.camera_roles?.camera1 === 'dtl' ? 'camera2' : 'camera1',
+)
+const dtlCam = computed<'camera1' | 'camera2'>(() =>
+  faceOnCam.value === 'camera1' ? 'camera2' : 'camera1',
+)
+const faceOnLabel = computed(
+  () => settings.value?.camera_labels?.[faceOnCam.value] || 'Face-On',
+)
+const dtlLabel = computed(
+  () => settings.value?.camera_labels?.[dtlCam.value] || 'Down-the-Line',
+)
+const faceOnDeltas = computed(() => data.value?.deltas[faceOnCam.value] || null)
+const dtlDeltas = computed(() => data.value?.deltas[dtlCam.value] || null)
+
 const chartSeries = computed(() => {
   if (!data.value) return []
-  const sa = seriesFromSwing(data.value.swing_a, 'camera2', metric.value)
-  const sb = seriesFromSwing(data.value.swing_b, 'camera2', metric.value)
+  const cam = FACE_ON_METRICS.has(metric.value) ? faceOnCam.value : dtlCam.value
+  const sa = seriesFromSwing(data.value.swing_a, cam, metric.value)
+  const sb = seriesFromSwing(data.value.swing_b, cam, metric.value)
   const n = Math.max(sa.length, sb.length, 1)
   const norm = (arr: Array<number | null>) => {
     if (arr.length === 0) return Array.from({ length: n }, () => null)
@@ -58,20 +79,29 @@ const chartSeries = computed(() => {
   ]
 })
 
+function pickDefaults(list: AnalysisListItem[], reference?: string | null) {
+  const prefill = appStore.comparePrefill
+  const timestamps = list.map((item) => item.timestamp)
+  const preferredA =
+    (prefill?.a && timestamps.includes(prefill.a) && prefill.a) ||
+    (reference && timestamps.includes(reference) && reference) ||
+    list[0]?.timestamp ||
+    ''
+  const preferredB =
+    (prefill?.b && timestamps.includes(prefill.b) && prefill.b !== preferredA && prefill.b) ||
+    list.find((item) => item.timestamp !== preferredA)?.timestamp ||
+    ''
+  a.value = preferredA
+  b.value = preferredB
+  if (prefill) appStore.setComparePrefill(null)
+}
+
 onMounted(() => {
-  void api
-    .listAnalyses()
-    .then((res) => {
+  void Promise.all([api.listAnalyses(), api.practiceSettings()])
+    .then(([res, practice]) => {
       analyses.value = res.analyses || []
-      const reference = res.reference_timestamp
-      const list = res.analyses || []
-      if (list.length) {
-        a.value =
-          reference && list.some((item) => item.timestamp === reference)
-            ? reference
-            : list[0].timestamp
-        b.value = list[Math.min(1, list.length - 1)].timestamp
-      }
+      settings.value = practice
+      pickDefaults(res.analyses || [], res.reference_timestamp)
     })
     .catch((err) => {
       error.value = err instanceof Error ? err.message : 'Failed to load analyses'
@@ -79,7 +109,7 @@ onMounted(() => {
 })
 
 async function runCompare() {
-  if (!a.value || !b.value) return
+  if (!a.value || !b.value || sameSwing.value) return
   loading.value = true
   error.value = null
   try {
@@ -94,6 +124,11 @@ async function runCompare() {
 
 watch([a, b], ([nextA, nextB], _previous, onCleanup) => {
   if (!nextA || !nextB) return
+  if (nextA === nextB) {
+    data.value = null
+    error.value = 'Same swing — select two different swings.'
+    return
+  }
   let cancelled = false
   onCleanup(() => {
     cancelled = true
@@ -156,7 +191,7 @@ function metricLabel(value: string) {
           </option>
         </select>
       </label>
-      <button type="button" :disabled="loading || !a || !b" @click="runCompare">
+      <button type="button" :disabled="loading || !a || !b || sameSwing" @click="runCompare">
         {{ loading ? 'Comparing...' : 'Refresh' }}
       </button>
     </div>
@@ -165,24 +200,25 @@ function metricLabel(value: string) {
     <p v-if="!analyses.length" :class="styles.empty">
       No saved analyses yet - record and analyze first.
     </p>
+    <p v-else-if="analyses.length === 1" :class="styles.empty">
+      Only one analyzed swing so far — record another to compare.
+    </p>
 
-    <template v-if="data">
+    <template v-if="data && !sameSwing">
       <div :class="styles.deltas">
         <div :class="styles.card">
-          <h3>Camera 1 (Face-On)</h3>
-          <p v-if="!data.deltas.camera1" :class="styles.empty">No summary data</p>
+          <h3>{{ faceOnLabel }}</h3>
+          <p v-if="!faceOnDeltas" :class="styles.empty">No summary data</p>
           <div v-else :class="styles.deltaGrid">
-            <template v-for="key in CAM1_KEYS" :key="key">
-              <div v-if="data.deltas.camera1[key]" :class="styles.deltaItem">
+            <template v-for="key in FACE_ON_KEYS" :key="key">
+              <div v-if="faceOnDeltas[key]" :class="styles.deltaItem">
                 <span>{{ metricLabel(key) }}</span>
-                <strong>{{ fmt(data.deltas.camera1[key].a) }} -&gt; {{ fmt(data.deltas.camera1[key].b) }}</strong>
-                <em :class="deltaClass(data.deltas.camera1[key].delta)">
+                <strong>{{ fmt(faceOnDeltas[key].a) }} -&gt; {{ fmt(faceOnDeltas[key].b) }}</strong>
+                <em :class="deltaClass(faceOnDeltas[key].delta)">
                   {{
-                    data.deltas.camera1[key].delta == null
+                    faceOnDeltas[key].delta == null
                       ? '-'
-                      : `${data.deltas.camera1[key].delta > 0 ? '+' : ''}${data.deltas.camera1[
-                          key
-                        ].delta.toFixed(1)}`
+                      : `${faceOnDeltas[key].delta > 0 ? '+' : ''}${faceOnDeltas[key].delta.toFixed(1)}`
                   }}
                 </em>
               </div>
@@ -190,20 +226,18 @@ function metricLabel(value: string) {
           </div>
         </div>
         <div :class="styles.card">
-          <h3>Camera 2 (DTL)</h3>
-          <p v-if="!data.deltas.camera2" :class="styles.empty">No summary data</p>
+          <h3>{{ dtlLabel }}</h3>
+          <p v-if="!dtlDeltas" :class="styles.empty">No summary data</p>
           <div v-else :class="styles.deltaGrid">
-            <template v-for="key in CAM2_KEYS" :key="key">
-              <div v-if="data.deltas.camera2[key]" :class="styles.deltaItem">
+            <template v-for="key in DTL_KEYS" :key="key">
+              <div v-if="dtlDeltas[key]" :class="styles.deltaItem">
                 <span>{{ metricLabel(key) }}</span>
-                <strong>{{ fmt(data.deltas.camera2[key].a) }} -&gt; {{ fmt(data.deltas.camera2[key].b) }}</strong>
-                <em :class="deltaClass(data.deltas.camera2[key].delta)">
+                <strong>{{ fmt(dtlDeltas[key].a) }} -&gt; {{ fmt(dtlDeltas[key].b) }}</strong>
+                <em :class="deltaClass(dtlDeltas[key].delta)">
                   {{
-                    data.deltas.camera2[key].delta == null
+                    dtlDeltas[key].delta == null
                       ? '-'
-                      : `${data.deltas.camera2[key].delta > 0 ? '+' : ''}${data.deltas.camera2[
-                          key
-                        ].delta.toFixed(1)}`
+                      : `${dtlDeltas[key].delta > 0 ? '+' : ''}${dtlDeltas[key].delta.toFixed(1)}`
                   }}
                 </em>
               </div>

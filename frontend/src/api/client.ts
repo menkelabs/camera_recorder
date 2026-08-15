@@ -102,7 +102,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ index }),
     }),
-  analysisScore: () => jsonFetch<AnalysisScore>('/api/analysis/score'),
+  analysisScore: (timestamp?: string) => {
+    const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
+    return jsonFetch<AnalysisScore>(`/api/analysis/score${q}`)
+  },
   analysisExportUrl: (format: 'html' | 'csv', timestamp?: string) => {
     const q = new URLSearchParams({ format })
     if (timestamp) q.set('timestamp', timestamp)
@@ -125,7 +128,10 @@ export const api = {
   analysisClipUrl: (filename: string) =>
     `/api/analysis/clip/${encodeURIComponent(filename)}`,
 
-  listRecordings: () => jsonFetch<RecordingsResponse>('/api/recordings'),
+  listRecordings: (opts?: { scope?: 'mine' | 'all' | 'unclaimed' }) => {
+    const q = opts?.scope ? `?scope=${encodeURIComponent(opts.scope)}` : ''
+    return jsonFetch<RecordingsResponse>(`/api/recordings${q}`)
+  },
   deleteRecording: (ts: string) =>
     jsonFetch<{ deleted?: boolean; error?: string }>(`/api/recordings/${ts}`, {
       method: 'DELETE',

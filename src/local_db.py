@@ -601,13 +601,25 @@ class LocalDB:
         with self._lock:
             uid = user_id if user_id is not None else self.get_active_user_id()
             self._get_user_row(uid)
+            row = self._require().execute(
+                'SELECT user_id FROM recording_owners WHERE timestamp = ?',
+                (timestamp,),
+            ).fetchone()
+            if row:
+                owner = int(row['user_id'])
+                if owner != uid:
+                    raise PermissionError(
+                        'Recording already claimed by another player'
+                    )
+                return {
+                    'timestamp': timestamp,
+                    'user_id': uid,
+                    'already_owned': True,
+                }
             self._require().execute(
                 """
                 INSERT INTO recording_owners(timestamp, user_id, claimed_at)
                 VALUES (?, ?, ?)
-                ON CONFLICT(timestamp) DO UPDATE SET
-                  user_id = excluded.user_id,
-                  claimed_at = excluded.claimed_at
                 """,
                 (timestamp, uid, _now()),
             )
@@ -1001,6 +1013,7 @@ class LocalDB:
         source_path: Optional[str] = None,
         user_id: Optional[int] = None,
     ) -> None:
+        from practice_settings import load_practice_settings, role_aware_analysis
         from swing_score import score_analysis
 
         ts = analysis.get('timestamp')
@@ -1008,12 +1021,17 @@ class LocalDB:
             raise ValueError(f'Invalid analysis timestamp: {ts}')
 
         uid = user_id if user_id is not None else self.get_active_user_id()
+        try:
+            settings = load_practice_settings(self.recordings_dir)
+        except Exception:
+            settings = None
+        mapped = role_aware_analysis(analysis, settings)
         scored = analysis.get('score')
         if not isinstance(scored, dict) or scored.get('score') is None:
-            scored = score_analysis(analysis)
+            scored = score_analysis(mapped)
 
         def summary(cam: int) -> Dict:
-            block = analysis.get('camera1' if cam == 1 else 'camera2') or {}
+            block = mapped.get('camera1' if cam == 1 else 'camera2') or {}
             return block.get('summary') or {}
 
         s1 = summary(1)

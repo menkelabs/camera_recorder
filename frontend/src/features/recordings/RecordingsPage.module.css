@@ -137,7 +137,8 @@
   gap: 6px;
 }
 
-.notesEdit textarea {
+.notesEdit textarea,
+.notesEdit input {
   width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border);
