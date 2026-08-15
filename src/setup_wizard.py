@@ -22,10 +22,14 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from install_config import (
+    app_home,
     default_install_config,
+    is_frozen,
     load_install_config,
     resolve_recordings_dir,
+    resource_path,
     save_install_config,
+    source_root,
     venv_python,
 )
 
@@ -69,11 +73,19 @@ print(json.dumps({"cameras": found}))
 
 
 def project_root_from_here() -> str:
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return app_home()
 
 
 def html_path(root: str) -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), HTML_NAME)
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), HTML_NAME),
+        resource_path('src', HTML_NAME),
+        resource_path(HTML_NAME),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return candidates[0]
 
 
 def _which(name: str) -> Optional[str]:
@@ -93,6 +105,44 @@ def _run_version(cmd: List[str]) -> Optional[str]:
 
 def check_prerequisites(root: str, python_exe: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return check rows. ``required`` items must pass before install jobs."""
+    if is_frozen():
+        dist = os.path.join(resource_path('frontend', 'dist'), 'index.html')
+        writable = os.access(root, os.W_OK) or not os.path.exists(root)
+        try:
+            os.makedirs(root, exist_ok=True)
+            writable = os.access(root, os.W_OK)
+        except OSError as exc:
+            return [{
+                'id': 'writable',
+                'label': 'User data folder is writable',
+                'ok': False,
+                'required': True,
+                'detail': str(exc),
+            }]
+        return [
+            {
+                'id': 'bundled',
+                'label': 'SwingLab application bundle',
+                'ok': True,
+                'required': True,
+                'detail': sys.executable,
+            },
+            {
+                'id': 'ui_built',
+                'label': 'Vue UI bundled',
+                'ok': os.path.isfile(dist),
+                'required': True,
+                'detail': dist,
+            },
+            {
+                'id': 'writable',
+                'label': 'User data folder is writable',
+                'ok': writable,
+                'required': True,
+                'detail': root,
+            },
+        ]
+
     exe = python_exe or sys.executable
     version = sys.version_info
     py_ok = version >= (3, 10)
@@ -218,6 +268,15 @@ class JobRunner:
             return json.loads(json.dumps(self.jobs))
 
     def start(self, name: str) -> Dict[str, Any]:
+        if is_frozen():
+            with self.lock:
+                self.jobs[name] = {
+                    'status': 'ok',
+                    'log': ['Bundled install — this step is already included.\n'],
+                    'error': None,
+                    'returncode': 0,
+                }
+                return self.jobs[name]
         with self.lock:
             current = self.jobs[name]
             if current['status'] == 'running':
@@ -302,7 +361,48 @@ def suggest_cameras(cameras: List[Dict[str, Any]]) -> Dict[str, int]:
     return {'camera1_id': 0, 'camera2_id': 2 if os.name == 'nt' else 1}
 
 
+def _detect_cameras_inplace() -> Dict[str, Any]:
+    try:
+        import cv2
+    except Exception as exc:
+        return {
+            'cameras': [],
+            'error': 'opencv_missing',
+            'message': str(exc),
+        }
+    found: List[Dict[str, Any]] = []
+    for idx in range(8):
+        cap = None
+        try:
+            if sys.platform == 'win32':
+                cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+            else:
+                cap = cv2.VideoCapture(idx)
+            if not cap.isOpened():
+                continue
+            ok, frame = cap.read()
+            found.append({
+                'id': idx,
+                'width': int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0),
+                'height': int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
+                'status': 'ok' if ok and frame is not None else 'opens_but_no_frames',
+            })
+        except Exception as exc:
+            found.append({'id': idx, 'status': 'error', 'detail': str(exc)})
+        finally:
+            if cap is not None:
+                cap.release()
+    suggested = suggest_cameras(found)
+    return {
+        'cameras': found,
+        'suggested': suggested,
+        'message': f'Found {len(found)} camera index(es).',
+    }
+
+
 def detect_cameras(root: str) -> Dict[str, Any]:
+    if is_frozen():
+        return _detect_cameras_inplace()
     py = venv_python(root) or sys.executable
     proc = subprocess.run(
         [py, '-c', _DETECT_SNIPPET],
@@ -363,6 +463,8 @@ def merge_platform_camera_config(
 
 
 def write_launchers(root: str) -> List[str]:
+    if is_frozen():
+        return []
     written = []
     bat = os.path.join(root, 'Start SwingLab.bat')
     with open(bat, 'w', encoding='utf-8', newline='\r\n') as fh:
@@ -431,9 +533,37 @@ def write_desktop_shortcut(root: str) -> Optional[str]:
     return dest
 
 
+def _apply_studio_inprocess(root: str, config: Dict[str, Any]) -> List[str]:
+    from local_db import get_db
+    from practice_settings import update_practice_settings
+
+    rec_dir = resolve_recordings_dir(root, config=config)
+    os.makedirs(rec_dir, exist_ok=True)
+    name = config.get('player_name') or 'Player 1'
+    roles = config.get('camera_roles') or {}
+    db = get_db(rec_dir)
+    users = db.list_users()
+    if users:
+        db.update_user(users[0]['id'], name=name)
+    else:
+        db.create_user(name)
+    if roles:
+        update_practice_settings(rec_dir, {'camera_roles': roles})
+    return ['player and camera roles saved']
+
+
 def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     """Rename default player and set camera roles using the venv, if ready."""
     notes = []
+    if is_frozen():
+        try:
+            return _apply_studio_inprocess(root, config)
+        except Exception as exc:
+            return [str(exc)]
+    try:
+        return _apply_studio_inprocess(root, config)
+    except Exception:
+        pass
     py = venv_python(root)
     if not py:
         notes.append('venv not ready; player/roles will be applied on first app start')
@@ -497,6 +627,7 @@ def finish_install(
         shortcut = write_desktop_shortcut(root)
     notes = apply_studio_extras(root, saved)
     port = int(saved.get('port') or 5000)
+    start = sys.executable if is_frozen() else 'python scripts/start_swinglab.py'
     return {
         'ok': True,
         'config_path': path,
@@ -506,21 +637,29 @@ def finish_install(
         'shortcut': shortcut,
         'notes': notes,
         'url': f'http://127.0.0.1:{port}',
-        'start': 'python scripts/start_swinglab.py',
+        'start': start,
+        'frozen': is_frozen(),
     }
 
 
 def start_app(root: str) -> Dict[str, Any]:
     cfg = load_install_config(root) or default_install_config(root)
-    py = venv_python(root) or sys.executable
-    script = os.path.join(root, 'scripts', 'start_swinglab.py')
-    if not os.path.isfile(script):
-        script = os.path.join(root, 'scripts', 'flask_gui.py')
     env = os.environ.copy()
     env['SWINGLAB_RECORDINGS_DIR'] = resolve_recordings_dir(root, env=env, config=cfg)
+    env['SWINGLAB_HOME'] = root
+    if is_frozen():
+        cmd = [sys.executable, '--skip-setup']
+        cwd = os.path.dirname(sys.executable)
+    else:
+        py = venv_python(root) or sys.executable
+        script = os.path.join(source_root(), 'scripts', 'start_swinglab.py')
+        if not os.path.isfile(script):
+            script = os.path.join(source_root(), 'scripts', 'flask_gui.py')
+        cmd = [py, script]
+        cwd = source_root()
     subprocess.Popen(
-        [py, script],
-        cwd=root,
+        cmd,
+        cwd=cwd,
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -561,6 +700,7 @@ def handle_request(
     if method == 'GET' and route == '/api/state':
         status, payload = _json_bytes({
             'root': state.root,
+            'frozen': is_frozen(),
             'config': load_install_config(state.root),
             'jobs': state.jobs.snapshot(),
         })
@@ -664,8 +804,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args(argv)
     root = os.path.abspath(args.root)
-    if not os.path.isdir(root):
-        print(f'Project root not found: {root}', file=sys.stderr)
+    try:
+        os.makedirs(root, exist_ok=True)
+    except OSError as exc:
+        print(f'Cannot create data folder {root}: {exc}', file=sys.stderr)
         return 2
     server = serve_wizard(
         root, host=args.host, port=args.port, open_browser=not args.no_browser,

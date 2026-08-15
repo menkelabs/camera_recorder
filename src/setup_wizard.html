@@ -99,7 +99,7 @@
     </div>
   </footer>
   <script>
-    const STEPS = [
+    const DEV_STEPS = [
       { id: "welcome", label: "Welcome" },
       { id: "check", label: "Prerequisites" },
       { id: "python", label: "Python packages" },
@@ -108,6 +108,15 @@
       { id: "studio", label: "Studio" },
       { id: "done", label: "Finish" },
     ];
+    const FROZEN_STEPS = [
+      { id: "welcome", label: "Welcome" },
+      { id: "check", label: "This PC" },
+      { id: "cameras", label: "Cameras" },
+      { id: "studio", label: "Studio" },
+      { id: "done", label: "Finish" },
+    ];
+    let STEPS = DEV_STEPS;
+    let frozen = false;
     let step = 0;
     let checks = [];
     let cameras = [];
@@ -153,6 +162,21 @@
     }
 
     function renderWelcome() {
+      if (frozen) {
+        $("panel").innerHTML = `
+          <h1>Set up this machine</h1>
+          <p class="lead">SwingLab is already installed. This wizard picks cameras and the first player. Recordings stay in your user folder, not inside Program Files.</p>
+          <div class="card">
+            <ol>
+              <li>Confirm this PC can write user data</li>
+              <li>Detect Face-On and Down-the-Line USB cameras</li>
+              <li>Name the first player and choose a recordings folder</li>
+            </ol>
+          </div>
+          <p class="lead">After this, start SwingLab from the Start Menu or desktop shortcut.</p>
+        `;
+        return;
+      }
       $("panel").innerHTML = `
         <h1>Set up this machine</h1>
         <p class="lead">This wizard installs Python packages, builds the Vue UI, and writes camera / studio settings. You only need Python 3.10+ to start it. Node.js is required for the web UI step.</p>
@@ -178,7 +202,7 @@
       }).join("");
       $("panel").innerHTML = `
         <h1>Prerequisites</h1>
-        <p class="lead">Required items must be OK before packages can install. Node is required to build the UI.</p>
+        <p class="lead">${frozen ? "The installer already bundled Python, OpenCV, MediaPipe, and the Vue UI." : "Required items must be OK before packages can install. Node is required to build the UI."}</p>
         <div class="card">${rows || "Click Continue to scan this machine."}</div>
       `;
     }
@@ -261,7 +285,7 @@
               </select>
             </label>
           </div>
-          <label class="row" style="flex-direction:row;margin-top:.75rem">
+          <label class="row" style="flex-direction:row;margin-top:.75rem" ${frozen ? "hidden" : ""}>
             <input id="shortcut" type="checkbox" ${settings.desktop_shortcut ? "checked" : ""}>
             Create a desktop shortcut
           </label>
@@ -277,8 +301,8 @@
         <p class="lead">This machine is configured. Daily start does not need the wizard again unless you move cameras or reinstall.</p>
         <div class="card">
           <p>App URL: <a href="${url}" style="color:var(--accent)">${url}</a></p>
-          <p>Start: <code>python scripts/start_swinglab.py</code></p>
-          <p>Or double-click <code>Start SwingLab.bat</code> / <code>start-swinglab.sh</code></p>
+          <p>Start: <code>${finishInfo && finishInfo.start ? finishInfo.start : (frozen ? "SwingLab" : "python scripts/start_swinglab.py")}</code></p>
+          <p>${frozen ? "Use the Start Menu or desktop shortcut next time." : "Or double-click Start SwingLab.bat / start-swinglab.sh"}</p>
         </div>
         <div class="row">
           <button type="button" id="launch">Start SwingLab now</button>
@@ -393,6 +417,10 @@
             }
           }
           step += 1;
+          if (frozen) {
+            await refresh();
+            return;
+          }
           await refresh();
           const result = await startJob("python", "Python packages", "Creates .venv and runs pip install -r requirements.txt. This can take several minutes (OpenCV, MediaPipe).");
           if (result !== "ok") return;
@@ -453,7 +481,20 @@
     $("next").onclick = onNext;
     $("back").onclick = onBack;
     $("skip").onclick = onSkip;
-    refresh();
+
+    (async function boot() {
+      try {
+        const state = await api("/api/state");
+        frozen = Boolean(state.frozen);
+        STEPS = frozen ? FROZEN_STEPS : DEV_STEPS;
+        if (state.config) {
+          settings = { ...settings, ...state.config, desktop_shortcut: false };
+        }
+      } catch (err) {
+        setMsg(err.message, "bad");
+      }
+      await refresh();
+    })();
   </script>
 </body>
 </html>

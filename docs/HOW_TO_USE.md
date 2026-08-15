@@ -6,7 +6,22 @@ The product UI is the browser.
 
 ---
 
-## First-run setup (wizard)
+## Windows installer (double-click)
+
+On a Windows studio PC you do **not** need Python or Node installed.
+
+1. Build (or download) **SwingLab-Setup-1.1.0.exe** — see [packaging/README.md](../packaging/README.md).
+2. Run the setup wizard. It installs to `%LOCALAPPDATA%\Programs\SwingLab` (no admin required).
+3. On first launch, SwingLab opens the camera / player wizard in a browser.
+4. Daily start: **SwingLab** from the Start Menu or desktop.
+
+Recordings and `swinglab.local.json` live in `%LOCALAPPDATA%\SwingLab`, not inside Program Files.
+
+Re-run setup later: `SwingLab.exe --setup`.
+
+---
+
+## First-run from source (wizard)
 
 On the machine that has the cameras, install **Python 3.10+** and **Node.js LTS**, then:
 

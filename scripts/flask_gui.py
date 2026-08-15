@@ -30,7 +30,7 @@ from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
 from swing_detector import SwingDetector
 from camera_utils import get_camera_ids, load_camera_config, create_camera_capture
-from install_config import load_install_config, resolve_recordings_dir
+from install_config import app_home, bundle_dir, load_install_config, resolve_recordings_dir
 from swing_score import score_analysis
 from recording_meta import (
     attach_meta_to_pairs,
@@ -434,8 +434,7 @@ class CameraManager:
                 }
 
         filename = f"camera_settings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(project_root, filename)
+        filepath = os.path.join(_project_root, filename)
 
         try:
             with open(filepath, 'w') as f:
@@ -1253,7 +1252,7 @@ class CameraManager:
 # Flask application
 # ======================================================================
 
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = app_home()
 
 app = Flask(__name__)
 
@@ -1335,7 +1334,7 @@ def generate_frames(camera_num: int):
 # Routes — Vue SPA (frontend/dist). The v1 Flask template is retired.
 # ------------------------------------------------------------------
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_PROJECT_ROOT = bundle_dir()
 _FRONTEND_DIST = os.path.join(_PROJECT_ROOT, 'frontend', 'dist')
 
 _MISSING_FRONTEND_HTML = """<!DOCTYPE html>
@@ -2884,7 +2883,8 @@ def main():
         description='SwingLab Flask API + cameras. Serves frontend/dist. See docs/HOW_TO_USE.md.',
     )
     install = load_install_config(_project_root) or {}
-    default_cam1, default_cam2 = get_camera_ids()
+    os.makedirs(_project_root, exist_ok=True)
+    default_cam1, default_cam2 = get_camera_ids(root=_project_root)
     default_cam1 = int(install.get('camera1_id', default_cam1))
     default_cam2 = int(install.get('camera2_id', default_cam2))
     default_width = int(install.get('width', 1280))
