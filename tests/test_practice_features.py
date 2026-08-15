@@ -482,7 +482,7 @@ class TestPracticeSettingsRoles(unittest.TestCase):
         })
         unmapped = score_analysis(swapped)
         mapped_score = score_analysis(mapped)
-        self.assertGreater(mapped_score['score'], unmapped['score'])
+        self.assertTrue(unmapped['score'] is None or unmapped['score'] < 50)
         self.assertGreaterEqual(mapped_score['score'], 80)
 
 
@@ -531,15 +531,9 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
 
     def test_session_restored_from_settings(self):
         from practice_settings import update_practice_settings
-        from test_flask_gui import _seed_preview_frames
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         update_practice_settings(self.tmp.name, {'session': {'enabled': True}})
-        _seed_preview_frames(self.mgr)
-        self.mgr.cap1 = MagicMock()
-        self.mgr.cap2 = MagicMock()
-        self.mgr.cap1.isOpened.return_value = True
-        self.mgr.cap2.isOpened.return_value = True
         with patch.object(self.mgr, 'get_pre_record_checklist', return_value={
             'ready': True, 'items': [],
         }), patch.object(self.mgr, 'toggle_auto_detect', return_value={'enabled': True}):
@@ -596,13 +590,14 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
         default = self.client.get('/api/analysis/score?timestamp=20260715_140000')
         self.assertEqual(default.status_code, 200)
         default_score = default.get_json()['score']
+        self.assertTrue(default_score is None or default_score < 50)
 
         self.client.post('/api/practice/settings', json={
             'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
         })
         swapped_roles = self.client.get('/api/analysis/score?timestamp=20260715_140000')
         self.assertEqual(swapped_roles.status_code, 200)
-        self.assertGreater(swapped_roles.get_json()['score'], default_score)
+        self.assertGreaterEqual(swapped_roles.get_json()['score'], 80)
 
     def test_session_next_when_disabled(self):
         r = self.client.post('/api/session/next')

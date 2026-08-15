@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { cleanup, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,9 @@ function mountPage() {
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    cleanup()
     vi.restoreAllMocks()
+    window.confirm = vi.fn().mockReturnValue(false)
     vi.spyOn(api, 'practiceSettings').mockResolvedValue({
       camera_roles: { camera1: 'face_on', camera2: 'dtl' },
       camera_labels: { camera1: 'Face-On', camera2: 'Down-the-Line' },
@@ -59,7 +61,6 @@ describe('SettingsPage', () => {
 
   it('asks for confirmation before deleting a player', async () => {
     const del = vi.spyOn(api, 'deleteUser')
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     mountPage()
     const buttons = await screen.findAllByRole('button', { name: 'Delete' })
     await userEvent.click(buttons[1])

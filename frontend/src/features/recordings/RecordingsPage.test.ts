@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { cleanup, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +27,9 @@ function mountPage() {
 
 describe('RecordingsPage', () => {
   beforeEach(() => {
+    cleanup()
     vi.restoreAllMocks()
+    window.confirm = vi.fn().mockReturnValue(false)
     vi.spyOn(api, 'listRecordings').mockResolvedValue({
       recordings: [sample],
       count: 1,
@@ -39,18 +41,17 @@ describe('RecordingsPage', () => {
 
   it('renders owner, filters, and claim for unclaimed rows', async () => {
     mountPage()
-    expect(await screen.findByText('Unclaimed')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Claim' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Claim' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '★ Favorites' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Mine' })).toBeTruthy()
+    expect(screen.getByText('OPEN')).toBeTruthy()
   })
 
   it('requires confirmation before deleting', async () => {
     const del = vi.spyOn(api, 'deleteRecording').mockResolvedValue({ deleted: true })
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     mountPage()
-    await screen.findByRole('button', { name: 'Delete' })
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    expect(window.confirm).toHaveBeenCalled()
     expect(del).not.toHaveBeenCalled()
   })
 
@@ -79,7 +80,7 @@ describe('RecordingsPage', () => {
 
   it('prefills Compare from the row action', async () => {
     mountPage()
-    await userEvent.click(await screen.findByRole('button', { name: 'Compare' }))
+    await userEvent.click(await screen.findByTitle('Open Compare tab'))
     expect(useAppStore().tab).toBe('compare')
     expect(useAppStore().comparePrefill).toEqual({ a: '20260715_120000' })
   })

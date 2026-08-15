@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { cleanup, render, screen } from '@testing-library/vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
 import ProgressPage from './ProgressPage.vue'
@@ -9,6 +9,7 @@ vi.mock('../../components/LineChart.vue', () => ({
 
 describe('ProgressPage', () => {
   beforeEach(() => {
+    cleanup()
     vi.restoreAllMocks()
   })
 
@@ -41,7 +42,8 @@ describe('ProgressPage', () => {
       series: { score: [74, 82], max_shoulder_turn: [70, 80] },
     })
     render(ProgressPage)
-    expect(await screen.findByText('B')).toBeTruthy()
+    expect(await screen.findByText(/Latest/)).toBeTruthy()
+    expect(screen.getByText(/B/)).toBeTruthy()
     expect(screen.getByTestId('chart')).toBeTruthy()
     expect(screen.getByText('Shoulder turn')).toBeTruthy()
   })

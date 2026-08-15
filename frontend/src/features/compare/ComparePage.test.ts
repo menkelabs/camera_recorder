@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { cleanup, render, screen, waitFor } from '@testing-library/vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
@@ -17,6 +17,7 @@ function mountPage() {
 
 describe('ComparePage', () => {
   beforeEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.spyOn(api, 'practiceSettings').mockResolvedValue({
       camera_roles: { camera1: 'face_on', camera2: 'dtl' },
