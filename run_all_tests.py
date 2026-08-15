@@ -5,6 +5,7 @@ Run camera_recorder tests on Windows or Linux from the same entry point.
 Usage:
     python run_all_tests.py              # unit tests only (default, no cameras)
     python run_all_tests.py --unit       # same as default
+    python run_all_tests.py --smoke      # real Face-On/DTL MediaPipe smoke
     python run_all_tests.py --hardware   # camera / FPS / recording scripts
     python run_all_tests.py --all        # unit + hardware
     python run_all_tests.py --list       # show what would run
@@ -45,6 +46,7 @@ UNIT_TEST_MODULES = [
     'test_archive',
     'test_practice_features',
     'test_local_db',
+    'test_real_swing_smoke',
 ]
 
 # Standalone scripts that open real cameras / write video
@@ -150,28 +152,42 @@ def main(argv=None):
                        help='Run camera/FPS hardware scripts only')
     group.add_argument('--all', action='store_true',
                        help='Run unit + hardware tests')
+    parser.add_argument('--smoke', action='store_true',
+                        help='Run real Face-On/DTL MediaPipe smoke (opt-in)')
     parser.add_argument('--list', action='store_true',
                         help='List tests and platform setup, then exit')
     args = parser.parse_args(argv)
 
     # Default mode is unit-only when no flag is given
-    run_unit = args.unit or args.all or not (args.hardware or args.all)
+    run_unit = args.unit or args.all or not (args.hardware or args.all or args.smoke)
     run_hw = args.hardware or args.all
+    run_smoke = args.smoke
     if args.hardware and not args.all:
         run_unit = False
-    if not args.unit and not args.hardware and not args.all:
+    if not args.unit and not args.hardware and not args.all and not args.smoke:
         run_unit = True
         run_hw = False
+    if args.smoke and not args.unit and not args.all:
+        run_unit = False
 
     python_exe = get_python_executable()
     print_platform_banner("CAMERA RECORDER - TEST SUITE")
     print(f"Using Python: {python_exe}")
-    print(f"Mode: {'unit' if run_unit and not run_hw else 'hardware' if run_hw and not run_unit else 'all'}")
+    modes = []
+    if run_unit:
+        modes.append('unit')
+    if run_smoke:
+        modes.append('smoke')
+    if run_hw:
+        modes.append('hardware')
+    print(f"Mode: {'+'.join(modes) or 'unit'}")
 
     if args.list:
         print("\nUnit test modules:")
         for name in UNIT_TEST_MODULES:
             print(f"  tests.{name}")
+        print("\nReal-swing smoke:")
+        print("  scripts/smoke_real_swings.py  (python run_all_tests.py --smoke)")
         print("\nHardware scripts:")
         for name in HARDWARE_TEST_SCRIPTS:
             print(f"  tests/{name}")
@@ -194,11 +210,33 @@ def main(argv=None):
 
     unit_details = {}
     hw_details = {}
+    smoke_ok = None
     unit_failed = 0
     hw_failed = 0
 
     if run_unit:
         _, unit_failed, unit_details = run_unittest_tests(python_exe, UNIT_TEST_MODULES)
+
+    if run_smoke:
+        print("\n" + "=" * 70)
+        print("Running real Face-On / DTL MediaPipe smoke...")
+        print("=" * 70)
+        smoke_env = os.environ.copy()
+        smoke_env['SWINGLAB_REAL_SWING_SMOKE'] = '1'
+        try:
+            smoke_result = subprocess.run(
+                [python_exe, os.path.join(project_root, 'scripts', 'smoke_real_swings.py')],
+                cwd=project_root,
+                timeout=300,
+                env=smoke_env,
+            )
+            smoke_ok = smoke_result.returncode == 0
+        except subprocess.TimeoutExpired:
+            print("  [TIMEOUT] real-swing smoke exceeded 5 minute timeout")
+            smoke_ok = False
+        except Exception as exc:
+            print(f"  [ERROR] real-swing smoke failed: {exc}")
+            smoke_ok = False
 
     if run_hw:
         _, hw_failed, _, hw_details = run_hardware_tests(python_exe, HARDWARE_TEST_SCRIPTS)
@@ -220,8 +258,10 @@ def main(argv=None):
             else:
                 status = "FAILED"
             print(f"  {name}: {status}")
+    if smoke_ok is not None:
+        print(f"Real-swing smoke: {'PASSED' if smoke_ok else 'FAILED'}")
 
-    overall_ok = unit_failed == 0 and hw_failed == 0
+    overall_ok = unit_failed == 0 and hw_failed == 0 and smoke_ok is not False
     print("\n" + "=" * 70)
     print("ALL TESTS PASSED" if overall_ok else "SOME TESTS FAILED")
     print("=" * 70)
