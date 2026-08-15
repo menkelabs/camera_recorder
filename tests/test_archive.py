@@ -228,48 +228,6 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
             shutil.rmtree(tmpdir)
 
 
-class TestTemplateSettingsTab(unittest.TestCase):
-    """Test that the v1 template (/legacy) includes the Settings tab."""
-
-    def setUp(self):
-        app.config['TESTING'] = True
-        self.client = app.test_client()
-        import flask_gui
-        self.mgr = CameraManager()
-        flask_gui.camera_manager = self.mgr
-
-    def tearDown(self):
-        import flask_gui
-        flask_gui.camera_manager = None
-
-    def test_settings_tab_button(self):
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('Settings', html)
-        self.assertIn('[7]', html)
-        self.assertIn("switchTab('settings')", html)
-
-    def test_archive_path_input(self):
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('archive-path-input', html)
-        self.assertIn('saveArchivePath', html)
-
-    def test_disk_info_section(self):
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('archive-disk-section', html)
-        self.assertIn('disk-total', html)
-        self.assertIn('disk-free', html)
-
-    def test_archive_actions(self):
-        resp = self.client.get('/legacy')
-        html = resp.data.decode()
-        self.assertIn('archive-all-btn', html)
-        self.assertIn('archiveAll', html)
-        self.assertIn('archive-count', html)
-
-
 # ======================================================================
 # Runner
 # ======================================================================

@@ -25,7 +25,6 @@ test.describe('GUI Vue smoke (Flask + Vue dist)', () => {
 
     await page.getByRole('tab', { name: '8 Settings' }).click()
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
-    await expect(page.getByRole('link', { name: '/legacy' })).toBeVisible()
   })
 
   test('status API responds for the UI poll', async ({ request }) => {
@@ -36,9 +35,9 @@ test.describe('GUI Vue smoke (Flask + Vue dist)', () => {
     expect(data).toHaveProperty('cameras_available')
   })
 
-  test('legacy route still serves v1 template', async ({ page }) => {
+  test('legacy bookmarks redirect to the Vue app', async ({ page }) => {
     await page.goto('/legacy')
-    await expect(page.locator('body')).toContainText('Camera Setup')
-    await expect(page.locator('body')).toContainText('Pre-Record Checklist')
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.locator('#app')).toBeVisible()
   })
 })

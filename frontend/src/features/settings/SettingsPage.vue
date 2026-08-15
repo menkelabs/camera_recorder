@@ -288,9 +288,5 @@ async function removeUser(user: LocalUser) {
     </div>
 
     <p v-if="message" :class="styles.message">{{ message }}</p>
-
-    <p :class="styles.footnote">
-      Full v1 UI remains at <a href="/legacy">/legacy</a> during cutover.
-    </p>
   </section>
 </template>

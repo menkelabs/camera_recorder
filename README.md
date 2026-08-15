@@ -79,7 +79,7 @@ Dependencies include: `opencv-python`, `numpy`, `mediapipe`, `Pillow`, `flask`
 
 ## Quick Start
 
-### GUI (Vue — default on `master` after Vue PR; React baseline tagged `v2.0.0`)
+### GUI (Vue 3)
 
 ```bash
 # terminal 1 — API + cameras + MJPEG
@@ -89,7 +89,7 @@ python scripts/flask_gui.py --port 5000
 cd frontend && npm install && npm run dev
 ```
 
-Open **http://localhost:5173**. Full v1 UI remains at **http://localhost:5000/legacy**.
+Open **http://localhost:5173**.
 
 To have Flask serve the production Vue build on port 5000:
 
@@ -98,13 +98,7 @@ cd frontend && npm run build
 python scripts/flask_gui.py
 ```
 
-### Legacy template (v1)
-
-```bash
-python scripts/flask_gui.py
-```
-
-Then open **http://localhost:5000** (falls back to the v1 template when `frontend/dist` is missing) or **/legacy**.
+If `frontend/dist` is missing, `/` shows a short build hint (the old Flask HTML GUI is retired).
 
 ### With explicit camera IDs:
 ```bash
@@ -447,9 +441,9 @@ See [docs/PLATFORM_CONFIG.md](docs/PLATFORM_CONFIG.md) for how `config_windows.j
 
 ## GUI versions
 
-- **`v1.0.0`** — last Flask `templates/index.html` monolith (kept at `/legacy`)
+- **`v1.0.0`** — last Flask `templates/index.html` monolith (retired; `/legacy` redirects to `/`)
 - **`v2.0.0`** — React cutover (tagged baseline)
-- **Active:** Vue 3 + Vite + Pinia in `frontend/` (`cursor/gui-vue-600c`) — same Flask API + `frontend/dist` packaging
+- **Active:** Vue 3 + Vite + Pinia in `frontend/` — Flask API + `frontend/dist` packaging
 
 Plan: [docs/GUI_V2_PLAN.md](docs/GUI_V2_PLAN.md)
 

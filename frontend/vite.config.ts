@@ -7,7 +7,6 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:5000',
       '/video_feed': 'http://localhost:5000',
-      '/legacy': 'http://localhost:5000',
     },
   },
   test: {

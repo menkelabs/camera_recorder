@@ -59,7 +59,7 @@ from practice_settings import (
 from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
 from usb_health import detect_shared_usb_bus, frame_starvation_warning
 
-from flask import Flask, render_template, jsonify, request, Response, send_file, send_from_directory
+from flask import Flask, jsonify, redirect, request, Response, send_file, send_from_directory
 
 
 def load_windows_config(config_path: str = None) -> dict:
@@ -1254,11 +1254,7 @@ class CameraManager:
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-app = Flask(
-    __name__,
-    template_folder=os.path.join(_project_root, 'templates'),
-    static_folder=os.path.join(_project_root, 'static'),
-)
+app = Flask(__name__)
 
 # Global singleton - set in main() or by tests
 camera_manager: Optional[CameraManager] = None
@@ -1335,11 +1331,37 @@ def generate_frames(camera_num: int):
 
 
 # ------------------------------------------------------------------
-# Routes — GUI v2 (React dist) + legacy template
+# Routes — Vue SPA (frontend/dist). The v1 Flask template is retired.
 # ------------------------------------------------------------------
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FRONTEND_DIST = os.path.join(_PROJECT_ROOT, 'frontend', 'dist')
+
+_MISSING_FRONTEND_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SwingLab — Vue UI not built</title>
+  <style>
+    body { font-family: sans-serif; background: #0d1117; color: #c9d1d9;
+           max-width: 40rem; margin: 4rem auto; padding: 0 1.5rem; line-height: 1.5; }
+    code { background: #161b22; padding: 0.15rem 0.4rem; border-radius: 4px; }
+    pre { background: #161b22; padding: 1rem; border-radius: 8px; overflow: auto; }
+    a { color: #58a6ff; }
+  </style>
+</head>
+<body>
+  <h1>Vue UI not built</h1>
+  <p>Flask is running (API + cameras). The GUI is the Vue app in
+  <code>frontend/</code>. Build it once, then reload:</p>
+  <pre>cd frontend
+npm install
+npm run build</pre>
+  <p>Dev with HMR: <code>npm run dev</code> then open
+  <a href="http://localhost:5173">http://localhost:5173</a>.</p>
+</body>
+</html>
+"""
 
 
 def _frontend_dist_ready() -> bool:
@@ -1348,16 +1370,16 @@ def _frontend_dist_ready() -> bool:
 
 @app.route('/')
 def index():
-    """Serve React GUI v2 when built; otherwise the legacy Flask template."""
+    """Serve the Vue GUI when frontend/dist is built."""
     if _frontend_dist_ready():
         return send_from_directory(_FRONTEND_DIST, 'index.html')
-    return render_template('index.html')
+    return Response(_MISSING_FRONTEND_HTML, mimetype='text/html', status=200)
 
 
 @app.route('/legacy')
 def legacy_index():
-    """v1 monolithic template — safety valve during React cutover."""
-    return render_template('index.html')
+    """Old v1 template bookmarks now land on the Vue app."""
+    return redirect('/', code=301)
 
 
 @app.route('/assets/<path:filename>')

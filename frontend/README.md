@@ -22,7 +22,6 @@ Open http://localhost:5173
 cd frontend && npm run build
 python scripts/flask_gui.py
 # http://localhost:5000 → Vue dist
-# http://localhost:5000/legacy → v1 template
 ```
 
 ## Stack
