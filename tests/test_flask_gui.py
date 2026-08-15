@@ -1,8 +1,7 @@
 """
 Tests for the Flask-based Camera Setup & Recording GUI.
 
-Mirrors the structure of test_gui.py but tests the Flask app and
-CameraManager class instead of the OpenCV-based TabbedCameraGUI.
+Tests the Flask app and CameraManager (API, MJPEG, analysis shaping).
 """
 
 import sys

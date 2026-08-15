@@ -1,7 +1,9 @@
 # GUI Tests
 
 Test coverage for the Camera Setup & Recording GUI — Flask API + Vue SPA
-and the legacy OpenCV desktop GUI.
+and the first-run setup wizard.
+
+Product usage: [docs/HOW_TO_USE.md](../docs/HOW_TO_USE.md).
 
 ## Primary UI (Flask API + Vue)
 
@@ -32,14 +34,6 @@ Broader stability coverage against **synthetic dual-camera recordings**
 python3 -m unittest tests.test_gui_stability -v
 ```
 
-## Legacy OpenCV GUI
-
-### `test_gui.py` — Unit tests (mocked cameras)
-TabbedCameraGUI init, tabs, recording, analysis gates, property ranges.
-
-### `test_gui_interactive.py` — Optional hardware
-Runs only when real cameras are present.
-
 ## Related analysis fixtures
 
 See `test_mock_video_analysis.py` and `helpers.write_mock_video` /
@@ -50,5 +44,5 @@ See `test_mock_video_analysis.py` and `helpers.write_mock_video` /
 ```bash
 python run_all_tests.py --unit
 # or specifically:
-python3 -m unittest tests.test_flask_gui tests.test_gui_stability tests.test_gui -v
+python3 -m unittest tests.test_flask_gui tests.test_gui_stability tests.test_setup_wizard -v
 ```

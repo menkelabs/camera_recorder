@@ -1,9 +1,12 @@
-# GUI v2.0 — React Experience Plan
+# GUI v2.0 — experience plan (shipped)
 
-**Branch:** `cursor/gui-vue-600c` (Vue) · shipped React cutover as `v2.0.0` on `master`  
-**Goal:** Replace the monolithic Flask `templates/index.html` SPA with a modern SPA frontend, while keeping the Python/Flask camera + analysis backend.
+> **Shipped.** The product UI is Vue 3 + Vite + Pinia in `frontend/`. Flask serves `frontend/dist` at `/`. The v1 `templates/index.html` monolith is gone; `/legacy` redirects home. The OpenCV desktop GUI and old CLI recorders are **removed**.
+>
+> **How to use:** [HOW_TO_USE.md](HOW_TO_USE.md)
 
-**Current direction:** Vue 3 + Vite + Pinia (aligns with other product work). React v2.0.0 remains the tagged baseline; Vue is the active UI track.
+**Goal (done):** Replace the monolithic Flask `templates/index.html` SPA with a modern SPA frontend, while keeping the Python/Flask camera + analysis backend.
+
+**Current direction:** Vue 3 + Vite + Pinia. React `v2.0.0` remains a tagged baseline only.
 
 **Non-goals for v2.0:** Rewrite MediaPipe/analysis, replace OpenCV capture, or drop the REST API surface.
 
@@ -18,7 +21,7 @@
 | API | Flask REST (`/api/*`) |
 | Refresh | `setInterval(pollStatus, 500)` forever |
 | Charts | Hand-drawn `<canvas>` |
-| Desktop legacy | `scripts/camera_setup_recorder_gui.py` (OpenCV) — keep for now, not in v2 scope |
+| Desktop legacy | Removed (`camera_setup_recorder_gui.py` + old CLI recorders) |
 
 **Known UX defects to fix in v2 (must-hit):**
 

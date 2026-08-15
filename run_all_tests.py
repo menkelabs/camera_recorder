@@ -30,14 +30,10 @@ from test_utils import describe_platform_setup, fix_console_encoding, print_plat
 # Unittest modules that do not need real cameras
 UNIT_TEST_MODULES = [
     'test_platform_config',
-    'test_gui',
     'test_flask_gui',
     'test_preview_while_recording',
     'test_gui_stability',
     'test_dual_camera_soak',
-    'test_config_to_record_workflow',
-    'test_analysis_workflow',
-    'test_analysis_navigation',
     'test_mock_video_analysis',
     'test_sway_calculator',
     'test_swing_comparison',
@@ -46,6 +42,7 @@ UNIT_TEST_MODULES = [
     'test_archive',
     'test_practice_features',
     'test_local_db',
+    'test_setup_wizard',
     'test_real_swing_smoke',
 ]
 

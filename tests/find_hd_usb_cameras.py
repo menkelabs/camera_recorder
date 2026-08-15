@@ -124,7 +124,7 @@ def main():
         print(f"  Camera 2: index {cam2}")
         print()
         print("Test command:")
-        print(f"  python debug_recorder.py --test 1 --camera1 {cam1} --camera2 {cam2}")
+        print(f"  python scripts/flask_gui.py --camera1 {cam1} --camera2 {cam2}")
         print()
         print("Or update your code to use:")
         print(f"  recorder = DualCameraRecorder(camera1_id={cam1}, camera2_id={cam2})")

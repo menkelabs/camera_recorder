@@ -1,12 +1,11 @@
 """
-Flask-based Camera Setup & Recording GUI
+SwingLab — Flask API, USB cameras, and MJPEG preview.
 
-Replaces the OpenCV highgui-based GUI with a web interface.
-Eliminates font rendering issues by leveraging browser-native text rendering.
-Target: 120fps dual camera recording with real-time preview.
+Serves the Vue UI from frontend/dist (run `npm run build` in frontend/ first).
+Field guide: docs/HOW_TO_USE.md
 
 Usage:
-    python scripts/flask_gui.py [--camera1 0] [--camera2 1] [--fps 120] [--port 5000]
+    python scripts/flask_gui.py [--camera1 0] [--camera2 2] [--fps 120] [--port 5000]
 
 Then open http://localhost:5000 in your browser.
 """
@@ -31,6 +30,7 @@ from pose_processor import PoseProcessor
 from sway_calculator import SwayCalculator
 from swing_detector import SwingDetector
 from camera_utils import get_camera_ids, load_camera_config, create_camera_capture
+from install_config import load_install_config, resolve_recordings_dir
 from swing_score import score_analysis
 from recording_meta import (
     attach_meta_to_pairs,
@@ -83,8 +83,7 @@ def _open_cap(camera_id):
 class CameraManager:
     """Manages camera state, recording, and analysis for the Flask GUI.
 
-    This replaces TabbedCameraGUI's state management while keeping
-    the same recording and analysis pipeline.
+    Owns camera state, recording, and analysis for the Vue + Flask app.
     """
 
     # OpenCV camera property constants
@@ -631,6 +630,8 @@ class CameraManager:
                 camera1_id=self.camera1_id,
                 camera2_id=self.camera2_id,
             )
+            self.recorder.output_dir = _get_recordings_dir()
+            os.makedirs(self.recorder.output_dir, exist_ok=True)
             self.recorder.start_cameras(width=self.width, height=self.height, fps=self.fps)
 
             # Re-apply camera settings to the recorder's cameras
@@ -1357,6 +1358,8 @@ _MISSING_FRONTEND_HTML = """<!DOCTYPE html>
   <pre>cd frontend
 npm install
 npm run build</pre>
+  <p>Or run the setup wizard (installs packages and builds the UI):</p>
+  <pre>python scripts/setup_wizard.py</pre>
   <p>Dev with HMR: <code>npm run dev</code> then open
   <a href="http://localhost:5173">http://localhost:5173</a>.</p>
 </body>
@@ -1807,8 +1810,13 @@ def api_analysis_frame_image(camera_num):
 _RECORDING_PATTERN = re.compile(r'^recording_(\d{8}_\d{6})_camera[12]\.mp4$')
 
 
+_recordings_dir_override = None
+
+
 def _get_recordings_dir() -> str:
-    return os.path.join(_project_root, 'recordings')
+    if _recordings_dir_override:
+        return _recordings_dir_override
+    return resolve_recordings_dir(_project_root)
 
 
 def _list_recording_pairs() -> List[Dict]:
@@ -2872,27 +2880,36 @@ def api_archive_run():
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description='Flask Camera Setup & Recording GUI (120fps target)')
-    if sys.platform == 'win32':
-        config = load_windows_config()
-        if config:
-            default_cam1, default_cam2 = config.get('camera1_id', 0), config.get('camera2_id', 2)
-        else:
-            default_cam1, default_cam2 = 0, 2
-    else:
-        default_cam1, default_cam2 = 0, 1
+    parser = argparse.ArgumentParser(
+        description='SwingLab Flask API + cameras. Serves frontend/dist. See docs/HOW_TO_USE.md.',
+    )
+    install = load_install_config(_project_root) or {}
+    default_cam1, default_cam2 = get_camera_ids()
+    default_cam1 = int(install.get('camera1_id', default_cam1))
+    default_cam2 = int(install.get('camera2_id', default_cam2))
+    default_width = int(install.get('width', 1280))
+    default_height = int(install.get('height', 720))
+    default_fps = int(install.get('fps', 120))
+    default_model = int(install.get('model_complexity', 2))
+    default_host = str(install.get('host', '0.0.0.0'))
+    default_port = int(install.get('port', 5000))
 
     parser.add_argument('--camera1', type=int, default=default_cam1,
                         help=f'Camera 1 ID (default: {default_cam1})')
     parser.add_argument('--camera2', type=int, default=default_cam2,
                         help=f'Camera 2 ID (default: {default_cam2})')
-    parser.add_argument('--width', type=int, default=1280, help='Resolution width (default: 1280)')
-    parser.add_argument('--height', type=int, default=720, help='Resolution height (default: 720)')
-    parser.add_argument('--fps', type=int, default=120, help='Recording FPS target (default: 120)')
-    parser.add_argument('--model-complexity', type=int, default=2, choices=[0, 1, 2],
-                        help='MediaPipe model complexity for analysis: 0=lite (fast), 1=full, 2=heavy (default: 2)')
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
-    parser.add_argument('--port', type=int, default=5000, help='Port (default: 5000)')
+    parser.add_argument('--width', type=int, default=default_width, help='Resolution width')
+    parser.add_argument('--height', type=int, default=default_height, help='Resolution height')
+    parser.add_argument('--fps', type=int, default=default_fps, help='Recording FPS target')
+    parser.add_argument('--model-complexity', type=int, default=default_model, choices=[0, 1, 2],
+                        help='MediaPipe model complexity for analysis: 0=lite, 1=full, 2=heavy')
+    parser.add_argument('--host', default=default_host, help='Host to bind')
+    parser.add_argument('--port', type=int, default=default_port, help='Port')
+    parser.add_argument(
+        '--recordings-dir',
+        default=None,
+        help='Writable recordings folder (default: swinglab.local.json or ./recordings)',
+    )
     parser.add_argument(
         '--skip-cameras',
         action='store_true',
@@ -2900,6 +2917,9 @@ def main():
     )
 
     args = parser.parse_args()
+    global _recordings_dir_override
+    if args.recordings_dir:
+        _recordings_dir_override = os.path.abspath(args.recordings_dir)
 
     global camera_manager
     camera_manager = CameraManager(
@@ -2919,12 +2939,13 @@ def main():
     model_names = {0: 'lite', 1: 'full', 2: 'heavy'}
     print()
     print("=" * 60)
-    print(f"  Flask GUI running at http://localhost:{args.port}")
+    print(f"  SwingLab  http://localhost:{args.port}")
     print(f"  Recording target: {args.fps}fps @ {args.width}x{args.height}")
     print(f"  Analysis model: {model_names.get(args.model_complexity, '?')} (complexity={args.model_complexity})")
     if args.skip_cameras:
         print('  Cameras: skipped (--skip-cameras)')
-    print(f"  Press Ctrl+C to stop")
+    print("  Usage: docs/HOW_TO_USE.md")
+    print("  Press Ctrl+C to stop")
     print("=" * 60)
     print()
 

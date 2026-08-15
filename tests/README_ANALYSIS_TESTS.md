@@ -5,18 +5,6 @@ Coverage for frame navigation, summary correctness, and analysis tools fed by
 
 ## Test modules
 
-### `test_analysis_navigation.py`
-Frame navigation, per-camera summaries, live metrics, and analysis-tab
-rendering for the legacy GUI data structures.
-
-```bash
-python3 -m unittest tests.test_analysis_navigation -v
-```
-
-### `test_analysis_workflow.py`
-Legacy GUI analysis start gates (missing files, MediaPipe import errors,
-empty detections).
-
 ### `test_mock_video_analysis.py` — synthetic captures → analysis tools
 Generates OpenCV-readable mock MP4/AVI files at runtime and verifies:
 
@@ -53,7 +41,7 @@ committed (repo `.gitignore` excludes `*.mp4` / `*.avi`).
 
 ```bash
 python run_all_tests.py --unit
-python3 -m unittest tests.test_mock_video_analysis tests.test_analysis_navigation -v
+python3 -m unittest tests.test_mock_video_analysis -v
 ```
 
 ## Real Face-On / DTL smoke (opt-in)

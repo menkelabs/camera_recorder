@@ -1,5 +1,7 @@
 # Setup Guide
 
+> **Historical.** Windows PATH / venv notes from an early checkout. Current first-run steps: [HOW_TO_USE.md](HOW_TO_USE.md).
+
 ## Python Installation
 
 If Python is not installed or not found:

@@ -112,7 +112,7 @@ def main():
         print(f"  Camera 2: index {cam2}")
         print()
         print("Test command:")
-        print(f"  python debug_recorder.py --test 1 --camera1 {cam1} --camera2 {cam2}")
+        print(f"  python scripts/flask_gui.py --camera1 {cam1} --camera2 {cam2}")
         print()
         
         # Test if both can be opened simultaneously

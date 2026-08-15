@@ -1,5 +1,7 @@
 # Golf Swing Capture - Optimal Settings Guide
 
+> **Historical.** FPS/resolution notes for old CLI recorders. Daily use is `python scripts/flask_gui.py` — [HOW_TO_USE.md](HOW_TO_USE.md). Hardware timing notes below are still useful.
+
 ## 🏌️ Golf Swings Are VERY Fast!
 
 Golf swings require **ultra-high frame rates** to capture:
