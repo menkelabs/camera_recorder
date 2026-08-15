@@ -63,7 +63,13 @@ const emptyLabel = computed(() => {
   return 'No recordings match this filter'
 })
 
+function canDelete(row: RecordingPair) {
+  return row.owned_by_me !== false || Boolean(row.unclaimed)
+}
+
 function toggleSelect(timestamp: string) {
+  const row = rows.value.find((item) => item.timestamp === timestamp)
+  if (row && !canDelete(row)) return
   const next = new Set(selected.value)
   if (next.has(timestamp)) next.delete(timestamp)
   else next.add(timestamp)
@@ -106,20 +112,32 @@ async function setScope(next: Scope) {
 }
 
 async function deleteSelected() {
-  if (selected.value.size === 0) return
-  if (!window.confirm(`Delete ${selected.value.size} recording(s)? This cannot be undone.`)) return
+  const targets = [...selected.value].filter((ts) => {
+    const row = rows.value.find((item) => item.timestamp === ts)
+    return !row || canDelete(row)
+  })
+  if (targets.length === 0) return
+  if (!window.confirm(`Delete ${targets.length} recording(s)? This cannot be undone.`)) return
   await run(async () => {
-    const res = await api.bulkDeleteRecordings([...selected.value])
+    const res = await api.bulkDeleteRecordings(targets)
     selected.value = new Set()
-    message.value = `Deleted ${res.deleted_count}`
+    const skipped = res.skipped_count ? ` (kept ${res.skipped_count})` : ''
+    message.value = `Deleted ${res.deleted_count}${skipped}`
   })
 }
 
 async function cleanupOld() {
-  if (!window.confirm(`Delete recordings older than ${cleanupDays.value} days?`)) return
+  if (
+    !window.confirm(
+      `Delete your recordings and unclaimed files older than ${cleanupDays.value} days? Favorites and the reference swing are kept.`,
+    )
+  ) {
+    return
+  }
   await run(async () => {
     const res = await api.cleanupRecordings(cleanupDays.value)
-    message.value = `Cleaned ${res.deleted_count} (before ${res.cutoff_date})`
+    const skipped = res.skipped_count ? ` (kept ${res.skipped_count})` : ''
+    message.value = `Cleaned ${res.deleted_count}${skipped} (before ${res.cutoff_date})`
   })
 }
 
@@ -219,7 +237,13 @@ function openAnalysis(row: RecordingPair) {
         Older than
         <input type="number" min="1" max="365" :value="cleanupDays" @change="updateCleanupDays" />
         days
-        <button type="button" :class="styles.danger" :disabled="busy" @click="cleanupOld">
+        <button
+          type="button"
+          :class="styles.danger"
+          :disabled="busy"
+          aria-label="Clean up old recordings"
+          @click="cleanupOld"
+        >
           Clean up
         </button>
       </label>
@@ -250,6 +274,8 @@ function openAnalysis(row: RecordingPair) {
               <input
                 type="checkbox"
                 :checked="selected.has(row.timestamp)"
+                :disabled="!canDelete(row)"
+                :title="canDelete(row) ? 'Select for delete' : 'Another player owns this recording'"
                 @change="toggleSelect(row.timestamp)"
               />
             </td>
@@ -302,6 +328,7 @@ function openAnalysis(row: RecordingPair) {
                 Compare
               </button>
               <button
+                v-if="canDelete(row)"
                 type="button"
                 :class="styles.danger"
                 :disabled="busy"

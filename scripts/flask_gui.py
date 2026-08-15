@@ -36,6 +36,7 @@ from recording_meta import (
     attach_meta_to_pairs,
     delete_recording_meta,
     get_recording_meta,
+    list_favorites,
     update_recording_meta,
 )
 from local_db import get_db
@@ -1865,6 +1866,19 @@ def _is_protected_timestamp(ts: str) -> bool:
     return False
 
 
+def _owned_by_other_player(ts: str) -> Optional[str]:
+    """Return an error if *ts* is owned by someone else, or owner cannot be checked."""
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        owner = db.get_recording_owner(ts)
+        if owner is not None and owner != db.get_active_user_id():
+            return "Cannot delete another player's recording"
+    except Exception as exc:
+        return f'Cannot verify recording owner: {exc}'
+    return None
+
+
 def _delete_recording_pair(ts: str) -> Dict:
     """Delete both camera files for a given timestamp. Returns status dict."""
     if not _RECORDING_PATTERN.match(f'recording_{ts}_camera1.mp4'):
@@ -1874,13 +1888,9 @@ def _delete_recording_pair(ts: str) -> Dict:
         return {'error': f'Cannot delete {ts} — currently being analyzed'}
 
     rec_dir = _get_recordings_dir()
-    try:
-        db = get_db(rec_dir)
-        owner = db.get_recording_owner(ts)
-        if owner is not None and owner != db.get_active_user_id():
-            return {'error': "Cannot delete another player's recording", 'timestamp': ts}
-    except Exception:
-        pass
+    blocked = _owned_by_other_player(ts)
+    if blocked:
+        return {'error': blocked, 'timestamp': ts}
     deleted = []
     errors = []
     for cam in ['camera1', 'camera2']:
@@ -2115,20 +2125,23 @@ def api_bulk_delete_recordings():
     if not timestamps:
         return jsonify({'error': 'No timestamps provided'}), 400
 
-    results = []
-    for ts in timestamps:
-        results.append(_delete_recording_pair(ts))
-
+    results = [_delete_recording_pair(ts) for ts in timestamps]
     deleted_count = sum(1 for r in results if r.get('deleted'))
+    skipped_count = sum(1 for r in results if r.get('error'))
     return jsonify({
         'results': results,
         'deleted_count': deleted_count,
+        'skipped_count': skipped_count,
     })
 
 
 @app.route('/api/recordings/cleanup', methods=['POST'])
 def api_recordings_cleanup():
-    """Delete recordings older than max_age_days. Body: {"max_age_days": 30}"""
+    """Delete the active user's (and unclaimed) recordings older than max_age_days.
+
+    Skips other players' files, the pinned reference swing, and favorites.
+    Body: {"max_age_days": 30}
+    """
     data = request.get_json(silent=True) or {}
     max_age_days = data.get('max_age_days')
     if max_age_days is None:
@@ -2142,19 +2155,51 @@ def api_recordings_cleanup():
 
     cutoff = datetime.now() - timedelta(days=max_age_days)
     pairs = _list_recording_pairs()
+    rec_dir = _get_recordings_dir()
+    try:
+        db = get_db(rec_dir)
+        owners = db.ownership_map()
+        active = db.get_active_user_id()
+        favorites = set(list_favorites(rec_dir))
+    except Exception as exc:
+        return jsonify({'error': f'Cannot verify recording owners: {exc}'}), 500
+    ref = get_reference_timestamp(rec_dir)
+
     results = []
+    skipped = []
     for p in pairs:
+        ts = p['timestamp']
         try:
-            dt = datetime.strptime(p['timestamp'], '%Y%m%d_%H%M%S')
+            dt = datetime.strptime(ts, '%Y%m%d_%H%M%S')
         except ValueError:
             continue
-        if dt < cutoff:
-            results.append(_delete_recording_pair(p['timestamp']))
+        if dt >= cutoff:
+            continue
+        owner = owners.get(ts)
+        if owner is not None and owner != active:
+            skipped.append({'timestamp': ts, 'reason': 'owned'})
+            continue
+        if ref and ts == ref:
+            skipped.append({'timestamp': ts, 'reason': 'reference'})
+            continue
+        if ts in favorites:
+            skipped.append({'timestamp': ts, 'reason': 'favorite'})
+            continue
+        results.append(_delete_recording_pair(ts))
 
     deleted_count = sum(1 for r in results if r.get('deleted'))
+    for item in results:
+        if item.get('error'):
+            skipped.append({
+                'timestamp': item.get('timestamp'),
+                'reason': 'error',
+                'error': item['error'],
+            })
     return jsonify({
         'results': results,
         'deleted_count': deleted_count,
+        'skipped': skipped,
+        'skipped_count': len(skipped),
         'cutoff_date': cutoff.strftime('%Y-%m-%d %H:%M:%S'),
     })
 

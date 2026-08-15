@@ -92,4 +92,33 @@ describe('RecordingsPage', () => {
     expect(useAppStore().tab).toBe('compare')
     expect(useAppStore().comparePrefill).toEqual({ a: '20260715_120000' })
   })
+
+  it('hides delete for another player\'s recording', async () => {
+    vi.mocked(api.listRecordings).mockResolvedValue({
+      recordings: [{
+        ...sample,
+        timestamp: '20260716_120000',
+        unclaimed: false,
+        owned_by_me: false,
+        owner_name: 'Player 2',
+        has_analysis: false,
+      }],
+      count: 1,
+      total_size: 2048,
+      favorite_count: 0,
+      reference_timestamp: null,
+    })
+    mountPage()
+    expect(await screen.findByText('Player 2')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(screen.getByRole('checkbox')).toBeDisabled()
+  })
+
+  it('explains that cleanup keeps favorites and the reference swing', async () => {
+    mountPage()
+    await userEvent.click(await screen.findByRole('button', { name: /clean up/i }))
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringMatching(/Favorites and the reference swing are kept/i),
+    )
+  })
 })

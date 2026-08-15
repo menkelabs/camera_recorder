@@ -140,12 +140,12 @@ export const api = {
       method: 'DELETE',
     }),
   bulkDeleteRecordings: (timestamps: string[]) =>
-    jsonFetch<{ deleted_count: number }>('/api/recordings', {
+    jsonFetch<{ deleted_count: number; skipped_count?: number }>('/api/recordings', {
       method: 'DELETE',
       body: JSON.stringify({ timestamps }),
     }),
   cleanupRecordings: (max_age_days: number) =>
-    jsonFetch<{ deleted_count: number; cutoff_date: string }>(
+    jsonFetch<{ deleted_count: number; skipped_count?: number; cutoff_date: string }>(
       '/api/recordings/cleanup',
       { method: 'POST', body: JSON.stringify({ max_age_days }) },
     ),
