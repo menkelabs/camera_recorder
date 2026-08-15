@@ -64,6 +64,9 @@ archive_config.json
 
 # MediaPipe Output
 mediapipe_output/
+models/*.task
+fixtures/real_swings/*
+!fixtures/real_swings/README.md
 
 # Environment variables
 .env

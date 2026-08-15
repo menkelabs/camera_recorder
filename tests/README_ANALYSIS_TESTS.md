@@ -55,3 +55,19 @@ committed (repo `.gitignore` excludes `*.mp4` / `*.avi`).
 python run_all_tests.py --unit
 python3 -m unittest tests.test_mock_video_analysis tests.test_analysis_navigation -v
 ```
+
+## Real Face-On / DTL smoke (opt-in)
+
+`test_real_swing_smoke.py` always checks clip discovery. The live MediaPipe
+model is **not** part of `--unit` / CI. To smoke-test that a real person is
+detected and metrics still populate:
+
+```bash
+python run_all_tests.py --smoke
+# or
+python scripts/smoke_real_swings.py
+```
+
+Clip order: `fixtures/real_swings/face_on.mp4` + `dtl.mp4`, else the newest
+`recordings/` pair, else a small public GolfDB demo swing (downloaded, not
+committed). See `fixtures/real_swings/README.md`.
