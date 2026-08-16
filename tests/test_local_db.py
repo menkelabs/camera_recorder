@@ -473,8 +473,9 @@ class TestLocalDBFlaskProgress(unittest.TestCase):
         self.assertEqual(ok.get_json()['active_user']['name'], 'Jordan')
 
         status = self.client.get('/api/status')
-        # status may error if manager not initialized; users endpoints are enough
-        self.assertIn(status.status_code, (200, 200))
+        # This fixture has no CameraManager — fail closed with 503, not a fake 200.
+        self.assertEqual(status.status_code, 503)
+        self.assertIn('error', status.get_json())
 
     def test_claim_api_conflict_when_owned(self):
         db = get_db(self.dir)
