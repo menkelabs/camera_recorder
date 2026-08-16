@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+APP_NAME = 'SwingLab'
+APP_VERSION = '1.1.0'
 LOCAL_CONFIG_NAME = 'swinglab.local.json'
 DEFAULT_PORT = 5000
 DEFAULT_HOST = '0.0.0.0'
@@ -21,8 +24,50 @@ DEFAULT_HEIGHT = 720
 DEFAULT_MODEL_COMPLEXITY = 2
 
 
-def local_config_path(root: str) -> str:
-    return os.path.join(root, LOCAL_CONFIG_NAME)
+def is_frozen() -> bool:
+    return bool(getattr(sys, 'frozen', False)) and hasattr(sys, '_MEIPASS')
+
+
+def source_root() -> str:
+    """Repo root when running from a checkout (parent of ``src/``)."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def bundle_dir() -> str:
+    """Read-only resources: Vue ``frontend/dist``, wizard HTML, bundled libs."""
+    if is_frozen():
+        return getattr(sys, '_MEIPASS')
+    return source_root()
+
+
+def app_home(env: Optional[Dict[str, str]] = None) -> str:
+    """Writable data dir (profile, recordings, camera config).
+
+    Frozen installs use ``%LOCALAPPDATA%\\SwingLab`` (Windows) or
+    ``~/.local/share/swinglab`` (Linux). Source checkouts use the repo root.
+    Override with ``SWINGLAB_HOME``.
+    """
+    environ = env if env is not None else os.environ
+    override = (environ.get('SWINGLAB_HOME') or '').strip()
+    if override:
+        return os.path.abspath(override)
+    if is_frozen():
+        if os.name == 'nt':
+            base = environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+            return os.path.join(base, APP_NAME)
+        xdg = environ.get('XDG_DATA_HOME') or os.path.join(
+            os.path.expanduser('~'), '.local', 'share',
+        )
+        return os.path.join(xdg, 'swinglab')
+    return source_root()
+
+
+def resource_path(*parts: str) -> str:
+    return os.path.join(bundle_dir(), *parts)
+
+
+def local_config_path(root: Optional[str] = None) -> str:
+    return os.path.join(root or app_home(), LOCAL_CONFIG_NAME)
 
 
 def default_install_config(root: str) -> Dict[str, Any]:
@@ -83,7 +128,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
 
 
 def resolve_recordings_dir(
-    root: str,
+    root: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     config: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -92,11 +137,26 @@ def resolve_recordings_dir(
     override = (environ.get('SWINGLAB_RECORDINGS_DIR') or '').strip()
     if override:
         return os.path.abspath(override)
-    cfg = config if config is not None else load_install_config(root)
+    home = root if root is not None else app_home(environ)
+    cfg = config if config is not None else load_install_config(home)
     raw = (cfg or {}).get('recordings_dir') or 'recordings'
     if os.path.isabs(raw):
         return raw
-    return os.path.abspath(os.path.join(root, raw))
+    return os.path.abspath(os.path.join(home, raw))
+
+
+def should_run_setup(
+    *,
+    setup: bool = False,
+    skip_setup: bool = False,
+    config: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """First launch of a frozen app opens the wizard until a profile exists."""
+    if skip_setup:
+        return False
+    if setup:
+        return True
+    return not (config and config.get('completed_at'))
 
 
 def venv_python(root: str) -> Optional[str]:

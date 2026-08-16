@@ -1,6 +1,6 @@
 # Setup Guide
 
-> **Historical.** Windows PATH / venv notes from an early checkout. Current first-run steps: [HOW_TO_USE.md](HOW_TO_USE.md).
+> **Historical.** Windows PATH / venv notes from an early checkout. `debug_recorder.py` was **removed**. Current first-run: [HOW_TO_USE.md](HOW_TO_USE.md) or `python scripts/setup_wizard.py`.
 
 ## Python Installation
 

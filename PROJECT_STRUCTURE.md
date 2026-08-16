@@ -10,6 +10,8 @@ camera_recorder/
 ├── scripts/
 │   ├── setup_wizard.py       # first-run browser installer
 │   ├── start_swinglab.py     # daily start (wizard profile)
+│   ├── swinglab_app.py       # frozen + source entry (wizard or app)
+│   ├── build_installer.py    # PyInstaller + Inno Setup
 │   ├── flask_gui.py          # API + cameras + Vue
 │   ├── camera_test_gui.py    # optional lighting/focus bench
 │   ├── dual_camera_soak.py   # mock / hardware soak
@@ -20,6 +22,7 @@ camera_recorder/
 │   ├── HOW_TO_USE.md         # field + daily usage
 │   ├── LOCAL_DB.md
 │   └── PLATFORM_CONFIG.md
+├── packaging/                # PyInstaller spec + Inno Setup
 ├── recordings/               # MP4s + swinglab.db (gitignored)
 ├── requirements.txt
 └── run_all_tests.py

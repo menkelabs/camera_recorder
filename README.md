@@ -6,7 +6,9 @@ Browser app for synchronized Face-On and Down-the-Line capture, MediaPipe pose a
 
 ## Quick start
 
-**First run** (installs packages, builds the UI, picks cameras):
+**Windows installer:** build `SwingLab-Setup-*.exe` with `python scripts/build_installer.py` ([packaging/README.md](packaging/README.md)), then double-click it. First launch opens the camera wizard.
+
+**From source** (installs packages, builds the UI, picks cameras):
 
 ```bash
 python scripts/setup_wizard.py

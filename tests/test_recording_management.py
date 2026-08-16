@@ -183,7 +183,7 @@ class TestRecordingManagementAPI(unittest.TestCase):
         other = db.create_user('Player 2')['id']
         db.claim_recording('20260215_140000', user_id=other)
         resp = self.client.delete('/api/recordings/20260215_140000')
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 403)
         self.assertIn('another player', resp.get_json()['error'])
         self.assertTrue(os.path.exists(
             os.path.join(self.tmpdir, 'recording_20260215_140000_camera1.mp4')

@@ -1,6 +1,6 @@
 # Code Reorganization Summary
 
-> **Historical.** Early folder shuffle. Current layout: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md). How to run: [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md).
+> **Historical.** Early folder shuffle. The CLI recorders listed below were **removed**. Current layout: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md). How to run: [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md).
 
 ## ✅ Reorganization Complete!
 

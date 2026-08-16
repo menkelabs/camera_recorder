@@ -81,8 +81,8 @@ Write-Host "Files copied successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Navigate to: $newPath" -ForegroundColor Cyan
-Write-Host "  2. Run: .\setup_env.ps1" -ForegroundColor Cyan
-Write-Host "  3. Run: python debug_recorder.py" -ForegroundColor Cyan
+Write-Host "  2. Run: python scripts/setup_wizard.py" -ForegroundColor Cyan
+Write-Host "  3. Run: python scripts/start_swinglab.py" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Old files are still at: $currentPath" -ForegroundColor Yellow
 Write-Host "You can delete them after verifying the new location works." -ForegroundColor Yellow

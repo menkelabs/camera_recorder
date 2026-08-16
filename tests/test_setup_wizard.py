@@ -13,10 +13,13 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(project_root, 'src'))
 
 from install_config import (  # noqa: E402
+    app_home,
     flask_argv_from_config,
+    is_frozen,
     load_install_config,
     resolve_recordings_dir,
     save_install_config,
+    should_run_setup,
     venv_python,
 )
 from setup_wizard import (  # noqa: E402
@@ -89,6 +92,24 @@ class TestInstallConfig(unittest.TestCase):
 
     def test_venv_python_missing(self):
         self.assertIsNone(venv_python(self.root))
+
+    def test_not_frozen_in_source(self):
+        self.assertFalse(is_frozen())
+
+    def test_app_home_env_override(self):
+        self.assertEqual(app_home({'SWINGLAB_HOME': self.root}), os.path.abspath(self.root))
+
+    def test_app_home_frozen_windows(self):
+        with patch('install_config.is_frozen', return_value=True), \
+             patch('install_config.os.name', 'nt'):
+            home = app_home({'LOCALAPPDATA': self.root})
+        self.assertEqual(home, os.path.join(self.root, 'SwingLab'))
+
+    def test_should_run_setup(self):
+        self.assertTrue(should_run_setup(config=None))
+        self.assertTrue(should_run_setup(setup=True, config={'completed_at': 'x'}))
+        self.assertFalse(should_run_setup(skip_setup=True, config=None))
+        self.assertFalse(should_run_setup(config={'completed_at': '2026-01-01'}))
 
 
 class TestPrerequisiteChecks(unittest.TestCase):
@@ -229,6 +250,49 @@ class TestWizardHttp(unittest.TestCase):
         status, body, _ = handle_request(self.state, 'GET', '/nope', b'')
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
+
+    def test_state_includes_frozen_flag(self):
+        status, body, _ = handle_request(self.state, 'GET', '/api/state', b'')
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertIn('frozen', payload)
+        self.assertFalse(payload['frozen'])
+
+
+class TestFrozenWizard(unittest.TestCase):
+    def test_checks_when_frozen(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch('setup_wizard.is_frozen', return_value=True), \
+                 patch('setup_wizard.resource_path', return_value=os.path.join(tmp, 'missing.html')):
+                rows = check_prerequisites(tmp)
+        by_id = {row['id']: row for row in rows}
+        self.assertTrue(by_id['bundled']['ok'])
+        self.assertTrue(by_id['writable']['ok'])
+        self.assertNotIn('node', by_id)
+
+    def test_write_launchers_skipped_when_frozen(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch('setup_wizard.is_frozen', return_value=True):
+                self.assertEqual(write_launchers(tmp), [])
+            self.assertFalse(os.path.isfile(os.path.join(tmp, 'Start SwingLab.bat')))
+
+
+class TestLauncherAndPackaging(unittest.TestCase):
+    def test_parse_launcher_args(self):
+        sys.path.insert(0, os.path.join(project_root, 'scripts'))
+        from swinglab_app import parse_launcher_args
+        args, rest = parse_launcher_args(['--setup', '--camera1', '2'])
+        self.assertTrue(args.setup)
+        self.assertFalse(args.skip_setup)
+        self.assertEqual(rest, ['--camera1', '2'])
+        args, rest = parse_launcher_args(['--skip-setup'])
+        self.assertTrue(args.skip_setup)
+
+    def test_packaging_files_exist(self):
+        self.assertTrue(os.path.isfile(os.path.join(project_root, 'packaging', 'swinglab.spec')))
+        self.assertTrue(os.path.isfile(os.path.join(project_root, 'packaging', 'swinglab.iss')))
+        self.assertTrue(os.path.isfile(os.path.join(project_root, 'scripts', 'build_installer.py')))
+        self.assertTrue(os.path.isfile(os.path.join(project_root, 'scripts', 'swinglab_app.py')))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # Current Recording Settings
 
-> **Historical.** Defaults below describe old CLI scripts (`record_golf_swing.py`). Product start: [HOW_TO_USE.md](HOW_TO_USE.md). Flask default is 1280×720 @ 120 fps.
+> **Historical.** Defaults below describe old CLI scripts that were **removed**. Product start: [HOW_TO_USE.md](HOW_TO_USE.md). Flask default is 1280×720 @ 120 fps.
 
 ## 🎯 Recommended Settings for Golf Swings
 

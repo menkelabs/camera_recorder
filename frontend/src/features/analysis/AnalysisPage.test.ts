@@ -131,7 +131,8 @@ describe('AnalysisPage', () => {
     expect(await screen.findByText(/Saved swing/)).toBeTruthy()
     expect(screen.getByText('A')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Export HTML' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Clip Cam1' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Clip Cam1' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Clip Cam2' })).toBeTruthy()
   })
 
   it('uses analysisPrefill from the store', async () => {
