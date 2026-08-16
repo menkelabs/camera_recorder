@@ -56,7 +56,7 @@ from practice_settings import (
     set_reference_timestamp,
     update_practice_settings,
 )
-from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
+from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output, video_file_to_mp4
 from usb_health import detect_shared_usb_bus, frame_starvation_warning
 
 from flask import Flask, jsonify, redirect, request, Response, send_file, send_from_directory
@@ -1266,6 +1266,35 @@ def get_manager() -> Optional[CameraManager]:
     return camera_manager
 
 
+def _err(message: str, status: int = 503):
+    """JSON error with a real HTTP status (never 200)."""
+    return jsonify({'error': message}), status
+
+
+def _status_for_manager_error(message: str) -> int:
+    lower = (message or '').lower()
+    if 'not initialized' in lower:
+        return 503
+    if any(token in lower for token in (
+        'already recording',
+        'not recording',
+        'stop recording',
+        'busy',
+        'being analyzed',
+    )):
+        return 409
+    if 'another player' in lower:
+        return 403
+    return 400
+
+
+def _json_action(payload: dict):
+    """Return a manager result, mapping `{error: ...}` payloads to 4xx/5xx."""
+    if isinstance(payload, dict) and payload.get('error'):
+        return jsonify(payload), _status_for_manager_error(str(payload['error']))
+    return jsonify(payload)
+
+
 # ------------------------------------------------------------------
 # MJPEG streaming
 # ------------------------------------------------------------------
@@ -1420,7 +1449,7 @@ def api_cameras_reinit():
         result = mgr.reinit_cameras()
         result['camera1_id'] = mgr.camera1_id
         result['camera2_id'] = mgr.camera2_id
-        return jsonify(result)
+        return _json_action(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1508,7 +1537,7 @@ def api_status():
     """Overall system status (polled by the UI)."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
 
     auto_status = {}
     if mgr.auto_detect_enabled and mgr.swing_detector:
@@ -1553,10 +1582,10 @@ def api_camera_properties(camera_num):
     """Get all camera property values and ranges."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     props = mgr.get_camera_properties(camera_num)
     if props is None:
-        return jsonify({'error': f'Camera {camera_num} not available'})
+        return _err(f'Camera {camera_num} not available', 404)
     return jsonify(props)
 
 
@@ -1565,7 +1594,7 @@ def api_set_camera_property(camera_num):
     """Set a single camera property."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     data = request.get_json()
     if not data or 'name' not in data or 'value' not in data:
         return jsonify({'error': 'Missing name or value'}), 400
@@ -1578,7 +1607,7 @@ def api_reset_camera(camera_num):
     """Reset camera properties to defaults."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     ok = mgr.reset_camera_properties(camera_num)
     return jsonify({'success': ok})
 
@@ -1588,11 +1617,11 @@ def api_save_settings():
     """Save camera settings to a JSON file."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     filename = mgr.save_settings()
     if filename:
         return jsonify({'success': True, 'filename': filename})
-    return jsonify({'error': 'Failed to save'})
+    return _err('Failed to save', 500)
 
 
 @app.route('/api/recording/start', methods=['POST'])
@@ -1600,8 +1629,8 @@ def api_start_recording():
     """Start 120fps dual camera recording."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
-    return jsonify(mgr.start_recording())
+        return _err('Not initialized')
+    return _json_action(mgr.start_recording())
 
 
 @app.route('/api/checklist')
@@ -1609,7 +1638,7 @@ def api_checklist():
     """Pre-record readiness checklist."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     return jsonify(mgr.get_pre_record_checklist())
 
 
@@ -1618,8 +1647,8 @@ def api_stop_recording():
     """Stop recording, trigger analysis."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
-    return jsonify(mgr.stop_recording())
+        return _err('Not initialized')
+    return _json_action(mgr.stop_recording())
 
 
 @app.route('/api/auto-detect/toggle', methods=['POST'])
@@ -1627,8 +1656,8 @@ def api_auto_detect_toggle():
     """Enable or disable auto swing detection."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
-    return jsonify(mgr.toggle_auto_detect())
+        return _err('Not initialized')
+    return _json_action(mgr.toggle_auto_detect())
 
 
 @app.route('/api/auto-detect/status')
@@ -1636,7 +1665,7 @@ def api_auto_detect_status():
     """Get current auto-detect state."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     return jsonify(mgr.get_auto_detect_status())
 
 
@@ -1758,7 +1787,7 @@ def api_analysis_results():
 
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     return jsonify(mgr.get_analysis_results())
 
 
@@ -1767,7 +1796,7 @@ def api_set_analysis_frame():
     """Set the current analysis frame index."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     data = request.get_json(silent=True) or {}
     if 'index' not in data:
         return jsonify({'error': 'Missing index'}), 400
@@ -2142,7 +2171,7 @@ def api_delete_recording(timestamp):
     """Delete a specific recording pair by timestamp."""
     result = _delete_recording_pair(timestamp)
     if 'error' in result:
-        return jsonify(result), 400
+        return jsonify(result), _status_for_manager_error(str(result['error']))
     return jsonify(result)
 
 
@@ -2584,11 +2613,11 @@ def api_session_toggle():
     """Enable/disable session mode. Body: {enabled: bool}."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     data = request.get_json(silent=True) or {}
     if 'enabled' not in data:
         return jsonify({'error': 'Missing enabled'}), 400
-    return jsonify(mgr.set_session_enabled(bool(data['enabled'])))
+    return _json_action(mgr.set_session_enabled(bool(data['enabled'])))
 
 
 @app.route('/api/session/next', methods=['POST'])
@@ -2596,54 +2625,77 @@ def api_session_next():
     """Advance session from review to armed for the next swing."""
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
-    return jsonify(mgr.session_next())
+        return _err('Not initialized')
+    return _json_action(mgr.session_next())
 
 
 @app.route('/api/session')
 def api_session_status():
     mgr = get_manager()
     if mgr is None:
-        return jsonify({'error': 'Not initialized'})
+        return _err('Not initialized')
     return jsonify(mgr.get_session_status())
 
 
 @app.route('/api/analysis/export-clip', methods=['POST'])
 def api_export_clip():
     """
-    Export annotated analysis frames as MP4.
+    Export a camera clip as MP4.
     Body: {camera: 1|2, fps?: number, timestamp?: str}
-    Uses in-memory frames when timestamp omitted / matches current recording.
+
+    Prefers in-memory annotated frames when they match the requested swing;
+    otherwise re-encodes the saved recording from disk.
     """
     mgr = get_manager()
     data = request.get_json(silent=True) or {}
-    cam = int(data.get('camera') or 1)
-    if cam not in (1, 2):
-        return jsonify({'error': 'camera must be 1 or 2'}), 400
-    fps = float(data.get('fps') or 30.0)
-    ts = data.get('timestamp')
-
-    frames = None
-    stamp = ts
-    if mgr is not None:
-        frames = mgr.analysis_frames_cam1 if cam == 1 else mgr.analysis_frames_cam2
-        if not stamp:
-            path = mgr._analysis_json_path()
-            if path:
-                m = re.search(r'analysis_(\d{8}_\d{6})\.json', path)
-                if m:
-                    stamp = m.group(1)
-
-    if not frames:
-        return jsonify({'error': 'No annotated frames in memory — open Analysis after a recording'}), 400
-    if not stamp:
-        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    out_path = resolve_clip_output(_get_recordings_dir(), stamp, cam)
     try:
-        result = jpeg_frames_to_mp4(frames, out_path, fps=fps)
+        cam = int(data.get('camera') or 1)
+    except (TypeError, ValueError):
+        return _err('camera must be 1 or 2', 400)
+    if cam not in (1, 2):
+        return _err('camera must be 1 or 2', 400)
+    try:
+        fps = float(data.get('fps') or 30.0)
+    except (TypeError, ValueError):
+        return _err('fps must be a number', 400)
+    if fps <= 0:
+        return _err('fps must be positive', 400)
+
+    ts = data.get('timestamp')
+    if ts is not None:
+        ts = str(ts).strip() or None
+    if ts and not re.match(r'^\d{8}_\d{6}$', ts):
+        return _err('Invalid timestamp', 400)
+
+    live_ts = _live_analysis_timestamp(mgr)
+    stamp = ts or live_ts
+    memory_frames = None
+    if mgr is not None and (not ts or ts == live_ts):
+        memory_frames = mgr.analysis_frames_cam1 if cam == 1 else mgr.analysis_frames_cam2
+        if not memory_frames:
+            memory_frames = None
+
+    out_stamp = stamp or datetime.now().strftime('%Y%m%d_%H%M%S')
+    out_path = resolve_clip_output(_get_recordings_dir(), out_stamp, cam)
+    try:
+        if memory_frames:
+            result = jpeg_frames_to_mp4(memory_frames, out_path, fps=fps)
+            result['source'] = 'memory'
+        elif stamp:
+            rec_path = os.path.join(
+                _get_recordings_dir(), f'recording_{stamp}_camera{cam}.mp4',
+            )
+            if not os.path.isfile(rec_path):
+                return _err(f'No recording for {stamp} camera {cam}', 404)
+            result = video_file_to_mp4(rec_path, out_path, fps=fps)
+            result['source'] = 'saved'
+        else:
+            return _err(
+                'No annotated frames in memory and no recording timestamp',
+                400,
+            )
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return _err(str(e), 400)
     return jsonify({'success': True, **result})
 
 

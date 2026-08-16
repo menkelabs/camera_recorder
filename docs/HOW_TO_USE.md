@@ -167,7 +167,7 @@ After a live take you get annotated playback (pose overlay) for both cameras, a 
 | `←` or `A` | Previous frame |
 | `→` or `D` | Next frame |
 
-Pick an older timestamp from the dropdown (or **Analyze** on Recordings) to review a saved swing. Saved review shows metrics and score; clip export of historical frames is only available when annotated frames are still in memory from the current analysis.
+Pick an older timestamp from the dropdown (or **Analyze** on Recordings) to review a saved swing. Saved review shows metrics and score. Clip export uses in-memory annotated frames for the latest analysis, or re-encodes the original recording from disk for older swings.
 
 Export HTML or CSV from the Analysis tab when you want a shareable report.
 

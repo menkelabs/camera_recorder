@@ -593,10 +593,22 @@ class TestFlaskRoutes(unittest.TestCase):
         self.assertIn('brightness', data)
         self.assertIn('_info', data)
 
+    def test_api_status_not_initialized(self):
+        """GET /api/status without a manager is 503, not a fake 200."""
+        import flask_gui
+        flask_gui.camera_manager = None
+        try:
+            resp = self.client.get('/api/status')
+            self.assertEqual(resp.status_code, 503)
+            self.assertIn('error', resp.get_json())
+        finally:
+            flask_gui.camera_manager = self.mgr
+
     def test_api_camera_properties_unavailable(self):
         """GET /api/camera/2/properties when cap2 is None."""
         self.mgr.cap2 = None
         resp = self.client.get('/api/camera/2/properties')
+        self.assertEqual(resp.status_code, 404)
         data = json.loads(resp.data)
         self.assertIn('error', data)
 
@@ -643,8 +655,15 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mgr.cap1 = None
         self.mgr.cap2 = None
         resp = self.client.post('/api/recording/start')
+        self.assertEqual(resp.status_code, 400)
         data = json.loads(resp.data)
         self.assertIn('error', data)
+
+    def test_api_recording_start_conflict(self):
+        self.mgr.is_recording = True
+        resp = self.client.post('/api/recording/start')
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn('error', resp.get_json())
 
     def test_api_recording_stop(self):
         """POST /api/recording/stop stops recording."""
@@ -996,7 +1015,7 @@ class TestCameraDetectReinit(unittest.TestCase):
     def test_reinit_blocked_while_recording(self):
         self.mgr.is_recording = True
         resp = self.client.post('/api/cameras/reinit')
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 409)
         data = json.loads(resp.data)
         self.assertIn('error', data)
 
