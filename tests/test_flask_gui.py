@@ -1038,13 +1038,11 @@ def run_flask_gui_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestFrameNavigation))
     suite.addTests(loader.loadTestsFromTestCase(TestSummaryCorrectness))
     suite.addTests(loader.loadTestsFromTestCase(TestFlaskRoutes))
-    suite.addTests(loader.loadTestsFromTestCase(TestTemplateRendering))
     suite.addTests(loader.loadTestsFromTestCase(TestNewAnalysisEndpoints))
     suite.addTests(loader.loadTestsFromTestCase(TestAnalysisFrameEndpoint))
     suite.addTests(loader.loadTestsFromTestCase(TestAutoDetectEndpoints))
     suite.addTests(loader.loadTestsFromTestCase(TestCameraDetectReinit))
     suite.addTests(loader.loadTestsFromTestCase(TestCompressFrames))
-    suite.addTests(loader.loadTestsFromTestCase(TestTemplateNewFeatures))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

@@ -2831,9 +2831,25 @@ def api_archive_status():
     })
 
 
+def _archivable_for_active_user(pairs: List[Dict]) -> List[Dict]:
+    """Keep the active player's recordings plus unclaimed files (not other players')."""
+    try:
+        db = get_db(_get_recordings_dir())
+        owners = db.ownership_map()
+        active = db.get_active_user_id()
+    except Exception:
+        return []
+    kept = []
+    for pair in pairs:
+        owner = owners.get(pair['timestamp'])
+        if owner is None or owner == active:
+            kept.append(pair)
+    return kept
+
+
 @app.route('/api/archive/run', methods=['POST'])
 def api_archive_run():
-    """Archive all un-archived recordings. Body (optional): { "timestamps": [...] }"""
+    """Archive un-archived recordings for the active user (+ unclaimed)."""
     archive_path = _get_archive_path()
     if not archive_path:
         return jsonify({'error': 'Archive path not configured'}), 400
@@ -2844,7 +2860,7 @@ def api_archive_run():
     requested_ts = data.get('timestamps')
 
     manifest = _load_archive_manifest()
-    pairs = _list_recording_pairs()
+    pairs = _archivable_for_active_user(_list_recording_pairs())
 
     if requested_ts:
         pairs = [p for p in pairs if p['timestamp'] in requested_ts]

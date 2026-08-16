@@ -187,7 +187,7 @@ Export HTML or CSV from the Analysis tab when you want a shareable report.
 
 **Camera roles** — Face-On vs DTL for Camera 1 (Camera 2 flips). Scoring uses the role, not “camera 1 = face-on” hardcoded.
 
-**Archive** — set a USB/external path (example: `/media/you/Seagate8TB/golf`). **Archive new recordings** copies videos, analysis JSON, and settings and remembers what already went. The badge shows connected / disconnected and disk free space.
+**Archive** — set a USB/external path (example: `/media/you/Seagate8TB/golf`). **Archive new recordings** copies **your** and unclaimed videos, analysis JSON, and settings and remembers what already went. Other players’ swings are left alone. The badge shows connected / disconnected and disk free space.
 
 More on the SQLite file and ownership: [LOCAL_DB.md](LOCAL_DB.md).
 

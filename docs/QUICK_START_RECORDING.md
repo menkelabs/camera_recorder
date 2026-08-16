@@ -1,6 +1,6 @@
 # Quick Start - Dual HD USB Camera Recording at 60 FPS
 
-> **Historical.** Do not run `run_dual_recording.py` for practice. The product app is Vue + Flask — start with [HOW_TO_USE.md](HOW_TO_USE.md).
+> **Historical.** `run_dual_recording.py` and `debug_recorder.py` were **removed**. The product app is Vue + Flask — start with [HOW_TO_USE.md](HOW_TO_USE.md).
 
 ## Your Cameras
 - **Camera 1**: Index 0 (HD USB Camera) - Supports up to 120fps @ 720p

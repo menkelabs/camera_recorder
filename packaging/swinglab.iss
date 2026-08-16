@@ -38,11 +38,9 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
-LicenseFile=
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
