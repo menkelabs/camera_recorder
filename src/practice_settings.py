@@ -16,6 +16,7 @@ from local_db import get_db
 _lock = threading.Lock()
 _TS_RE = re.compile(r'^\d{8}_\d{6}$')
 VALID_ROLES = ('face_on', 'dtl')
+METRONOME_RATIO = '3:1'
 
 
 def settings_path(recordings_dir: str) -> str:
@@ -34,7 +35,7 @@ def _empty() -> Dict[str, Any]:
         'metronome': {
             'enabled': False,
             'bpm': 60,
-            'ratio': '3:1',
+            'ratio': METRONOME_RATIO,
         },
         'session': {
             'enabled': False,
@@ -67,11 +68,20 @@ def save_practice_settings(recordings_dir: str, data: Dict[str, Any]) -> None:
     get_db(recordings_dir).save_practice_settings(_merge_defaults(data))
 
 
+def _require_metronome_ratio(value: Any) -> str:
+    """Recording-tab click is a 3:1 feel. Other ratios are refused."""
+    if value != METRONOME_RATIO:
+        raise ValueError('metronome ratio must be 3:1')
+    return value
+
+
 def update_practice_settings(recordings_dir: str, patch: Dict[str, Any]) -> Dict[str, Any]:
     """Shallow/section merge of practice settings."""
     with _lock:
         data = load_practice_settings(recordings_dir)
         for key, value in patch.items():
+            if key == 'metronome' and isinstance(value, dict) and 'ratio' in value:
+                _require_metronome_ratio(value['ratio'])
             if key in ('camera_roles', 'metronome', 'session') and isinstance(value, dict):
                 data[key] = {**data.get(key, {}), **value}
             elif key == 'reference_timestamp':
