@@ -29,9 +29,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 _TS_RE = re.compile(r'^\d{8}_\d{6}$')
+_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 _SCHEMA_VERSION = 2
 _DEFAULT_USER_NAME = 'Player 1'
 _NAME_MAX = 40
+_DEFAULT_COLOR = '#58a6ff'
 
 _lock = threading.RLock()
 _cache: Dict[str, 'LocalDB'] = {}
@@ -45,6 +47,16 @@ def _hash_pin(pin: str, salt: Optional[str] = None) -> str:
     salt = salt or secrets.token_hex(8)
     digest = hashlib.sha256(f'{salt}:{pin}'.encode('utf-8')).hexdigest()
     return f'{salt}${digest}'
+
+
+def _normalize_color(color: Optional[str]) -> Optional[str]:
+    """Player swatches are #RRGGBB. None means the caller omitted color."""
+    if color is None:
+        return None
+    text = str(color).strip()
+    if not _COLOR_RE.match(text):
+        raise ValueError('Player color must be a #RRGGBB hex color')
+    return text.lower()
 
 
 def _verify_pin(pin: str, stored: Optional[str]) -> bool:
@@ -503,13 +515,14 @@ class LocalDB:
                 if len(str(pin)) < 4:
                     raise ValueError('PIN must be at least 4 characters')
                 pin_hash = _hash_pin(str(pin))
+            stored_color = _normalize_color(color) or _DEFAULT_COLOR
             now = _now()
             cur = self._require().execute(
                 """
                 INSERT INTO users(name, pin_hash, color, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (cleaned, pin_hash, color or '#58a6ff', now, now),
+                (cleaned, pin_hash, stored_color, now, now),
             )
             self._require().commit()
             return self._user_row_to_dict(
@@ -529,7 +542,7 @@ class LocalDB:
         with self._lock:
             row = self._get_user_row(user_id)
             new_name = self._normalize_name(name) if name is not None else row['name']
-            new_color = color if color is not None else row['color']
+            new_color = _normalize_color(color) if color is not None else row['color']
             pin_hash = row['pin_hash']
             if clear_pin:
                 pin_hash = None

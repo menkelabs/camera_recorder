@@ -295,6 +295,19 @@ class TestLocalDBCore(unittest.TestCase):
         active = db.set_active_user(locked['id'], pin='1234')
         self.assertEqual(active['id'], locked['id'])
 
+    def test_player_color_must_be_hex_swatch(self):
+        db = get_db(self.dir)
+        user = db.create_user('Green', color='#3FB950')
+        self.assertEqual(user['color'], '#3fb950')
+        with self.assertRaises(ValueError):
+            db.create_user('Injected', color='red; background:url(https://evil)')
+        with self.assertRaises(ValueError):
+            db.update_user(user['id'], color='')
+        names = [row['name'] for row in db.list_users()]
+        self.assertNotIn('Injected', names)
+        stored = next(row for row in db.list_users() if row['id'] == user['id'])
+        self.assertEqual(stored['color'], '#3fb950')
+
     def test_cannot_delete_last_user(self):
         db = get_db(self.dir)
         uid = db.get_active_user_id()
