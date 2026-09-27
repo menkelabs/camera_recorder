@@ -161,6 +161,24 @@ class TestFinishAndLaunchers(unittest.TestCase):
         self.assertEqual(loaded['player_name'], 'Alex')
         self.assertEqual(loaded['camera_roles']['camera1'], 'dtl')
 
+    def test_finish_refuses_camera_index_outside_probe_range(self):
+        for bad in (-1, 8, True, 1.5, '8', '', None):
+            with self.subTest(bad=bad):
+                result = finish_install(self.root, {
+                    'camera1_id': 0,
+                    'camera2_id': bad,
+                })
+                self.assertFalse(result['ok'])
+                self.assertIn('camera2_id', result['error'])
+                self.assertFalse(os.path.isfile(
+                    os.path.join(self.root, 'swinglab.local.json'),
+                ))
+        edges = finish_install(self.root, {'camera1_id': '0', 'camera2_id': 7})
+        self.assertTrue(edges['ok'])
+        loaded = load_install_config(self.root)
+        self.assertEqual(loaded['camera1_id'], 0)
+        self.assertEqual(loaded['camera2_id'], 7)
+
     def test_write_launchers_content(self):
         paths = write_launchers(self.root)
         self.assertEqual(len(paths), 2)
@@ -224,6 +242,21 @@ class TestWizardHttp(unittest.TestCase):
         self.assertTrue(payload['ok'])
         self.assertEqual(payload['url'], 'http://127.0.0.1:5002')
         self.assertEqual(load_install_config(self.root)['player_name'], 'Kim')
+
+    def test_post_finish_rejects_camera_index_outside_probe_range(self):
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({'camera1_id': -1, 'camera2_id': 1}).encode(),
+        )
+        self.assertEqual(status, 400)
+        payload = json.loads(body)
+        self.assertFalse(payload['ok'])
+        self.assertIn('camera1_id', payload['error'])
+        self.assertFalse(os.path.isfile(
+            os.path.join(self.root, 'swinglab.local.json'),
+        ))
 
     def test_unknown_route(self):
         status, body, _ = handle_request(self.state, 'GET', '/nope', b'')

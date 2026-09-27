@@ -469,11 +469,42 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def device_index(value: Any) -> Optional[int]:
+    """Camera index the studio probe actually scans (0–7).
+
+    ``range(8)`` is the detect loop. Negative, boolean, and non-integer
+    values are not a device the wizard can open.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        index = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        index = int(value.strip())
+    else:
+        return None
+    if 0 <= index <= 7:
+        return index
+    return None
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    normalized = dict(settings)
+    for key in ('camera1_id', 'camera2_id'):
+        if key not in settings:
+            continue
+        index = device_index(settings.get(key))
+        if index is None:
+            return {
+                'ok': False,
+                'error': f'{key} must be an integer from 0 to 7',
+            }
+        normalized[key] = index
+    settings = normalized
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +625,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
