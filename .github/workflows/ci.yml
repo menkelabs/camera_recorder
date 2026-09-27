@@ -54,7 +54,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install ratchet tools
-        run: python -m pip install ruff lizard pytest
+        run: python -m pip install 'ruff==0.15.7' lizard pytest
       - name: Clean as You Code (diff-scoped ruff; eslint only if configured)
         if: github.event_name == 'pull_request'
         run: |
