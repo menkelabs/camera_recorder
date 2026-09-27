@@ -653,7 +653,12 @@ class LocalDB:
         # recording_meta.json
         if self._meta_get('migrated_recording_meta') != '1':
             path = os.path.join(self.recordings_dir, 'recording_meta.json')
-            if os.path.isfile(path):
+            # A symlink named recording_meta.json must not be followed out of
+            # recordings, so first-open migration cannot ingest notes from
+            # another file.
+            root = os.path.realpath(self.recordings_dir)
+            inside = os.path.realpath(path) == os.path.join(root, 'recording_meta.json')
+            if os.path.isfile(path) and inside:
                 try:
                     with open(path, 'r', encoding='utf-8') as f:
                         data = json.load(f)

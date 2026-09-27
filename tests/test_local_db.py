@@ -88,6 +88,37 @@ class TestLocalDBCore(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_recording_meta(self.dir, 'bad-ts')
 
+    def test_recording_meta_symlink_outside_recordings_is_not_migrated(self):
+        """Opening the store must not follow recording_meta.json out of recordings."""
+        sibling = tempfile.TemporaryDirectory()
+        secret = os.path.join(sibling.name, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            json.dump({
+                'version': 1,
+                'recordings': {
+                    '20260715_120000': {
+                        'favorite': True,
+                        'notes': 'outside',
+                        'tags': ['leak'],
+                    },
+                },
+            }, handle)
+        os.symlink(secret, os.path.join(self.dir, 'recording_meta.json'))
+        try:
+            reset_db_cache()
+            meta = get_recording_meta(self.dir, '20260715_120000')
+            self.assertFalse(meta['favorite'])
+            self.assertEqual(meta['notes'], '')
+            self.assertEqual(meta['tags'], [])
+            with open(secret, encoding='utf-8') as handle:
+                outside = json.load(handle)
+            self.assertEqual(
+                outside['recordings']['20260715_120000']['notes'],
+                'outside',
+            )
+        finally:
+            sibling.cleanup()
+
     def test_migrate_practice_settings_json(self):
         with open(os.path.join(self.dir, 'practice_settings.json'), 'w') as f:
             json.dump({
