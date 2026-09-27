@@ -124,6 +124,22 @@ class TestLocalDBCore(unittest.TestCase):
         self.assertEqual(rows[0]['score'], 80.0)
         self.assertEqual(rows[0]['metrics']['max_shoulder_turn'], 45.0)
 
+    def test_analysis_symlink_outside_recordings_is_not_imported(self):
+        """Opening the store must not follow analysis JSON out of recordings."""
+        sibling = tempfile.TemporaryDirectory()
+        secret = os.path.join(sibling.name, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            json.dump(_sample_analysis(score=11.0), handle)
+        os.symlink(secret, os.path.join(self.dir, 'analysis_20260715_120000.json'))
+        try:
+            reset_db_cache()
+            rows = get_db(self.dir).list_swing_stats()
+            self.assertEqual(rows, [])
+            with open(secret, encoding='utf-8') as handle:
+                self.assertEqual(json.load(handle)['score']['score'], 11.0)
+        finally:
+            sibling.cleanup()
+
     def test_upsert_replaces_stats_for_same_timestamp(self):
         db = get_db(self.dir)
         db.upsert_swing_stats(_sample_analysis(score=70, shoulder=30))

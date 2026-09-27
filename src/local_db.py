@@ -742,6 +742,11 @@ class LocalDB:
             if owner and int(owner['user_id']) != uid:
                 continue
             path = os.path.join(self.recordings_dir, name)
+            # A symlink named analysis_*.json must not be followed out of
+            # recordings, so progress stats cannot ingest another file.
+            root = os.path.realpath(self.recordings_dir)
+            if os.path.realpath(path) != os.path.join(root, name):
+                continue
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     payload = json.load(f)
