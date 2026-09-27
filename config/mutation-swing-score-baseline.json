@@ -1,0 +1,7 @@
+{
+  "module": "src/swing_score.py",
+  "survived": 43,
+  "measured_locally": false,
+  "source_run": "36292896755",
+  "note": "First CI measurement for src/swing_score.py. The previous 0 was unmeasured. CI must not rewrite this file. Do not raise survived to hide a later regression."
+}

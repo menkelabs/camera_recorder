@@ -1,0 +1,131 @@
+# ruff baseline. CI compares this file and must not rewrite it.
+# path<TAB>code<TAB>message — one line per occurrence.
+run_all_tests.py	E402	Module level import not at top of file
+run_all_tests.py	F401	`test_utils.describe_platform_setup` imported but unused
+run_all_tests.py	F401	`unittest` imported but unused
+scripts/camera_test_gui.py	F401	`dual_camera_recorder.CameraCapture` imported but unused
+scripts/camera_test_gui.py	F401	`threading` imported but unused
+scripts/camera_test_gui.py	F401	`typing.Optional` imported but unused
+scripts/camera_test_gui.py	F401	`typing.Tuple` imported but unused
+scripts/detect_windows_cameras.py	F541	f-string without any placeholders
+scripts/detect_windows_cameras.py	F541	f-string without any placeholders
+scripts/detect_windows_cameras.py	F541	f-string without any placeholders
+scripts/detect_windows_cameras.py	F541	f-string without any placeholders
+scripts/detect_windows_cameras.py	F541	f-string without any placeholders
+scripts/flask_gui.py	F401	`camera_utils.create_camera_capture` imported but unused
+scripts/flask_gui.py	F401	`typing.Tuple` imported but unused
+src/clip_exporter.py	F401	`typing.Optional` imported but unused
+src/clip_exporter.py	F401	`typing.Tuple` imported but unused
+src/dual_camera_recorder.py	E722	Do not use bare `except`
+src/dual_camera_recorder.py	F541	f-string without any placeholders
+src/dual_camera_recorder.py	F841	Local variable `e` is assigned to but never used
+src/mediapipe_example.py	F541	f-string without any placeholders
+src/mediapipe_example.py	F541	f-string without any placeholders
+src/pose_processor.py	F401	`mediapipe.tasks.python` imported but unused
+src/pose_processor.py	F401	`numpy` imported but unused
+src/pose_processor.py	F401	`typing.Dict` imported but unused
+src/pose_processor.py	F401	`typing.List` imported but unused
+src/pose_processor.py	F401	`typing.Tuple` imported but unused
+src/pose_processor.py	F541	f-string without any placeholders
+src/practice_reports.py	F401	`os` imported but unused
+tests/enumerate_dshow_cameras.py	E722	Do not use bare `except`
+tests/enumerate_dshow_cameras.py	F401	`sys` imported but unused
+tests/find_camera_index.py	E722	Do not use bare `except`
+tests/find_camera_index.py	F401	`sys` imported but unused
+tests/find_camera_index.py	F541	f-string without any placeholders
+tests/find_camera_index.py	F541	f-string without any placeholders
+tests/find_camera_index.py	F841	Local variable `e` is assigned to but never used
+tests/find_hd_usb_cameras.py	F541	f-string without any placeholders
+tests/find_hd_usb_cameras.py	F541	f-string without any placeholders
+tests/find_hd_usb_cameras.py	F841	Local variable `e` is assigned to but never used
+tests/helpers.py	F401	`camera_utils.create_camera_capture` imported but unused
+tests/helpers.py	F401	`camera_utils.describe_platform_setup` imported but unused
+tests/helpers.py	F401	`camera_utils.fix_console_encoding` imported but unused
+tests/helpers.py	F401	`camera_utils.get_camera_ids` imported but unused
+tests/helpers.py	F401	`camera_utils.get_config_path` imported but unused
+tests/helpers.py	F401	`camera_utils.get_default_camera_ids` imported but unused
+tests/helpers.py	F401	`camera_utils.get_opencv_backend` imported but unused
+tests/helpers.py	F401	`camera_utils.get_platform_info` imported but unused
+tests/helpers.py	F401	`camera_utils.load_camera_config` imported but unused
+tests/identify_hd_cameras.py	F541	f-string without any placeholders
+tests/identify_hd_cameras.py	F841	Local variable `e` is assigned to but never used
+tests/test_240fps_no_drops.py	E402	Module level import not at top of file
+tests/test_240fps_no_drops.py	E402	Module level import not at top of file
+tests/test_240fps_no_drops.py	F401	`test_utils.get_camera_ids` imported but unused
+tests/test_240fps_no_drops.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F541	f-string without any placeholders
+tests/test_240fps_no_drops.py	F811	Redefinition of unused `get_camera_ids` from line 16: `get_camera_ids` redefined here
+tests/test_60fps.py	F401	`test_utils.get_camera_ids` imported but unused
+tests/test_60fps.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_60fps.py	F541	f-string without any placeholders
+tests/test_60fps.py	F811	Redefinition of unused `get_camera_ids` from line 12: `get_camera_ids` redefined here
+tests/test_archive.py	E402	Module level import not at top of file
+tests/test_archive.py	F401	`flask_gui._get_recordings_dir` imported but unused
+tests/test_archive.py	F401	`unittest.mock.MagicMock` imported but unused
+tests/test_archive.py	F821	Undefined name `TestTemplateSettingsTab`
+tests/test_cameras.py	F401	`test_utils.get_camera_ids` imported but unused
+tests/test_cameras.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_cameras.py	F541	f-string without any placeholders
+tests/test_flask_gui.py	E402	Module level import not at top of file
+tests/test_flask_gui.py	E402	Module level import not at top of file
+tests/test_flask_gui.py	E402	Module level import not at top of file
+tests/test_flask_gui.py	F401	`flask_gui.load_windows_config` imported but unused
+tests/test_flask_gui.py	F401	`unittest.mock.Mock` imported but unused
+tests/test_flask_gui.py	F401	`unittest.mock.PropertyMock` imported but unused
+tests/test_flask_gui.py	F821	Undefined name `TestTemplateNewFeatures`
+tests/test_flask_gui.py	F821	Undefined name `TestTemplateRendering`
+tests/test_frame_drops.py	E402	Module level import not at top of file
+tests/test_frame_drops.py	E402	Module level import not at top of file
+tests/test_frame_drops.py	F401	`test_utils.get_camera_ids` imported but unused
+tests/test_frame_drops.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_frame_drops.py	F541	f-string without any placeholders
+tests/test_frame_drops.py	F541	f-string without any placeholders
+tests/test_frame_drops.py	F541	f-string without any placeholders
+tests/test_frame_drops.py	F541	f-string without any placeholders
+tests/test_frame_drops.py	F811	Redefinition of unused `get_camera_ids` from line 17: `get_camera_ids` redefined here
+tests/test_golf_swing_settings.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_golf_swing_settings.py	F841	Local variable `e` is assigned to but never used
+tests/test_gui_stability.py	E402	Module level import not at top of file
+tests/test_gui_stability.py	E402	Module level import not at top of file
+tests/test_gui_stability.py	E402	Module level import not at top of file
+tests/test_gui_stability.py	E402	Module level import not at top of file
+tests/test_local_db.py	F401	`local_db.LocalDB` imported but unused
+tests/test_local_db.py	F841	Local variable `p1` is assigned to but never used
+tests/test_mediapipe_resolutions.py	F401	`test_utils.get_camera_ids` imported but unused
+tests/test_mediapipe_resolutions.py	F401	`test_utils.print_platform_banner` imported but unused
+tests/test_mediapipe_resolutions.py	F811	Redefinition of unused `get_camera_ids` from line 12: `get_camera_ids` redefined here
+tests/test_mediapipe_resolutions.py	F841	Local variable `e` is assigned to but never used
+tests/test_mock_video_analysis.py	E402	Module level import not at top of file
+tests/test_mock_video_analysis.py	E402	Module level import not at top of file
+tests/test_mock_video_analysis.py	E402	Module level import not at top of file
+tests/test_mock_video_analysis.py	E402	Module level import not at top of file
+tests/test_mock_video_analysis.py	F401	`unittest.mock.patch` imported but unused
+tests/test_platform_config.py	E402	Module level import not at top of file
+tests/test_platform_config.py	E402	Module level import not at top of file
+tests/test_platform_config.py	F401	`camera_utils.get_platform_info` imported but unused
+tests/test_practice_features.py	E402	Module level import not at top of file
+tests/test_practice_features.py	E402	Module level import not at top of file
+tests/test_practice_features.py	E402	Module level import not at top of file
+tests/test_real_swing_smoke.py	E402	Module level import not at top of file
+tests/test_real_swing_smoke.py	E402	Module level import not at top of file
+tests/test_recording_management.py	E402	Module level import not at top of file
+tests/test_recording_management.py	F401	`flask_gui._get_recordings_dir` imported but unused
+tests/test_recording_management.py	F401	`time` imported but unused
+tests/test_recording_management.py	F401	`unittest.mock.MagicMock` imported but unused
+tests/test_sway_calculator.py	F401	`math` imported but unused
+tests/test_swing_comparison.py	E402	Module level import not at top of file
+tests/test_swing_comparison.py	F401	`unittest.mock.MagicMock` imported but unused
+tests/test_swing_detector.py	E402	Module level import not at top of file
+tests/test_swing_detector.py	F401	`unittest.mock.MagicMock` imported but unused
+tests/test_swing_detector.py	F401	`unittest.mock.patch` imported but unused
+tests/test_videowriter_fps.py	E722	Do not use bare `except`
+tests/verify_dual_recording.py	E402	Module level import not at top of file
+tests/verify_dual_recording.py	E402	Module level import not at top of file
+tests/verify_dual_recording.py	F401	`cv2` imported but unused
