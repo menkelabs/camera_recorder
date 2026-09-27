@@ -2707,8 +2707,20 @@ def _load_archive_manifest() -> Dict:
 
 
 def _save_archive_manifest(manifest: Dict):
-    """Persist the archive manifest."""
+    """Persist the archive manifest inside the recordings directory.
+
+    The destination must resolve to ``.archive_manifest.json`` in that
+    directory. A symlink whose target is anything else is not opened, so a
+    save cannot overwrite another file.
+    """
     path = _archive_manifest_path()
+    root = os.path.realpath(_get_recordings_dir())
+    real = os.path.realpath(path)
+    expected = os.path.join(root, '.archive_manifest.json')
+    if real != expected:
+        raise ValueError(
+            'Archive manifest must stay inside the recordings directory'
+        )
     with open(path, 'w') as f:
         json.dump(manifest, f, indent=2)
 

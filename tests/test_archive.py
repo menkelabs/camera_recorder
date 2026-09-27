@@ -82,6 +82,26 @@ class TestArchiveManifest(unittest.TestCase):
         loaded = _load_archive_manifest()
         self.assertIn('20260215_140000', loaded)
 
+    @patch('flask_gui._get_recordings_dir')
+    def test_save_refuses_symlink_outside_recordings(self, mock_dir):
+        mock_dir.return_value = self._tmpdir
+        sibling = self._tmpdir + '_outside'
+        os.makedirs(sibling)
+        secret = os.path.join(sibling, 'secret.json')
+        original = '{"keep": true}\n'
+        with open(secret, 'w') as f:
+            f.write(original)
+        os.symlink(secret, os.path.join(self._tmpdir, '.archive_manifest.json'))
+        try:
+            with self.assertRaises(ValueError):
+                _save_archive_manifest(
+                    {'20260215_140000': {'archived_at': '2026-02-15'}}
+                )
+            with open(secret) as f:
+                self.assertEqual(f.read(), original)
+        finally:
+            shutil.rmtree(sibling, ignore_errors=True)
+
 
 class TestArchiveRecording(unittest.TestCase):
     """Test _archive_recording file copy logic."""
