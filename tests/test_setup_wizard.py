@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -229,6 +230,42 @@ class TestWizardHttp(unittest.TestCase):
         status, body, _ = handle_request(self.state, 'GET', '/nope', b'')
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
+
+    def test_finish_rejects_recordings_dir_outside_project(self):
+        escape = os.path.join(os.path.dirname(self.root), 'cam-next29-escape')
+        with tempfile.TemporaryDirectory() as scratch:
+            outside = os.path.join(scratch, 'outside')
+            os.makedirs(outside)
+            os.symlink(outside, os.path.join(self.root, 'linked-recordings'))
+            cases = (
+                os.path.join('..', 'cam-next29-escape'),
+                os.path.join(scratch, 'absolute-escape'),
+                'linked-recordings',
+            )
+            try:
+                for raw in cases:
+                    status, body, _ = handle_request(
+                        self.state,
+                        'POST',
+                        '/api/finish',
+                        json.dumps({
+                            'recordings_dir': raw,
+                            'player_name': 'Kim',
+                        }).encode(),
+                    )
+                    self.assertEqual(status, 400, raw)
+                    payload = json.loads(body)
+                    self.assertFalse(payload['ok'])
+                    self.assertIn('project directory', payload['error'])
+                self.assertFalse(os.path.exists(escape))
+                self.assertFalse(os.path.exists(os.path.join(scratch, 'absolute-escape')))
+                self.assertEqual(os.listdir(outside), [])
+                self.assertFalse(os.path.isfile(
+                    os.path.join(self.root, 'swinglab.local.json')))
+                self.assertFalse(os.path.isfile(
+                    os.path.join(self.root, 'start-swinglab.sh')))
+            finally:
+                shutil.rmtree(escape, ignore_errors=True)
 
 
 if __name__ == '__main__':

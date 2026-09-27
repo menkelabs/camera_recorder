@@ -469,11 +469,40 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def recordings_dir_inside_project(root: str, raw: Any) -> bool:
+    """True when a wizard recordings folder stays inside the project tree."""
+    if raw is None:
+        return True
+    if not isinstance(raw, str):
+        return False
+    text = raw.strip()
+    if not text:
+        return True
+    if os.path.isabs(text):
+        return False
+    parts = text.replace('\\', '/').split('/')
+    if any(part == '..' for part in parts):
+        return False
+    resolved = os.path.realpath(os.path.join(root, text))
+    root_real = os.path.realpath(root)
+    try:
+        return os.path.commonpath([root_real, resolved]) == root_real
+    except ValueError:
+        return False
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    if 'recordings_dir' in settings and not recordings_dir_inside_project(
+        root, settings.get('recordings_dir'),
+    ):
+        return {
+            'ok': False,
+            'error': 'recordings folder must stay inside the project directory',
+        }
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +623,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
