@@ -49,7 +49,12 @@ def changed_files(repo: Path, base: str, suffixes: set[str]) -> list[str]:
 
 def file_at(repo: Path, rev: str, rel: str) -> str | None:
     try:
-        return git(repo, "show", f"{rev}:{rel}")
+        return subprocess.check_output(
+            ["git", "show", f"{rev}:{rel}"],
+            cwd=repo,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
     except subprocess.CalledProcessError:
         return None
 
