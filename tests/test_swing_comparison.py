@@ -122,6 +122,23 @@ class TestAnalysisSaveLoad(unittest.TestCase):
             loaded = _load_analysis('99999999_999999')
         self.assertIsNone(loaded)
 
+    def test_save_refuses_symlink_outside_recordings(self):
+        sibling = self.tmpdir + '_outside'
+        os.makedirs(sibling)
+        self.addCleanup(shutil.rmtree, sibling, ignore_errors=True)
+        secret = os.path.join(sibling, 'secret.json')
+        original = '{"keep": true}\n'
+        with open(secret, 'w') as f:
+            f.write(original)
+        os.symlink(
+            secret,
+            os.path.join(self.tmpdir, 'analysis_20260215_140000.json'),
+        )
+        with self._patch_recordings_dir():
+            self.mgr._save_analysis_json()
+        with open(secret) as f:
+            self.assertEqual(f.read(), original)
+
 
 class TestListSavedAnalyses(unittest.TestCase):
     """Test _list_saved_analyses helper."""

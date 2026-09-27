@@ -1070,9 +1070,24 @@ class CameraManager:
         return os.path.join(rec_dir, f'analysis_{ts}.json')
 
     def _save_analysis_json(self):
-        """Persist current analysis results to a JSON file next to the recordings."""
+        """Persist current analysis results to a JSON file next to the recordings.
+
+        The destination must resolve inside the recordings directory. A symlink
+        whose target leaves that directory is not opened, so a save cannot
+        overwrite another file.
+        """
         path = self._analysis_json_path()
         if not path:
+            return
+        rec_dir = _get_recordings_dir()
+        root = os.path.realpath(rec_dir)
+        real = os.path.realpath(path)
+        try:
+            inside = os.path.commonpath([root, real]) == root
+        except ValueError:
+            inside = False
+        if not inside:
+            print(f"Refusing to save analysis outside recordings: {path}")
             return
         # Build a serialisable snapshot
         def _serialise_cam(cam_data):
