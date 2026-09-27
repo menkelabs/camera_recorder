@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -163,6 +164,24 @@ class TestLocalDBCore(unittest.TestCase):
         with open(path) as f:
             data = json.load(f)
         self.assertTrue(data['recordings']['20260715_120000']['favorite'])
+
+    def test_recording_meta_mirror_refuses_tmp_symlink_outside_recordings(self):
+        """A recording_meta.json.tmp symlink must not be followed out of recordings."""
+        sibling = tempfile.mkdtemp()
+        secret = os.path.join(sibling, 'secret.json')
+        original = '{"keep": true}\n'
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write(original)
+        os.symlink(secret, os.path.join(self.dir, 'recording_meta.json.tmp'))
+        try:
+            with self.assertRaises(ValueError):
+                update_recording_meta(
+                    self.dir, '20260715_120000', favorite=True, notes='mirrored',
+                )
+            with open(secret, encoding='utf-8') as handle:
+                self.assertEqual(handle.read(), original)
+        finally:
+            shutil.rmtree(sibling, ignore_errors=True)
 
     def test_reference_and_roles_roundtrip(self):
         update_practice_settings(self.dir, {

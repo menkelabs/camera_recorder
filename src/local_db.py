@@ -968,10 +968,26 @@ class LocalDB:
             return out
 
     def _mirror_recording_meta_json(self) -> None:
+        """Best-effort JSON backup for humans / older tooling.
+
+        The destination and its temp file must resolve to
+        ``recording_meta.json`` inside the recordings directory. A symlink
+        to anything else is not opened, so a save cannot overwrite another file.
+        """
         path = os.path.join(self.recordings_dir, 'recording_meta.json')
+        root = os.path.realpath(self.recordings_dir)
+        expected = os.path.join(root, 'recording_meta.json')
+        if os.path.realpath(path) != expected:
+            raise ValueError(
+                'recording_meta.json must stay inside the recordings directory'
+            )
+        tmp = path + '.tmp'
+        if os.path.realpath(tmp) != expected + '.tmp':
+            raise ValueError(
+                'recording_meta.json must stay inside the recordings directory'
+            )
         try:
             data = {'version': 1, 'recordings': self.all_recording_meta()}
-            tmp = path + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
                 f.write('\n')
