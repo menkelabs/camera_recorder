@@ -55,6 +55,14 @@ def _verify_pin(pin: str, stored: Optional[str]) -> bool:
     return hmac.compare_digest(check, digest)
 
 
+def _normalize_pin(pin: str) -> str:
+    """PIN text after trimming. Fewer than 4 characters is refused."""
+    text = str(pin).strip()
+    if len(text) < 4:
+        raise ValueError('PIN must be at least 4 characters')
+    return text
+
+
 def db_path_for(recordings_dir: str) -> str:
     env = os.environ.get('SWINGLAB_DB_PATH')
     if env:
@@ -500,9 +508,7 @@ class LocalDB:
             cleaned = self._normalize_name(name)
             pin_hash = None
             if pin is not None and str(pin).strip() != '':
-                if len(str(pin)) < 4:
-                    raise ValueError('PIN must be at least 4 characters')
-                pin_hash = _hash_pin(str(pin))
+                pin_hash = _hash_pin(_normalize_pin(pin))
             now = _now()
             cur = self._require().execute(
                 """
@@ -537,9 +543,7 @@ class LocalDB:
                 if str(pin).strip() == '':
                     pin_hash = None
                 else:
-                    if len(str(pin)) < 4:
-                        raise ValueError('PIN must be at least 4 characters')
-                    pin_hash = _hash_pin(str(pin))
+                    pin_hash = _hash_pin(_normalize_pin(pin))
             self._require().execute(
                 """
                 UPDATE users SET name = ?, pin_hash = ?, color = ?, updated_at = ?
@@ -575,7 +579,8 @@ class LocalDB:
         with self._lock:
             row = self._get_user_row(user_id)
             if row['pin_hash']:
-                if pin is None or not _verify_pin(str(pin), row['pin_hash']):
+                submitted = '' if pin is None else str(pin).strip()
+                if not submitted or not _verify_pin(submitted, row['pin_hash']):
                     raise PermissionError('Incorrect PIN')
             self._meta_set('active_user_id', str(user_id))
             self._require().commit()

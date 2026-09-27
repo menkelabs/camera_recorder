@@ -476,6 +476,30 @@ class TestLocalDBFlaskProgress(unittest.TestCase):
         # status may error if manager not initialized; users endpoints are enough
         self.assertIn(status.status_code, (200, 200))
 
+    def test_short_pin_refused_on_create_and_update(self):
+        """A PIN is at least 4 characters after trimming, on create and update."""
+        before = [u['name'] for u in self.client.get('/api/users').get_json()['users']]
+
+        padded = self.client.post('/api/users', json={'name': 'Casey', 'pin': '  12'})
+        self.assertEqual(padded.status_code, 400)
+        self.assertIn('at least 4', padded.get_json()['error'])
+
+        short = self.client.post('/api/users', json={'name': 'Casey', 'pin': '123'})
+        self.assertEqual(short.status_code, 400)
+        self.assertEqual(
+            [u['name'] for u in self.client.get('/api/users').get_json()['users']],
+            before,
+        )
+
+        active = self.client.get('/api/users').get_json()['active_user']
+        updated = self.client.patch(
+            f"/api/users/{active['id']}", json={'pin': ' 123'},
+        )
+        self.assertEqual(updated.status_code, 400)
+        self.assertFalse(
+            self.client.get('/api/users').get_json()['active_user']['has_pin']
+        )
+
     def test_claim_api_conflict_when_owned(self):
         db = get_db(self.dir)
         db.claim_recording('20260715_120000')
