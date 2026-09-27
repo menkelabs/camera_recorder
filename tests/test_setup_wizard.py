@@ -230,6 +230,32 @@ class TestWizardHttp(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
 
+    def test_finish_rejects_fps_outside_1_to_240(self):
+        for bad in (0, 241, -1, True, 120.5, 'fast'):
+            status, body, _ = handle_request(
+                self.state,
+                'POST',
+                '/api/finish',
+                json.dumps({'player_name': 'Kim', 'fps': bad}).encode(),
+            )
+            self.assertEqual(status, 400, bad)
+            payload = json.loads(body)
+            self.assertFalse(payload['ok'])
+            self.assertIn('1 to 240', payload['error'])
+            self.assertFalse(
+                os.path.isfile(os.path.join(self.root, 'swinglab.local.json')),
+                bad,
+            )
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({'player_name': 'Kim', 'fps': 240}).encode(),
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)['ok'])
+        self.assertEqual(load_install_config(self.root)['fps'], 240)
+
 
 if __name__ == '__main__':
     unittest.main()

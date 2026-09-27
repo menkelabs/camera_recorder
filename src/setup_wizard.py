@@ -469,11 +469,38 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def capture_fps(value: Any) -> Optional[int]:
+    """Recording FPS in 1..240. Rejects bools, floats, and out-of-range values.
+
+    The studio capture guide tops out at 240 fps. Zero and negative rates
+    are not a capture target.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        fps = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        fps = int(value.strip())
+    else:
+        return None
+    if 1 <= fps <= 240:
+        return fps
+    return None
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    if 'fps' in settings:
+        fps = capture_fps(settings.get('fps'))
+        if fps is None:
+            return {
+                'ok': False,
+                'error': 'fps must be an integer from 1 to 240',
+            }
+        settings = {**settings, 'fps': fps}
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +621,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
