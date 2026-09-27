@@ -469,11 +469,38 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def analysis_model_complexity(value: Any) -> Optional[int]:
+    """MediaPipe pose model: 0=lite, 1=full, 2=heavy.
+
+    Matches ``flask_gui --model-complexity`` choices. Bools and other
+    non-integers are rejected so a saved profile cannot make startup fail.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        level = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        level = int(value.strip())
+    else:
+        return None
+    if level in (0, 1, 2):
+        return level
+    return None
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    if 'model_complexity' in settings:
+        level = analysis_model_complexity(settings.get('model_complexity'))
+        if level is None:
+            return {
+                'ok': False,
+                'error': 'model_complexity must be 0, 1, or 2',
+            }
+        settings = {**settings, 'model_complexity': level}
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +621,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))

@@ -230,6 +230,20 @@ class TestWizardHttp(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
 
+    def test_finish_rejects_model_complexity_outside_0_1_2(self):
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({'player_name': 'Kim', 'model_complexity': 9}).encode(),
+        )
+        self.assertEqual(status, 400)
+        payload = json.loads(body)
+        self.assertFalse(payload['ok'])
+        self.assertIn('0, 1, or 2', payload['error'])
+        self.assertFalse(os.path.isfile(os.path.join(self.root, 'swinglab.local.json')))
+        self.assertFalse(os.path.isfile(os.path.join(self.root, 'start-swinglab.sh')))
+
 
 if __name__ == '__main__':
     unittest.main()
