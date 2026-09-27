@@ -512,6 +512,16 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
         self.assertEqual(body['metronome']['bpm'], 66)
         self.assertEqual(body['camera_labels']['camera1'], 'Down-the-Line')
 
+    def test_practice_settings_rejects_bpm_above_120(self):
+        from practice_settings import load_practice_settings
+
+        rejected = self.client.post('/api/practice/settings', json={
+            'metronome': {'enabled': True, 'bpm': 121},
+        })
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn('40 to 120', rejected.get_json()['error'])
+        self.assertEqual(load_practice_settings(self.tmp.name)['metronome']['bpm'], 60)
+
     def test_session_api_requires_checklist(self):
         r = self.client.post('/api/session', json={'enabled': True})
         self.assertEqual(r.status_code, 200)
