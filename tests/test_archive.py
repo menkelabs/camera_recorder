@@ -132,6 +132,42 @@ class TestArchiveRecording(unittest.TestCase):
         self.assertTrue(os.path.isdir(new_dir))
         self.assertTrue(len(result['copied']) > 0)
 
+    @patch('flask_gui._get_recordings_dir')
+    def test_refuses_symlink_outside_recordings(self, mock_dir):
+        """A recording symlink must not copy a file from outside recordings."""
+        mock_dir.return_value = self._rec_dir
+        outside = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        secret = os.path.join(outside, 'secret.mp4')
+        with open(secret, 'wb') as f:
+            f.write(b'SECRET-BYTES')
+        ts = '20260215_140000'
+        link = os.path.join(self._rec_dir, f'recording_{ts}_camera1.mp4')
+        os.remove(link)
+        os.symlink(secret, link)
+
+        result = _archive_recording(ts, self._archive_dir)
+
+        archived = os.path.join(
+            self._archive_dir, f'recording_{ts}_camera1.mp4')
+        self.assertFalse(os.path.exists(archived))
+        self.assertNotIn(f'recording_{ts}_camera1.mp4', result['copied'])
+        self.assertTrue(any('outside' in err for err in result.get('errors', [])))
+        self.assertIn(f'recording_{ts}_camera2.mp4', result['copied'])
+        self.assertIn(f'analysis_{ts}.json', result['copied'])
+        for dirpath, _, files in os.walk(self._archive_dir):
+            for name in files:
+                with open(os.path.join(dirpath, name), 'rb') as fh:
+                    self.assertNotIn(b'SECRET-BYTES', fh.read())
+
+    @patch('flask_gui._get_recordings_dir')
+    def test_rejects_timestamp_that_leaves_recordings(self, mock_dir):
+        mock_dir.return_value = self._rec_dir
+        result = _archive_recording('../outside', self._archive_dir)
+        self.assertEqual(result['copied'], [])
+        self.assertTrue(result.get('errors'))
+        self.assertIn('Invalid timestamp', result['errors'][0])
+
 
 class TestDiskUsage(unittest.TestCase):
     """Test _disk_usage helper."""

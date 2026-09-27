@@ -2726,37 +2726,64 @@ def _disk_usage(path: str) -> Optional[Dict]:
         return None
 
 
+def _contained_recording_file(rec_dir: str, path: str) -> bool:
+    """True when *path* exists and resolves to a file inside *rec_dir*."""
+    if not os.path.lexists(path):
+        return False
+    root = os.path.realpath(rec_dir)
+    real = os.path.realpath(path)
+    try:
+        if os.path.commonpath([root, real]) != root:
+            return False
+    except ValueError:
+        return False
+    return os.path.isfile(real)
+
+
 def _archive_recording(ts: str, archive_dir: str) -> Dict:
     """Copy all files for a recording timestamp to the archive directory.
 
     Copies: camera1.mp4, camera2.mp4, analysis_<ts>.json, and any
     camera_settings_*.json files present in the project root.
+
+    Recording ids must be YYYYMMDD_HHMMSS. Video and analysis sources must
+    resolve inside the recordings directory, so a symlink or ``..`` id cannot
+    copy another file into the archive.
     """
+    if not _RECORDING_PATTERN.match(f'recording_{ts}_camera1.mp4'):
+        return {
+            'timestamp': ts,
+            'copied': [],
+            'errors': [f'Invalid timestamp format: {ts}'],
+        }
+
     rec_dir = _get_recordings_dir()
     os.makedirs(archive_dir, exist_ok=True)
 
     copied = []
     errors = []
 
+    def _copy_contained(src: str, label: str) -> None:
+        if not os.path.lexists(src):
+            return
+        if not _contained_recording_file(rec_dir, src):
+            errors.append(f'{label}: path outside recordings directory')
+            return
+        dst = os.path.join(archive_dir, os.path.basename(src))
+        try:
+            shutil.copy2(src, dst)
+            copied.append(os.path.basename(src))
+        except Exception as e:
+            errors.append(f'{label}: {e}')
+
     # Video files
     for cam in ['camera1', 'camera2']:
         src = os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4')
-        if os.path.exists(src):
-            dst = os.path.join(archive_dir, os.path.basename(src))
-            try:
-                shutil.copy2(src, dst)
-                copied.append(os.path.basename(src))
-            except Exception as e:
-                errors.append(f'{os.path.basename(src)}: {e}')
+        _copy_contained(src, os.path.basename(src))
 
     # Analysis JSON
     analysis_src = os.path.join(rec_dir, f'analysis_{ts}.json')
-    if os.path.exists(analysis_src):
-        try:
-            shutil.copy2(analysis_src, os.path.join(archive_dir, os.path.basename(analysis_src)))
-            copied.append(os.path.basename(analysis_src))
-        except Exception as e:
-            errors.append(f'analysis_{ts}.json: {e}')
+    _copy_contained(analysis_src, f'analysis_{ts}.json')
 
     # Camera settings files (from project root — copy all that exist)
     for settings_file in globmod.glob(os.path.join(_project_root, 'camera_settings_*.json')):
