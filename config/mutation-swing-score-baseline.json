@@ -1,0 +1,6 @@
+{
+  "module": "src/swing_score.py",
+  "survived": 0,
+  "measured_locally": false,
+  "note": "Survived-mutant ceiling for src/swing_score.py. CI runs mutmut and must not rewrite this file. No local mutmut process was started. Do not raise survived to hide a regression."
+}

@@ -43,6 +43,52 @@ jobs:
       - name: Mock dual-camera soak
         run: python scripts/dual_camera_soak.py --mock
 
+  maintainability:
+    name: Maintainability ratchets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ratchet tools
+        run: python -m pip install ruff lizard pytest
+      - name: Clean as You Code (diff-scoped ruff; eslint only if configured)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python scripts/check_diff_lint.py --base "origin/${{ github.base_ref }}"
+      - name: Hotspot gate
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python scripts/check_hotspots.py --base "origin/${{ github.base_ref }}"
+      - name: Ruff baseline (do not rewrite)
+        run: python scripts/check_ruff_baseline.py
+      - name: Unit path does not open a camera
+        run: python -m pytest -q tests/test_unit_path_camera_free.py
+
+  mutation:
+    name: Mutation ceiling (src/swing_score.py)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install --upgrade opencv-python-headless 'mutmut==3.8.0'
+      - name: Mutation score against the committed ceiling
+        run: |
+          python -m mutmut run --max-children 1
+          python -m mutmut export-cicd-stats
+          python scripts/check_mutation_ceiling.py
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
