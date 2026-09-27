@@ -2640,8 +2640,8 @@ def api_export_clip():
     if not stamp:
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-    out_path = resolve_clip_output(_get_recordings_dir(), stamp, cam)
     try:
+        out_path = resolve_clip_output(_get_recordings_dir(), stamp, cam)
         result = jpeg_frames_to_mp4(frames, out_path, fps=fps)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400

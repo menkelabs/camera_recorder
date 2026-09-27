@@ -5,10 +5,14 @@ Export annotated analysis frames as a short MP4 clip.
 from __future__ import annotations
 
 import os
+import re
 from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+# Same recording id shape as local_db and the clip download route.
+_TS_RE = re.compile(r'^\d{8}_\d{6}$')
 
 
 def jpeg_frames_to_mp4(
@@ -87,6 +91,19 @@ def resolve_clip_output(
     timestamp: str,
     camera_num: int,
 ) -> str:
-    """Standard path for an exported annotated clip."""
-    name = f'clip_{timestamp}_camera{camera_num}.mp4'
-    return os.path.join(recordings_dir, name)
+    """Standard path for an exported annotated clip.
+
+    The name must match the download route (``clip_YYYYMMDD_HHMMSS_camera[12].mp4``)
+    and stay inside ``recordings_dir``. Anything else is rejected.
+    """
+    stamp = str(timestamp or '')
+    if not _TS_RE.match(stamp):
+        raise ValueError(f'Invalid timestamp format: {timestamp}')
+    if camera_num not in (1, 2):
+        raise ValueError('camera must be 1 or 2')
+    name = f'clip_{stamp}_camera{int(camera_num)}.mp4'
+    root = os.path.abspath(recordings_dir)
+    path = os.path.abspath(os.path.join(root, name))
+    if os.path.commonpath([root, path]) != root:
+        raise ValueError('Clip path escapes recordings directory')
+    return path

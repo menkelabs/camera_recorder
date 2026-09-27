@@ -295,6 +295,20 @@ class TestAnalysisToolsOnMockCaptures(unittest.TestCase):
         with self.assertRaises(ValueError):
             jpeg_frames_to_mp4([], os.path.join(self.tmp, 'empty.mp4'))
 
+    def test_clip_output_stays_inside_recordings_dir(self):
+        """Exported clips use recording ids and cannot leave the recordings folder."""
+        with self.assertRaises(ValueError):
+            resolve_clip_output(self.tmp, '../outside', 1)
+        with self.assertRaises(ValueError):
+            resolve_clip_output(self.tmp, '20260727_160000', 3)
+        out = resolve_clip_output(self.tmp, '20260727_160000', 2)
+        root = os.path.abspath(self.tmp)
+        self.assertEqual(
+            os.path.commonpath([root, os.path.abspath(out)]),
+            root,
+        )
+        self.assertEqual(os.path.basename(out), 'clip_20260727_160000_camera2.mp4')
+
 
 # ======================================================================
 # PoseProcessor._extract_landmarks wiring (dict ↔ FakeLandmark)
