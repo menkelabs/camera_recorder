@@ -96,6 +96,8 @@ logs/
 
 # Temporary files
 *.tmp
+.cayc-tmp/
+frontend/.cayc-tmp/
 *.temp
 *.bak
 *.swp

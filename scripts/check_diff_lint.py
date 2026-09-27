@@ -1,14 +1,16 @@
 """Clean as You Code: lint only the diff.
 
-New ruff findings on changed Python fail the build. Findings that already
-exist on the base revision are printed and do not fail. Eslint runs on
-changed Vue/TS/JS only when the frontend already has an eslint config.
+New ruff findings on changed Python fail the build. New eslint findings on
+changed Vue, TypeScript, and JavaScript fail the build. Findings that
+already exist on the base revision are printed and do not fail. A Vue
+frontend without an eslint config fails.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -115,47 +117,97 @@ def eslint_config(repo: Path) -> Path | None:
     data = json.loads(package.read_text(encoding="utf-8"))
     if data.get("eslintConfig"):
         return package
-    deps = {}
-    deps.update(data.get("dependencies") or {})
-    deps.update(data.get("devDependencies") or {})
-    if "eslint" in deps:
-        return package
     return None
 
 
-def eslint_on(repo: Path, files: list[str]) -> tuple[list[str], list[str]]:
-    """Return (visible findings, new failures). No config means both empty."""
-    if eslint_config(repo) is None or not files:
-        return [], []
-    frontend = repo / "frontend"
-    rels = []
-    for rel in files:
-        path = Path(rel)
-        if path.parts and path.parts[0] == "frontend":
-            rels.append(str(Path(*path.parts[1:])))
-        else:
-            rels.append(rel)
+def vue_sources_present(repo: Path) -> bool:
+    src = repo / "frontend" / "src"
+    if not src.is_dir():
+        return False
+    return any(path.suffix == ".vue" for path in src.rglob("*") if path.is_file())
+
+
+def frontend_rel(rel: str) -> str | None:
+    path = Path(rel)
+    if not path.parts or path.parts[0] != "frontend":
+        return None
+    if path.name in ESLINT_CONFIG_NAMES or path.name == "package.json":
+        return None
+    inner = path.relative_to("frontend")
+    if not inner.parts:
+        return None
+    return str(inner)
+
+
+def eslint_ready(frontend: Path) -> None:
     result = subprocess.run(
-        ["npx", "--no-install", "eslint", "--format", "json", *rels],
+        ["npx", "--no-install", "eslint", "--version"],
+        cwd=frontend,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "eslint is not installed").strip()
+        raise RuntimeError(detail)
+
+
+def eslint_diags(frontend: Path, files: list[Path]) -> dict[Path, list[dict]]:
+    if not files:
+        return {}
+    result = subprocess.run(
+        [
+            "npx",
+            "--no-install",
+            "eslint",
+            "--format",
+            "json",
+            *[str(path) for path in files],
+        ],
         cwd=frontend,
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode not in (0, 1):
-        raise RuntimeError(result.stderr.strip() or "eslint failed")
+        detail = (result.stderr or result.stdout or "eslint failed").strip()
+        raise RuntimeError(detail)
     payload = json.loads(result.stdout or "[]")
-    visible = []
-    fresh = []
+    found: dict[Path, list[dict]] = {path.resolve(): [] for path in files}
     for entry in payload:
+        key = Path(str(entry.get("filePath") or "")).resolve()
+        diags = found.setdefault(key, [])
         for message in entry.get("messages") or []:
-            line = (
-                f"{entry.get('filePath')}:{message.get('line')}:"
-                f"{message.get('ruleId')} {message.get('message')}"
+            if int(message.get("severity") or 0) < 1:
+                continue
+            diags.append(
+                {
+                    "code": str(message.get("ruleId") or "parse"),
+                    "message": str(message.get("message") or ""),
+                    "location": {"row": message.get("line") or "?"},
+                }
             )
-            visible.append(line)
-            fresh.append(line)
-    return visible, fresh
+    return found
+
+
+def eslint_baseline(
+    frontend: Path, copies: list[tuple[str, str, str]]
+) -> dict[str, list[dict]]:
+    """Lint base-revision sources. copies are (repo rel, frontend rel, text)."""
+    if not copies:
+        return {}
+    dest_root = frontend / ".cayc-tmp"
+    written: list[tuple[str, Path]] = []
+    try:
+        for rel, inner, source in copies:
+            dest = dest_root / inner
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(source, encoding="utf-8")
+            written.append((rel, dest))
+        found = eslint_diags(frontend, [dest for _, dest in written])
+        return {rel: found.get(dest.resolve(), []) for rel, dest in written}
+    finally:
+        shutil.rmtree(dest_root, ignore_errors=True)
 
 
 def main() -> int:
@@ -191,17 +243,40 @@ def main() -> int:
             else:
                 old_findings.append(line)
 
-    if eslint_config(repo) is None:
-        print("eslint: no frontend lint config; skipped")
-    else:
+    if vue_sources_present(repo) and eslint_config(repo) is None:
+        print(
+            "check-diff-lint: FAIL no eslint config for Vue sources",
+            file=sys.stderr,
+        )
+        return 1
+    if eslint_config(repo) is not None:
+        frontend = repo / "frontend"
         try:
-            visible, fresh = eslint_on(repo, ui_files)
+            eslint_ready(frontend)
+            graded = [
+                (rel, inner)
+                for rel in ui_files
+                if (inner := frontend_rel(rel)) is not None
+            ]
+            head_paths = [repo / rel for rel, _inner in graded if (repo / rel).is_file()]
+            head_found = eslint_diags(frontend, head_paths)
+            copies = []
+            for rel, inner in graded:
+                base_src = file_at(repo, args.base, rel)
+                if base_src is not None:
+                    copies.append((rel, inner, base_src))
+            base_found = eslint_baseline(frontend, copies)
         except (OSError, RuntimeError, json.JSONDecodeError) as exc:
             print(f"check-diff-lint: eslint failed: {exc}", file=sys.stderr)
             return 2
-        for line in visible:
-            print(f"ESLINT {line}")
-        new_findings.extend(f"NEW eslint {line}" for line in fresh)
+        for rel, _inner in graded:
+            head_diags = head_found.get((repo / rel).resolve(), [])
+            for kind, item in classify(base_found.get(rel, []), head_diags):
+                line = format_ruff(kind, rel, item)
+                if kind == "NEW":
+                    new_findings.append(line)
+                else:
+                    old_findings.append(line)
 
     for line in old_findings:
         print(line)
