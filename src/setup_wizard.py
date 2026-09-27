@@ -469,6 +469,21 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def _distinct_camera_ids(camera1_id: Any, camera2_id: Any) -> Optional[tuple]:
+    """Two studio device indices. Face-On and Down-the-Line are different cameras.
+
+    The same index would open one device twice; the second stream fails to start.
+    Bool is rejected because it is an int subclass and is not a device index.
+    """
+    if isinstance(camera1_id, bool) or isinstance(camera2_id, bool):
+        return None
+    if not isinstance(camera1_id, int) or not isinstance(camera2_id, int):
+        return None
+    if camera1_id == camera2_id:
+        return None
+    return (camera1_id, camera2_id)
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
@@ -480,6 +495,11 @@ def finish_install(
         cfg['camera_roles'] = {
             **cfg['camera_roles'],
             **settings['camera_roles'],
+        }
+    if _distinct_camera_ids(cfg.get('camera1_id'), cfg.get('camera2_id')) is None:
+        return {
+            'ok': False,
+            'error': 'camera1 and camera2 must use different device indices',
         }
     path = save_install_config(root, cfg)
     saved = load_install_config(root) or cfg
@@ -594,7 +614,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
