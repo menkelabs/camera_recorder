@@ -230,6 +230,52 @@ class TestWizardHttp(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
 
+    def test_finish_rejects_capture_size_outside_guide(self):
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        cases = (
+            ({'width': 0}, '640 to 1920'),
+            ({'width': 639}, '640 to 1920'),
+            ({'width': 1921}, '640 to 1920'),
+            ({'width': -1}, '640 to 1920'),
+            ({'width': True}, '640 to 1920'),
+            ({'width': 1280.5}, '640 to 1920'),
+            ({'width': 'wide'}, '640 to 1920'),
+            ({'height': 0}, '480 to 1080'),
+            ({'height': 479}, '480 to 1080'),
+            ({'height': 1081}, '480 to 1080'),
+            ({'height': -1}, '480 to 1080'),
+            ({'height': True}, '480 to 1080'),
+            ({'height': 720.5}, '480 to 1080'),
+            ({'height': 'tall'}, '480 to 1080'),
+        )
+        for patch, phrase in cases:
+            status, body, _ = handle_request(
+                self.state,
+                'POST',
+                '/api/finish',
+                json.dumps({'player_name': 'Kim', **patch}).encode(),
+            )
+            self.assertEqual(status, 400, patch)
+            payload = json.loads(body)
+            self.assertFalse(payload['ok'])
+            self.assertIn(phrase, payload['error'])
+            self.assertFalse(os.path.isfile(config_path), patch)
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({
+                'player_name': 'Kim',
+                'width': 1920,
+                'height': 1080,
+            }).encode(),
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)['ok'])
+        saved = load_install_config(self.root)
+        self.assertEqual(saved['width'], 1920)
+        self.assertEqual(saved['height'], 1080)
+
 
 if __name__ == '__main__':
     unittest.main()

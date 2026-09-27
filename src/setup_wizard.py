@@ -469,11 +469,46 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def capture_dimension(value: Any, low: int, high: int) -> Optional[int]:
+    """Capture edge in ``low``..``high``. Rejects bools, floats, and out-of-range values.
+
+    The golf capture guide runs from 640×480 through 1920×1080. Zero and
+    negative sizes are not a capture target.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        edge = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        edge = int(value.strip())
+    else:
+        return None
+    if low <= edge <= high:
+        return edge
+    return None
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    if 'width' in settings:
+        width = capture_dimension(settings.get('width'), 640, 1920)
+        if width is None:
+            return {
+                'ok': False,
+                'error': 'width must be an integer from 640 to 1920',
+            }
+        settings = {**settings, 'width': width}
+    if 'height' in settings:
+        height = capture_dimension(settings.get('height'), 480, 1080)
+        if height is None:
+            return {
+                'ok': False,
+                'error': 'height must be an integer from 480 to 1080',
+            }
+        settings = {**settings, 'height': height}
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +629,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
