@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Compare a mutmut export to the committed survived ceiling.
 
 Reads mutants/mutmut-cicd-stats.json and config/mutation-swing-score-baseline.json.
