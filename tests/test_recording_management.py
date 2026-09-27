@@ -282,6 +282,15 @@ class TestRecordingManagementAPI(unittest.TestCase):
                                 json={'max_age_days': 0})
         self.assertEqual(resp.status_code, 400)
 
+    def test_cleanup_rejects_days_above_library_max(self):
+        old_ts = self._old_timestamp(days=400)
+        self._create_pair(old_ts)
+        resp = self.client.post('/api/recordings/cleanup', json={'max_age_days': 366})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(os.path.exists(
+            os.path.join(self.tmpdir, f'recording_{old_ts}_camera1.mp4')
+        ))
+
     def test_stats_endpoint(self):
         self._create_pair('20260215_140000')
         resp = self.client.get('/api/recordings/stats')

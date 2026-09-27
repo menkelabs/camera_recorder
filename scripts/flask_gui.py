@@ -2180,8 +2180,8 @@ def api_recordings_cleanup():
         max_age_days = int(max_age_days)
     except (TypeError, ValueError):
         return jsonify({'error': 'max_age_days must be an integer'}), 400
-    if max_age_days < 1:
-        return jsonify({'error': 'max_age_days must be >= 1'}), 400
+    if max_age_days < 1 or max_age_days > 365:
+        return jsonify({'error': 'max_age_days must be from 1 to 365'}), 400
 
     cutoff = datetime.now() - timedelta(days=max_age_days)
     pairs = _list_recording_pairs()
