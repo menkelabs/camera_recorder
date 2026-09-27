@@ -230,6 +230,23 @@ class TestWizardHttp(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
 
+    def test_finish_rejects_camera_role_outside_face_on_or_dtl(self):
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({
+                'player_name': 'Kim',
+                'camera_roles': {'camera1': 'overhead', 'camera2': 'dtl'},
+            }).encode(),
+        )
+        self.assertEqual(status, 400)
+        payload = json.loads(body)
+        self.assertFalse(payload['ok'])
+        self.assertIn('face_on or dtl', payload['error'])
+        self.assertFalse(os.path.isfile(os.path.join(self.root, 'swinglab.local.json')))
+        self.assertFalse(os.path.isfile(os.path.join(self.root, 'start-swinglab.sh')))
+
 
 if __name__ == '__main__':
     unittest.main()

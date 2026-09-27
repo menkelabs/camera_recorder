@@ -469,11 +469,39 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+_CAMERA_ROLES = ('face_on', 'dtl')
+
+
+def camera_role_assignment(value: Any) -> Optional[Dict[str, str]]:
+    """Face-On or Down-the-Line for camera1 and camera2 only.
+
+    Matches the wizard selects and ``practice_settings.VALID_ROLES``.
+    Any other key or role is rejected so a saved profile cannot label a
+    camera with a view the app does not record.
+    """
+    if not isinstance(value, dict):
+        return None
+    cleaned: Dict[str, str] = {}
+    for key, role in value.items():
+        if key not in ('camera1', 'camera2') or role not in _CAMERA_ROLES:
+            return None
+        cleaned[key] = role
+    return cleaned
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
     detected: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
+    if 'camera_roles' in settings:
+        roles = camera_role_assignment(settings.get('camera_roles'))
+        if roles is None:
+            return {
+                'ok': False,
+                'error': 'camera roles must be face_on or dtl',
+            }
+        settings = {**settings, 'camera_roles': roles}
     cfg = default_install_config(root)
     cfg.update({k: settings[k] for k in cfg if k in settings})
     if isinstance(settings.get('camera_roles'), dict):
@@ -594,7 +622,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
