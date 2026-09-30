@@ -6,7 +6,22 @@ The product UI is the browser.
 
 ---
 
-## First-run setup (wizard)
+## Windows installer (double-click)
+
+On a Windows studio PC you do **not** need Python or Node installed.
+
+1. Build (or download) **SwingLab-Setup-1.1.0.exe** — see [packaging/README.md](../packaging/README.md).
+2. Run the setup wizard. It installs to `%LOCALAPPDATA%\Programs\SwingLab` (no admin required).
+3. On first launch, SwingLab opens the camera / player wizard in a browser.
+4. Daily start: **SwingLab** from the Start Menu or desktop.
+
+Recordings and `swinglab.local.json` live in `%LOCALAPPDATA%\SwingLab`, not inside Program Files.
+
+Re-run setup later: `SwingLab.exe --setup`.
+
+---
+
+## First-run from source (wizard)
 
 On the machine that has the cameras, install **Python 3.10+** and **Node.js LTS**, then:
 
@@ -152,7 +167,7 @@ After a live take you get annotated playback (pose overlay) for both cameras, a 
 | `←` or `A` | Previous frame |
 | `→` or `D` | Next frame |
 
-Pick an older timestamp from the dropdown (or **Analyze** on Recordings) to review a saved swing. Saved review shows metrics and score; clip export of historical frames is only available when annotated frames are still in memory from the current analysis.
+Pick an older timestamp from the dropdown (or **Analyze** on Recordings) to review a saved swing. Saved review shows metrics and score. Clip export uses in-memory annotated frames for the latest analysis, or re-encodes the original recording from disk for older swings.
 
 Export HTML or CSV from the Analysis tab when you want a shareable report.
 
@@ -172,7 +187,7 @@ Export HTML or CSV from the Analysis tab when you want a shareable report.
 
 **Camera roles** — Face-On vs DTL for Camera 1 (Camera 2 flips). Scoring uses the role, not “camera 1 = face-on” hardcoded.
 
-**Archive** — set a USB/external path (example: `/media/you/Seagate8TB/golf`). **Archive new recordings** copies videos, analysis JSON, and settings and remembers what already went. The badge shows connected / disconnected and disk free space.
+**Archive** — set a USB/external path (example: `/media/you/Seagate8TB/golf`). **Archive new recordings** copies **your** and unclaimed videos, analysis JSON, and settings and remembers what already went. Other players’ swings are left alone. The badge shows connected / disconnected and disk free space.
 
 More on the SQLite file and ownership: [LOCAL_DB.md](LOCAL_DB.md).
 

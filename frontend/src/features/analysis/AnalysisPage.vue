@@ -157,10 +157,10 @@ function formatMetric(current: MetricCurrent, key: string) {
         <div v-if="canExport" :class="styles.exportActions" role="group" aria-label="Export analysis">
           <button type="button" @click="downloadReport('html')">Export HTML</button>
           <button type="button" @click="downloadReport('csv')">Export CSV</button>
-          <button v-if="hasFrames" type="button" :disabled="exportBusy" @click="downloadClip(1)">
+          <button type="button" :disabled="exportBusy" @click="downloadClip(1)">
             Clip Cam1
           </button>
-          <button v-if="hasFrames" type="button" :disabled="exportBusy" @click="downloadClip(2)">
+          <button type="button" :disabled="exportBusy" @click="downloadClip(2)">
             Clip Cam2
           </button>
         </div>
@@ -168,7 +168,7 @@ function formatMetric(current: MetricCurrent, key: string) {
     </header>
     <p v-if="exportMsg" :class="styles.exportMsg">{{ exportMsg }}</p>
     <p v-if="isSaved" :class="styles.savedNote">
-      Saved swing — score and metrics from disk. Playback frames are only available for the latest session.
+      Saved swing — score and metrics from disk. Playback frames are only available for the latest session; clip export uses the original recording.
     </p>
 
     <p v-if="results?.is_analyzing" :class="styles.progress">

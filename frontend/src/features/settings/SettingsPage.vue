@@ -239,7 +239,8 @@ async function removeUser(user: LocalUser) {
     <div :class="styles.card">
       <h3>Archive to external disk</h3>
       <p :class="styles.help">
-        Configure a path (e.g. USB mount) to copy recordings, analysis JSON, and settings.
+        Configure a path (e.g. USB mount) to copy <strong>your</strong> and unclaimed
+        recordings, analysis JSON, and settings. Other players’ swings stay on this machine.
       </p>
       <div :class="styles.archiveRow">
         <input

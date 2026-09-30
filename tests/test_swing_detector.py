@@ -7,7 +7,6 @@ requiring real cameras or MediaPipe models.
 
 import sys
 import os
-import time
 import unittest
 from unittest.mock import patch, MagicMock
 import numpy as np
@@ -203,9 +202,10 @@ class TestCooldownState(unittest.TestCase):
         det = _MockableSwingDetector(motion_threshold=10,
                                      confirmation_frames=3,
                                      cooldown_seconds=0.1)
-        self._into_cooldown(det)
-        time.sleep(0.15)
-        events = det.feed_turns([2])
+        with patch('swing_detector.time.time', return_value=1000.0):
+            self._into_cooldown(det)
+        with patch('swing_detector.time.time', return_value=1000.2):
+            events = det.feed_turns([2])
         self.assertIn('stop', events)
         self.assertEqual(det.state, SwingDetector.IDLE)
 
@@ -282,15 +282,11 @@ class TestFullSwingCycle(unittest.TestCase):
         events = det.feed_turns([30, 35])
         self.assertEqual(det.state, SwingDetector.RECORDING)
 
-        # Motion drops -> cooldown
-        events = det.feed_turns([2])
-        self.assertEqual(det.state, SwingDetector.COOLDOWN)
-
-        # Wait for cooldown
-        time.sleep(0.1)
-
-        # Final quiet frame -> stop
-        events = det.feed_turns([1])
+        with patch('swing_detector.time.time', return_value=2000.0):
+            events = det.feed_turns([2])
+            self.assertEqual(det.state, SwingDetector.COOLDOWN)
+        with patch('swing_detector.time.time', return_value=2000.2):
+            events = det.feed_turns([1])
         self.assertIn('stop', events)
         self.assertEqual(det.state, SwingDetector.IDLE)
 
@@ -303,9 +299,10 @@ class TestFullSwingCycle(unittest.TestCase):
         det.feed_turns([0, 0, 0])
         events1 = det.feed_turns([25, 25])
         self.assertIn('start', events1)
-        det.feed_turns([2])  # cooldown
-        time.sleep(0.1)
-        events_stop1 = det.feed_turns([1])
+        with patch('swing_detector.time.time', return_value=3000.0):
+            det.feed_turns([2])  # cooldown
+        with patch('swing_detector.time.time', return_value=3000.2):
+            events_stop1 = det.feed_turns([1])
         self.assertIn('stop', events_stop1)
 
         # Swing 2 — baseline should have been re-established

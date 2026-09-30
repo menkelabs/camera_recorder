@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-> **Historical.** This page is about installing Python on an old Windows machine. The product app is Vue + Flask — start with [HOW_TO_USE.md](HOW_TO_USE.md).
+> **Historical.** This page is about installing Python on an old Windows machine. The `debug_recorder.py` commands below were **removed**. Start with [HOW_TO_USE.md](HOW_TO_USE.md) or `python scripts/setup_wizard.py`.
 
 ## Step 1: Install Python
 

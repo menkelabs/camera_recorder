@@ -49,4 +49,25 @@ describe('API query helpers', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('rejects HTTP errors and 200 payloads that still carry error', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        statusText: 'Conflict',
+        json: async () => ({ error: 'Already recording' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        statusText: 'OK',
+        json: async () => ({ error: 'Cameras not available' }),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.startRecording()).rejects.toThrow('Already recording')
+    await expect(api.startRecording()).rejects.toThrow('Cameras not available')
+
+    vi.unstubAllGlobals()
+  })
 })

@@ -1,6 +1,6 @@
 # ✅ Project Successfully Moved!
 
-> **Historical.** Local path move on one Windows machine. Product usage: [HOW_TO_USE.md](HOW_TO_USE.md).
+> **Historical.** Local path move on one Windows machine. `debug_recorder.py` was **removed**. Product usage: [HOW_TO_USE.md](HOW_TO_USE.md).
 
 ## New Location
 **C:\Users\jmjav\camera_recorder\**

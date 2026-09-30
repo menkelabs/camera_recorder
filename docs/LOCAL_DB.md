@@ -90,8 +90,9 @@ See `tests/test_local_db.py`:
 
 The setup wizard (`python scripts/setup_wizard.py`) writes `swinglab.local.json` with a `recordings_dir`. Flask honors `SWINGLAB_RECORDINGS_DIR` first, then that profile, then `./recordings`.
 
+Frozen Windows/Linux builds (`sys.frozen`) keep the Vue UI in the bundle and write user data to `%LOCALAPPDATA%\\SwingLab` or `~/.local/share/swinglab` (`SWINGLAB_HOME` override). See [packaging/README.md](../packaging/README.md).
+
 Still useful later:
 
-1. Resolve `recordings_dir` to a per-install writable path when frozen (PyInstaller/`sys.frozen`)
-2. Optional export/import of `swinglab.db` for backup
-3. Optional cloud sync later — local profiles remain the source of truth offline
+1. Optional export/import of `swinglab.db` for backup
+2. Optional cloud sync later — local profiles remain the source of truth offline

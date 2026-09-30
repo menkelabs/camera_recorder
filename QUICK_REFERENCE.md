@@ -5,8 +5,9 @@ Product UI: **Vue + Flask**. Full walkthrough: [docs/HOW_TO_USE.md](docs/HOW_TO_
 ## Start
 
 ```bash
-python scripts/setup_wizard.py          # first run (browser wizard)
-python scripts/start_swinglab.py        # every day after that
+python scripts/build_installer.py       # Windows: SwingLab-Setup-*.exe
+python scripts/setup_wizard.py          # first run from source (browser wizard)
+python scripts/start_swinglab.py        # every day after that (source)
 ```
 
 Open **http://localhost:5000**. Pick **Player** in the header. Tab **3** (Recording) → checklist → **Space** or Auto Detect.

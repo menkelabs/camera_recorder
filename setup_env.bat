@@ -85,9 +85,9 @@ echo ============================================================
 echo Setup Complete!
 echo.
 echo You can now run:
-echo   python debug_recorder.py
-echo   python test_cameras.py
-echo   python dual_camera_recorder.py
+echo   python scripts/setup_wizard.py
+echo   python scripts/start_swinglab.py
+echo   python tests/test_cameras.py
 echo ============================================================
 echo.
 pause

@@ -1,0 +1,4 @@
+# Tools to freeze SwingLab and (on Windows) compile the installer.
+# Runtime deps stay in requirements.txt.
+-r requirements.txt
+pyinstaller>=6.11.0

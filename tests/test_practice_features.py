@@ -328,6 +328,30 @@ class TestClipExporter(unittest.TestCase):
             with self.assertRaises(ValueError):
                 jpeg_frames_to_mp4([], os.path.join(tmp, 'x.mp4'))
 
+    def test_video_file_to_mp4(self):
+        sys.path.insert(0, os.path.join(project_root, 'tests'))
+        from helpers import count_video_frames, write_mock_video
+        from clip_exporter import video_file_to_mp4
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = write_mock_video(
+                os.path.join(tmp, 'src.mp4'), n_frames=7, width=80, height=60,
+            )
+            out = os.path.join(tmp, 'clip.mp4')
+            result = video_file_to_mp4(src, out, fps=15.0)
+            self.assertTrue(os.path.isfile(out))
+            self.assertEqual(result['frame_count'], 7)
+            self.assertEqual(count_video_frames(out), 7)
+
+    def test_video_file_missing_raises(self):
+        from clip_exporter import video_file_to_mp4
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                video_file_to_mp4(
+                    os.path.join(tmp, 'missing.mp4'),
+                    os.path.join(tmp, 'out.mp4'),
+                )
+
 
 class TestChecklistAndReferenceAPI(unittest.TestCase):
     def setUp(self):
@@ -383,6 +407,38 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         r = self.client.post('/api/analysis/export-clip', json={'camera': 1})
         self.assertEqual(r.status_code, 400)
         self.assertIn('error', r.get_json())
+
+    def test_export_clip_from_saved_recording(self):
+        sys.path.insert(0, os.path.join(project_root, 'tests'))
+        from helpers import write_mock_swing_pair
+
+        write_mock_swing_pair(
+            self.tmp.name,
+            timestamp='20260715_120000',
+            n_frames_cam1=8,
+            n_frames_cam2=6,
+        )
+        r = self.client.post(
+            '/api/analysis/export-clip',
+            json={'camera': 1, 'timestamp': '20260715_120000', 'fps': 30},
+        )
+        self.assertEqual(r.status_code, 200, r.get_json())
+        data = r.get_json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['source'], 'saved')
+        self.assertEqual(data['frame_count'], 8)
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp.name, data['filename'])))
+
+        missing = self.client.post(
+            '/api/analysis/export-clip',
+            json={'camera': 1, 'timestamp': '19990101_000000'},
+        )
+        self.assertEqual(missing.status_code, 404)
+        bad_ts = self.client.post(
+            '/api/analysis/export-clip',
+            json={'camera': 1, 'timestamp': '../etc/passwd'},
+        )
+        self.assertEqual(bad_ts.status_code, 400)
 
     def test_analysis_results_by_timestamp(self):
         r = self.client.get('/api/analysis/results?timestamp=20260715_120000')
@@ -514,7 +570,7 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
 
     def test_session_api_requires_checklist(self):
         r = self.client.post('/api/session', json={'enabled': True})
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 400)
         data = r.get_json()
         # No cameras → checklist fails → session stays off
         self.assertFalse(data.get('enabled'))
@@ -592,7 +648,7 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
 
     def test_session_next_when_disabled(self):
         r = self.client.post('/api/session/next')
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 400)
         self.assertIn('error', r.get_json())
 
     def test_status_includes_session_and_labels(self):

@@ -140,9 +140,9 @@ if ($allGood) {
     Write-Host "Setup Complete!" -ForegroundColor Green
     Write-Host ""
     Write-Host "You can now run:" -ForegroundColor Yellow
-    Write-Host "  python debug_recorder.py" -ForegroundColor Cyan
-    Write-Host "  python test_cameras.py" -ForegroundColor Cyan
-    Write-Host "  python dual_camera_recorder.py" -ForegroundColor Cyan
+    Write-Host "  python scripts/setup_wizard.py" -ForegroundColor Cyan
+    Write-Host "  python scripts/start_swinglab.py" -ForegroundColor Cyan
+    Write-Host "  python tests/test_cameras.py" -ForegroundColor Cyan
 } else {
     Write-Host "Setup completed with errors. Please check the output above." -ForegroundColor Yellow
 }

@@ -25,6 +25,7 @@ from flask_gui import (
     _archive_recording, _disk_usage,
     _get_recordings_dir, _ARCHIVE_CONFIG_FILE,
 )
+from local_db import get_db, reset_db_cache
 
 
 class TestArchiveConfig(unittest.TestCase):
@@ -227,6 +228,41 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
         finally:
             shutil.rmtree(tmpdir)
 
+    def test_archive_run_skips_other_players(self):
+        rec_dir = tempfile.mkdtemp()
+        archive_dir = tempfile.mkdtemp()
+        import flask_gui
+        orig_dir = flask_gui._get_recordings_dir
+        flask_gui._get_recordings_dir = lambda: rec_dir
+        try:
+            mine = '20260215_140000'
+            theirs = '20260215_150000'
+            for ts in (mine, theirs):
+                for cam in ('camera1', 'camera2'):
+                    with open(os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4'), 'wb') as fh:
+                        fh.write(b'x')
+            reset_db_cache()
+            db = get_db(rec_dir)
+            other = db.create_user('Other')
+            db.claim_recording(mine)
+            db.claim_recording(theirs, user_id=other['id'])
+            self.client.post('/api/archive/config', json={'archive_path': archive_dir})
+            resp = self.client.post('/api/archive/run')
+            self.assertEqual(resp.status_code, 200)
+            data = json.loads(resp.data)
+            copied_ts = {item['timestamp'] for item in data['results'] if item.get('copied')}
+            self.assertIn(mine, copied_ts)
+            self.assertNotIn(theirs, copied_ts)
+            self.assertTrue(os.path.isfile(
+                os.path.join(archive_dir, f'recording_{mine}_camera1.mp4')))
+            self.assertFalse(os.path.isfile(
+                os.path.join(archive_dir, f'recording_{theirs}_camera1.mp4')))
+        finally:
+            flask_gui._get_recordings_dir = orig_dir
+            reset_db_cache()
+            shutil.rmtree(rec_dir)
+            shutil.rmtree(archive_dir)
+
 
 # ======================================================================
 # Runner
@@ -242,7 +278,6 @@ def run_archive_tests():
         TestArchiveRecording,
         TestDiskUsage,
         TestArchiveAPIEndpoints,
-        TestTemplateSettingsTab,
     ]:
         suite.addTests(loader.loadTestsFromTestCase(cls))
 

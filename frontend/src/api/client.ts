@@ -21,8 +21,8 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   const data = (await resp.json().catch(() => ({}))) as T & { error?: string }
-  if (!resp.ok) {
-    throw new Error(data.error || resp.statusText)
+  if (!resp.ok || data.error) {
+    throw new Error(data.error || resp.statusText || 'Request failed')
   }
   return data
 }
@@ -123,6 +123,7 @@ export const api = {
       fps?: number
       width?: number
       height?: number
+      source?: 'memory' | 'saved'
       error?: string
     }>('/api/analysis/export-clip', {
       method: 'POST',

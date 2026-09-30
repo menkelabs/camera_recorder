@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
-import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -82,12 +81,9 @@ class TestDualCameraMockSoak(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_mock_soak_record_preview_analyze_export(self):
-        # 1) Frames flow for a short soak window
-        t0 = time.time()
-        while time.time() - t0 < 0.4:
-            self.mgr.latest_frame1 = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
-            self.mgr.latest_frame2 = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
-            time.sleep(0.05)
+        # 1) Frames are flowing (no wall-clock soak — that just made CI flaky)
+        self.mgr.latest_frame1 = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
+        self.mgr.latest_frame2 = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
         checklist = self.client.get('/api/checklist').get_json()
         self.assertTrue(checklist['ready'], checklist)

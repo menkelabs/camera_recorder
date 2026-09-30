@@ -75,6 +75,7 @@ fixtures/real_swings/*
 
 # Machine-local setup wizard profile
 swinglab.local.json
+camera_settings_*.json
 
 # OS
 .DS_Store

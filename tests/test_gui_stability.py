@@ -375,6 +375,7 @@ class TestFlaskRouteStability(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('source'), 'memory')
         self.assertEqual(data['frame_count'], 10)
         self.assertTrue(os.path.isfile(data['path']))
         self.assertEqual(count_video_frames(data['path']), 10)
@@ -393,7 +394,7 @@ class TestFlaskRouteStability(unittest.TestCase):
     def test_reinit_api_blocked_during_recording(self):
         self.mgr.is_recording = True
         resp = self.client.post('/api/cameras/reinit')
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 409)
         self.assertIn('error', resp.get_json())
 
     def test_mjpeg_generator_yields_valid_multipart(self):
