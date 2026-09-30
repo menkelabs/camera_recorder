@@ -121,6 +121,37 @@ class TestDeleteRecordingPair(unittest.TestCase):
         result = _delete_recording_pair('invalid')
         self.assertIn('error', result)
 
+    def test_delete_refuses_symlink_that_resolves_outside_recordings(self):
+        """A recording name that is a symlink must not be deleted when it leaves recordings."""
+        ts = '20260215_140000'
+        parent = tempfile.mkdtemp()
+        rec = os.path.join(parent, 'recordings')
+        outside = os.path.join(parent, 'outside')
+        os.makedirs(rec)
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.mp4')
+        with open(secret, 'wb') as handle:
+            handle.write(b'secret-bytes')
+        link = os.path.join(rec, f'recording_{ts}_camera1.mp4')
+        os.symlink(secret, link)
+        inside = os.path.join(rec, f'recording_{ts}_camera2.mp4')
+        with open(inside, 'wb') as handle:
+            handle.write(b'inside')
+        try:
+            with patch('flask_gui._get_recordings_dir', return_value=rec):
+                result = _delete_recording_pair(ts)
+            with open(secret, 'rb') as handle:
+                self.assertEqual(handle.read(), b'secret-bytes')
+            self.assertTrue(os.path.islink(link))
+            self.assertFalse(os.path.exists(inside))
+            self.assertTrue(any(
+                'outside recordings directory' in err
+                for err in result.get('errors', [])
+            ))
+            self.assertNotIn(os.path.basename(link), result.get('deleted', []))
+        finally:
+            shutil.rmtree(parent, ignore_errors=True)
+
 
 class TestRecordingManagementAPI(unittest.TestCase):
     """Test recording management Flask endpoints."""
