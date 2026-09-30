@@ -25,7 +25,6 @@ from flask_gui import (
     _archive_recording, _disk_usage,
     _get_recordings_dir, _ARCHIVE_CONFIG_FILE,
 )
-from local_db import get_db, reset_db_cache
 
 
 class TestArchiveConfig(unittest.TestCase):
@@ -241,6 +240,8 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
                 for cam in ('camera1', 'camera2'):
                     with open(os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4'), 'wb') as fh:
                         fh.write(b'x')
+            from local_db import get_db, reset_db_cache
+
             reset_db_cache()
             db = get_db(rec_dir)
             other = db.create_user('Other')
@@ -259,6 +260,7 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
                 os.path.join(archive_dir, f'recording_{theirs}_camera1.mp4')))
         finally:
             flask_gui._get_recordings_dir = orig_dir
+            from local_db import reset_db_cache
             reset_db_cache()
             shutil.rmtree(rec_dir)
             shutil.rmtree(archive_dir)
