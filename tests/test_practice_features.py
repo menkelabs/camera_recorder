@@ -508,6 +508,25 @@ class TestPracticeSettingsRoles(unittest.TestCase):
             self.assertEqual(fixed['camera_roles']['camera1'], 'face_on')
             self.assertEqual(fixed['camera_roles']['camera2'], 'dtl')
 
+    def test_rejects_metronome_ratio_other_than_3_to_1(self):
+        from practice_settings import load_practice_settings, update_practice_settings
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError) as caught:
+                update_practice_settings(tmp, {
+                    'metronome': {'enabled': True, 'ratio': '2:1'},
+                })
+            self.assertIn('3:1', str(caught.exception))
+            stored = load_practice_settings(tmp)
+            self.assertEqual(stored['metronome']['ratio'], '3:1')
+            self.assertFalse(stored['metronome']['enabled'])
+
+            kept = update_practice_settings(tmp, {
+                'metronome': {'enabled': True, 'ratio': '3:1'},
+            })
+            self.assertEqual(kept['metronome']['ratio'], '3:1')
+            self.assertTrue(kept['metronome']['enabled'])
+
     def test_role_aware_analysis_swaps_physical_cameras(self):
         from practice_settings import face_on_camera_num, role_aware_analysis
 
