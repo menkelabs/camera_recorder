@@ -1965,14 +1965,21 @@ def _delete_recording_pair(ts: str) -> Dict:
             except Exception as e:
                 errors.append(f'{cam}: {e}')
 
-    # Also remove analysis JSON and practice meta if present
-    analysis_path = os.path.join(rec_dir, f'analysis_{ts}.json')
+    # Also remove analysis JSON and practice meta if present.
+    # The JSON must resolve to analysis_<ts>.json inside recordings. A symlink
+    # to another file is not unlinked, so a delete cannot remove that file.
+    analysis_name = f'analysis_{ts}.json'
+    analysis_path = os.path.join(rec_dir, analysis_name)
     if os.path.exists(analysis_path):
-        try:
-            os.remove(analysis_path)
-            deleted.append(os.path.basename(analysis_path))
-        except Exception as e:
-            errors.append(f'analysis: {e}')
+        expected = os.path.join(os.path.realpath(rec_dir), analysis_name)
+        if os.path.realpath(analysis_path) != expected:
+            errors.append('analysis: path outside recordings directory')
+        else:
+            try:
+                os.remove(analysis_path)
+                deleted.append(analysis_name)
+            except Exception as e:
+                errors.append(f'analysis: {e}')
     try:
         delete_recording_meta(rec_dir, ts)
     except Exception:
