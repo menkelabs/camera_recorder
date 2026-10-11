@@ -25,7 +25,6 @@ from flask_gui import (
     _archive_recording, _disk_usage,
     _get_recordings_dir, _ARCHIVE_CONFIG_FILE,
 )
-from local_db import get_db, reset_db_cache
 
 
 class TestArchiveConfig(unittest.TestCase):
@@ -229,6 +228,8 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
             shutil.rmtree(tmpdir)
 
     def test_archive_run_skips_other_players(self):
+        from local_db import get_db, reset_db_cache
+
         rec_dir = tempfile.mkdtemp()
         archive_dir = tempfile.mkdtemp()
         import flask_gui
