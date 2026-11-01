@@ -190,6 +190,19 @@ class TestInstallConfig(unittest.TestCase):
             self.assertEqual(handle.read(), 'secret-bytes')
         self.assertFalse(os.path.isdir(absolute))
 
+    def test_save_refuses_recordings_dir_that_leaves_project(self):
+        """A recordings folder that leaves the project is refused before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        absolute = os.path.join(os.path.dirname(self.root), 'outside-recordings')
+        for bad in ('../outside', absolute, 'takes/../../outside', 12):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {'recordings_dir': bad})
+            self.assertIn('recordings folder', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        self.assertFalse(os.path.exists(absolute))
+        save_install_config(self.root, {'recordings_dir': 'takes'})
+        self.assertEqual(load_install_config(self.root)['recordings_dir'], 'takes')
+
     def test_flask_argv(self):
         args = flask_argv_from_config({
             'camera1_id': 0,
