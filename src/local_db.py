@@ -807,10 +807,17 @@ class LocalDB:
                 self._mirror_practice_settings_json(data)
 
     def _mirror_practice_settings_json(self, data: Dict[str, Any]) -> None:
-        """Best-effort JSON backup for humans / older tooling."""
+        """Best-effort JSON backup for humans / older tooling.
+
+        The destination and its temp file must not be symlinks. Opening a
+        symlink would truncate whatever it points at, including a file
+        outside the recordings directory.
+        """
         path = os.path.join(self.recordings_dir, 'practice_settings.json')
+        tmp = path + '.tmp'
+        if os.path.islink(path) or os.path.islink(tmp):
+            raise ValueError('practice settings mirror must not be a symlink')
         try:
-            tmp = path + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
                 f.write('\n')
