@@ -119,6 +119,26 @@ class TestLoadCameraConfigBothPlatforms(unittest.TestCase):
         loaded = load_camera_config(config_path=path)
         self.assertEqual(loaded['camera1_id'], 1)
 
+    def test_save_refuses_symlink_config(self):
+        """The platform config path must not be a symlink that truncates another file."""
+        outside = os.path.join(self.root, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('secret-bytes')
+        link = os.path.join(self.root, 'config_linux.json')
+        os.symlink(secret, link)
+        with self.assertRaises(ValueError) as ctx:
+            save_camera_config(
+                {'platform': 'linux', 'camera1_id': 1, 'camera2_id': 2},
+                platform='linux',
+                root=self.root,
+            )
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), 'secret-bytes')
+        self.assertTrue(os.path.islink(link))
+
 
 class TestPlatformPatching(unittest.TestCase):
     """Same test code path works when sys.platform is forced either way."""

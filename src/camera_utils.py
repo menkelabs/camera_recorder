@@ -148,6 +148,9 @@ def save_camera_config(
     """
     if config_path is None:
         config_path = get_config_path(platform=platform, root=root)
+    # A symlink would be followed by open() and truncate a file outside the project.
+    if os.path.islink(config_path):
+        raise ValueError('camera config must not be a symlink')
     os.makedirs(os.path.dirname(config_path) or '.', exist_ok=True)
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2)
