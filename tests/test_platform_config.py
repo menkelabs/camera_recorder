@@ -99,6 +99,16 @@ class TestLoadCameraConfigBothPlatforms(unittest.TestCase):
             (3, 8),
         )
 
+    def test_get_camera_ids_rejects_non_index(self):
+        """A configured camera id must be a non-negative integer before open."""
+        for bad in (-1, True, '2', 1.5):
+            self._write('config_linux.json', {
+                'platform': 'linux', 'camera1_id': bad, 'camera2_id': 1,
+            })
+            with self.assertRaises(ValueError) as ctx:
+                get_camera_ids(platform='linux', root=self.root)
+            self.assertIn('camera1_id', str(ctx.exception))
+
     def test_get_camera_ids_falls_back_to_defaults(self):
         self.assertEqual(
             get_camera_ids(platform='windows', root=self.root),
