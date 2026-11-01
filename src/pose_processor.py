@@ -27,6 +27,9 @@ def get_model_path(model_complexity=2, models_dir=None):
     Returns:
         Path to model file (.task)
     """
+    # 0 lite, 1 full, 2 heavy. Anything else must not silently download heavy.
+    if type(model_complexity) is not int or model_complexity not in (0, 1, 2):
+        raise ValueError('model complexity must be 0, 1, or 2')
     # Model URLs from MediaPipe repository
     MODEL_URLS = {
         0: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
