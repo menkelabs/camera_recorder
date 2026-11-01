@@ -164,6 +164,24 @@ class TestLocalDBCore(unittest.TestCase):
             data = json.load(f)
         self.assertTrue(data['recordings']['20260715_120000']['favorite'])
 
+    def test_practice_settings_mirror_refuses_tmp_symlink(self):
+        """A temp mirror name that is a symlink must not truncate its target."""
+        outside = os.path.join(self.dir, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('secret-bytes')
+        rec = os.path.join(self.dir, 'recordings')
+        os.makedirs(rec)
+        link = os.path.join(rec, 'practice_settings.json.tmp')
+        os.symlink(secret, link)
+        with self.assertRaises(ValueError) as ctx:
+            update_practice_settings(rec, {'metronome': {'bpm': 80}})
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), 'secret-bytes')
+        self.assertTrue(os.path.islink(link))
+
     def test_reference_and_roles_roundtrip(self):
         update_practice_settings(self.dir, {
             'camera_roles': {'camera1': 'dtl', 'camera2': 'dtl'},  # invalid same → fixed
