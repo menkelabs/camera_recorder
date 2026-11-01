@@ -13,7 +13,13 @@ import numpy as np
 
 
 def _open_writer(output_path: str, fps: float, size: Tuple[int, int]):
-    """Open a VideoWriter, trying a few codecs. Caller must release it."""
+    """Open a VideoWriter, trying a few codecs. Caller must release it.
+
+    A symlink is refused before any codec opens, so a failed open cannot
+    ``os.remove`` a file that lives outside the recordings directory.
+    """
+    if os.path.islink(output_path):
+        raise ValueError('clip output must not be a symlink')
     w, h = size
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
     for codec in ('mp4v', 'XVID', 'MJPG'):

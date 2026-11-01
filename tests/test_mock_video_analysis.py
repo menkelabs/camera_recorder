@@ -301,6 +301,22 @@ class TestAnalysisToolsOnMockCaptures(unittest.TestCase):
                 resolve_clip_output(self.tmp, stamp, 1)
             self.assertIn('Invalid timestamp', str(ctx.exception))
 
+    def test_clip_export_refuses_symlink_output(self):
+        outside = os.path.join(self.tmp, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.mp4')
+        with open(secret, 'wb') as handle:
+            handle.write(b'secret-bytes')
+        link = os.path.join(self.tmp, 'clip.mp4')
+        os.symlink(secret, link)
+        jpegs = make_annotated_jpeg_frames(n_frames=2, width=16, height=16, label='c1')
+        with self.assertRaises(ValueError) as ctx:
+            jpeg_frames_to_mp4(jpegs, link, fps=30.0)
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, 'rb') as handle:
+            self.assertEqual(handle.read(), b'secret-bytes')
+        self.assertTrue(os.path.islink(link))
+
     def test_resolve_clip_output_rejects_camera_other_than_1_or_2(self):
         for camera in (0, 3, 9, True):
             with self.assertRaises(ValueError) as ctx:
