@@ -116,6 +116,13 @@ def _require_camera_index(value: Any, label: str) -> int:
     return value
 
 
+def _require_model_complexity(value: Any) -> int:
+    """0 lite, 1 full, 2 heavy. Booleans are not complexities."""
+    if type(value) is not int or value not in (0, 1, 2):
+        raise ValueError('model complexity must be 0, 1, or 2')
+    return value
+
+
 def _require_listen_port(value: Any) -> int:
     """TCP listen ports are integers from 1 through 65535. Booleans are not ports."""
     if type(value) is not int or value < 1 or value > 65535:
@@ -145,6 +152,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
         merged['completed_at'] = datetime.now().isoformat(timespec='seconds')
     _require_camera_index(merged.get('camera1_id'), 'camera1_id')
     _require_camera_index(merged.get('camera2_id'), 'camera2_id')
+    _require_model_complexity(merged.get('model_complexity'))
     _require_listen_port(merged.get('port'))
     _require_camera_roles(merged.get('camera_roles'))
     path = local_config_path(root)
