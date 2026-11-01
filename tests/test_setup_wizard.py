@@ -80,6 +80,19 @@ class TestInstallConfig(unittest.TestCase):
         self.assertEqual(loaded['camera1_id'], 0)
         self.assertEqual(loaded['camera2_id'], 4)
 
+    def test_save_refuses_model_complexity_other_than_0_1_or_2(self):
+        """A saved model complexity must be 0, 1, or 2 before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for bad in (-1, 3, 9, True, '2'):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {'model_complexity': bad})
+            self.assertIn('model complexity', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {'model_complexity': 0})
+        self.assertEqual(load_install_config(self.root)['model_complexity'], 0)
+        save_install_config(self.root, {'model_complexity': 1})
+        self.assertEqual(load_install_config(self.root)['model_complexity'], 1)
+
     def test_save_refuses_listen_port_outside_tcp_range(self):
         """A listen port must be an integer from 1 to 65535 before the profile is written."""
         config_path = os.path.join(self.root, 'swinglab.local.json')
