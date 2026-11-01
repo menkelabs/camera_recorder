@@ -155,6 +155,8 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     _require_model_complexity(merged.get('model_complexity'))
     _require_listen_port(merged.get('port'))
     _require_camera_roles(merged.get('camera_roles'))
+    if _config_recordings_dir_leaves_home(root, merged.get('recordings_dir')):
+        raise ValueError('recordings folder must stay inside the project')
     path = local_config_path(root)
     # A symlink would be followed by open() and truncate a file outside the project.
     if os.path.islink(path):
