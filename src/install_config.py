@@ -109,6 +109,13 @@ def load_install_config(root: str) -> Optional[Dict[str, Any]]:
     return merged
 
 
+def _require_camera_index(value: Any, label: str) -> int:
+    """Device indexes are non-negative ints. Booleans are not indexes."""
+    if type(value) is not int or value < 0:
+        raise ValueError(f'{label} must be a non-negative integer')
+    return value
+
+
 def _require_listen_port(value: Any) -> int:
     """TCP listen ports are integers from 1 through 65535. Booleans are not ports."""
     if type(value) is not int or value < 1 or value > 65535:
@@ -136,6 +143,8 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
             }
     if not merged.get('completed_at'):
         merged['completed_at'] = datetime.now().isoformat(timespec='seconds')
+    _require_camera_index(merged.get('camera1_id'), 'camera1_id')
+    _require_camera_index(merged.get('camera2_id'), 'camera2_id')
     _require_listen_port(merged.get('port'))
     _require_camera_roles(merged.get('camera_roles'))
     path = local_config_path(root)

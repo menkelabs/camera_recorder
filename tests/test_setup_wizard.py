@@ -60,6 +60,26 @@ class TestInstallConfig(unittest.TestCase):
     def test_missing_config_is_none(self):
         self.assertIsNone(load_install_config(self.root))
 
+    def test_save_refuses_camera_id_that_is_not_a_non_negative_integer(self):
+        """A saved camera id must be a non-negative integer before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for label, bad in (
+            ('camera1_id', -1),
+            ('camera1_id', True),
+            ('camera1_id', '2'),
+            ('camera1_id', 1.5),
+            ('camera2_id', -1),
+            ('camera2_id', False),
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {label: bad})
+            self.assertIn(label, str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {'camera1_id': 0, 'camera2_id': 4})
+        loaded = load_install_config(self.root)
+        self.assertEqual(loaded['camera1_id'], 0)
+        self.assertEqual(loaded['camera2_id'], 4)
+
     def test_save_refuses_listen_port_outside_tcp_range(self):
         """A listen port must be an integer from 1 to 65535 before the profile is written."""
         config_path = os.path.join(self.root, 'swinglab.local.json')
