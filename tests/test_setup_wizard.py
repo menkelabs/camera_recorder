@@ -198,6 +198,36 @@ class TestFinishAndLaunchers(unittest.TestCase):
         self.assertEqual(loaded['player_name'], 'Alex')
         self.assertEqual(loaded['camera_roles']['camera1'], 'dtl')
 
+    def test_finish_refuses_recordings_dir_that_leaves_project(self):
+        """A recordings folder must not escape the project, including via a symlink."""
+        project = os.path.join(self.root, 'project')
+        outside = os.path.join(self.root, 'outside')
+        os.makedirs(project)
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.txt')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('secret-bytes')
+        os.symlink(outside, os.path.join(project, 'linked'))
+        absolute = os.path.join(self.root, 'absolute-escape')
+        for raw in ('../outside', absolute, 'linked', 'takes/../../outside'):
+            result = finish_install(project, {
+                'player_name': 'Pat',
+                'recordings_dir': raw,
+            })
+            self.assertFalse(result['ok'], raw)
+            self.assertIn('project', result['error'])
+            self.assertFalse(
+                os.path.isfile(os.path.join(project, 'swinglab.local.json')),
+                raw,
+            )
+            self.assertFalse(
+                os.path.isfile(os.path.join(project, 'Start SwingLab.bat')),
+                raw,
+            )
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), 'secret-bytes')
+        self.assertFalse(os.path.isdir(absolute))
+
     def test_write_launchers_content(self):
         paths = write_launchers(self.root)
         self.assertEqual(len(paths), 2)
@@ -261,6 +291,18 @@ class TestWizardHttp(unittest.TestCase):
         self.assertTrue(payload['ok'])
         self.assertEqual(payload['url'], 'http://127.0.0.1:5002')
         self.assertEqual(load_install_config(self.root)['player_name'], 'Kim')
+
+    def test_post_finish_refuses_recordings_dir_escape(self):
+        status, body, _ = handle_request(
+            self.state,
+            'POST',
+            '/api/finish',
+            json.dumps({'recordings_dir': '../outside'}).encode(),
+        )
+        self.assertEqual(status, 400)
+        payload = json.loads(body)
+        self.assertFalse(payload['ok'])
+        self.assertFalse(os.path.isfile(os.path.join(self.root, 'swinglab.local.json')))
 
     def test_unknown_route(self):
         status, body, _ = handle_request(self.state, 'GET', '/nope', b'')
