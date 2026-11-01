@@ -130,6 +130,28 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     return path
 
 
+def _config_recordings_dir_leaves_home(home: str, raw: Any) -> bool:
+    """True when a configured recordings folder resolves outside its home.
+
+    ``SWINGLAB_RECORDINGS_DIR`` is an explicit override and is not checked here.
+    Absolute paths, ``..`` components, and symlinks that leave home are refused.
+    """
+    if not isinstance(raw, str):
+        return True
+    text = raw.strip() or 'recordings'
+    if os.path.isabs(text):
+        return True
+    parts = text.replace('\\', '/').split('/')
+    if any(part == '..' for part in parts):
+        return True
+    candidate = os.path.abspath(os.path.join(home, text))
+    real_home = os.path.realpath(home)
+    real_candidate = os.path.realpath(candidate)
+    if real_candidate == real_home:
+        return False
+    return not real_candidate.startswith(real_home + os.sep)
+
+
 def resolve_recordings_dir(
     root: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
@@ -143,8 +165,8 @@ def resolve_recordings_dir(
     home = root if root is not None else app_home(environ)
     cfg = config if config is not None else load_install_config(home)
     raw = (cfg or {}).get('recordings_dir') or 'recordings'
-    if os.path.isabs(raw):
-        return raw
+    if _config_recordings_dir_leaves_home(home, raw):
+        raise ValueError('recordings folder must stay inside the project')
     return os.path.abspath(os.path.join(home, raw))
 
 

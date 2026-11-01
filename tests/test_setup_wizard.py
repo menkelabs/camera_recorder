@@ -94,6 +94,27 @@ class TestInstallConfig(unittest.TestCase):
         resolved = resolve_recordings_dir(self.root, env={}, config=None)
         self.assertEqual(resolved, os.path.abspath(os.path.join(self.root, 'recordings')))
 
+    def test_recordings_dir_refuses_path_that_leaves_project(self):
+        """A configured recordings folder must stay inside the project."""
+        project = os.path.join(self.root, 'project')
+        outside = os.path.join(self.root, 'outside')
+        os.makedirs(project)
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.txt')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('secret-bytes')
+        os.symlink(outside, os.path.join(project, 'linked'))
+        absolute = os.path.join(self.root, 'absolute-escape')
+        for raw in ('../outside', absolute, 'linked', 'takes/../../outside'):
+            with self.assertRaises(ValueError) as ctx:
+                resolve_recordings_dir(
+                    project, env={}, config={'recordings_dir': raw},
+                )
+            self.assertIn('project', str(ctx.exception))
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), 'secret-bytes')
+        self.assertFalse(os.path.isdir(absolute))
+
     def test_flask_argv(self):
         args = flask_argv_from_config({
             'camera1_id': 0,
