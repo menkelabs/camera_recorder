@@ -116,6 +116,15 @@ def _require_listen_port(value: Any) -> int:
     return value
 
 
+def _require_camera_roles(roles: Any) -> None:
+    """camera1 and camera2 are face_on or dtl. Identical roles stay for practice settings to swap."""
+    if not isinstance(roles, dict):
+        raise ValueError('camera roles must be face_on or dtl')
+    for label in ('camera1', 'camera2'):
+        if roles.get(label) not in ('face_on', 'dtl'):
+            raise ValueError('camera roles must be face_on or dtl')
+
+
 def save_install_config(root: str, data: Dict[str, Any]) -> str:
     merged = default_install_config(root)
     if data:
@@ -128,6 +137,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     if not merged.get('completed_at'):
         merged['completed_at'] = datetime.now().isoformat(timespec='seconds')
     _require_listen_port(merged.get('port'))
+    _require_camera_roles(merged.get('camera_roles'))
     path = local_config_path(root)
     # A symlink would be followed by open() and truncate a file outside the project.
     if os.path.islink(path):
