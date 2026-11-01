@@ -203,6 +203,17 @@ class TestInstallConfig(unittest.TestCase):
         save_install_config(self.root, {'recordings_dir': 'takes'})
         self.assertEqual(load_install_config(self.root)['recordings_dir'], 'takes')
 
+    def test_save_refuses_player_name_a_user_profile_would_refuse(self):
+        """A player name must be usable as a local user before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for bad in ('', '   ', 'x' * 41, None):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {'player_name': bad})
+            self.assertIn('player name', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {'player_name': 'A' * 40})
+        self.assertEqual(load_install_config(self.root)['player_name'], 'A' * 40)
+
     def test_flask_argv(self):
         args = flask_argv_from_config({
             'camera1_id': 0,
