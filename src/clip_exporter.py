@@ -5,6 +5,7 @@ Export annotated analysis frames as a short MP4 clip.
 from __future__ import annotations
 
 import os
+import re
 from typing import Iterator, List, Tuple
 
 import cv2
@@ -124,11 +125,23 @@ def video_file_to_mp4(
         raise
 
 
+_RECORDING_STAMP = re.compile(r'^\d{8}_\d{6}$')
+
+
 def resolve_clip_output(
     recordings_dir: str,
     timestamp: str,
     camera_num: int,
 ) -> str:
-    """Standard path for an exported annotated clip."""
+    """Standard path for an exported annotated clip.
+
+    A timestamp that is not a recording id, or a camera other than 1 or 2,
+    is refused before the path is joined. That keeps a caller from writing
+    ``clip_../../outside_camera9.mp4``.
+    """
+    if not isinstance(timestamp, str) or _RECORDING_STAMP.fullmatch(timestamp) is None:
+        raise ValueError('Invalid timestamp')
+    if type(camera_num) is not int or camera_num not in (1, 2):
+        raise ValueError('camera must be 1 or 2')
     name = f'clip_{timestamp}_camera{camera_num}.mp4'
     return os.path.join(recordings_dir, name)
