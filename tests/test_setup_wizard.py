@@ -60,6 +60,22 @@ class TestInstallConfig(unittest.TestCase):
     def test_missing_config_is_none(self):
         self.assertIsNone(load_install_config(self.root))
 
+    def test_save_refuses_symlink_config(self):
+        """swinglab.local.json must not be a symlink that truncates another file."""
+        outside = os.path.join(self.root, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('secret-bytes')
+        link = os.path.join(self.root, 'swinglab.local.json')
+        os.symlink(secret, link)
+        with self.assertRaises(ValueError) as ctx:
+            save_install_config(self.root, {'player_name': 'Pat'})
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), 'secret-bytes')
+        self.assertTrue(os.path.islink(link))
+
     def test_recordings_dir_env_wins(self):
         custom = os.path.join(self.root, 'custom-rec')
         save_install_config(self.root, {'recordings_dir': 'from-file'})
