@@ -175,6 +175,13 @@ def get_default_camera_ids(platform: Optional[str] = None) -> Tuple[int, int]:
     return (0, 1)
 
 
+def _require_camera_index(value: Any, label: str) -> int:
+    """Device indexes are non-negative ints. Booleans are not indexes."""
+    if type(value) is not int or value < 0:
+        raise ValueError(f'{label} must be a non-negative integer')
+    return value
+
+
 def get_camera_ids(
     config_path: Optional[str] = None,
     platform: Optional[str] = None,
@@ -194,8 +201,8 @@ def get_camera_ids(
     if not config:
         return defaults
     return (
-        int(config.get('camera1_id', defaults[0])),
-        int(config.get('camera2_id', defaults[1])),
+        _require_camera_index(config.get('camera1_id', defaults[0]), 'camera1_id'),
+        _require_camera_index(config.get('camera2_id', defaults[1]), 'camera2_id'),
     )
 
 
