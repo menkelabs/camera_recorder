@@ -32,7 +32,7 @@ from helpers import (
     write_mock_video,
 )
 from clip_exporter import jpeg_frames_to_mp4, resolve_clip_output
-from pose_processor import PoseProcessor
+from pose_processor import PoseProcessor, get_model_path
 from sway_calculator import SwayCalculator
 
 
@@ -230,6 +230,28 @@ class TestPoseProcessorWithMockVideo(unittest.TestCase):
 # ======================================================================
 # End-to-end analysis tools on mock captures
 # ======================================================================
+
+class TestPoseModelPath(unittest.TestCase):
+    def test_get_model_path_refuses_symlink(self):
+        """A pose model path must not be a symlink that truncates another file."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        outside = os.path.join(tmp.name, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.task')
+        with open(secret, 'wb') as handle:
+            handle.write(b'secret-bytes')
+        models = os.path.join(tmp.name, 'models')
+        os.makedirs(models)
+        link = os.path.join(models, 'pose_landmarker_heavy.task')
+        os.symlink(secret, link)
+        with self.assertRaises(ValueError) as ctx:
+            get_model_path(2, models_dir=models)
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, 'rb') as handle:
+            self.assertEqual(handle.read(), b'secret-bytes')
+        self.assertTrue(os.path.islink(link))
+
 
 class TestAnalysisToolsOnMockCaptures(unittest.TestCase):
     """SwayCalculator + clip export fed by mock dual-camera captures."""

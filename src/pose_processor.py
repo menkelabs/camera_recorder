@@ -49,6 +49,9 @@ def get_model_path(model_complexity=2, models_dir=None):
     
     model_name = MODEL_NAMES.get(model_complexity, MODEL_NAMES[2])
     model_path = os.path.join(models_dir, model_name)
+    # A symlink would be followed by the download open() and truncate another file.
+    if os.path.islink(model_path):
+        raise ValueError('pose model must not be a symlink')
     
     # Download model if it doesn't exist
     if not os.path.exists(model_path):
