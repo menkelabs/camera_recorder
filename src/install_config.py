@@ -123,6 +123,16 @@ def _require_model_complexity(value: Any) -> int:
     return value
 
 
+def _require_player_name(value: Any) -> str:
+    """Profile names match local users: non-empty and at most 40 characters."""
+    cleaned = ' '.join(str(value or '').strip().split())
+    if not cleaned:
+        raise ValueError('player name is required')
+    if len(cleaned) > 40:
+        raise ValueError('player name must be at most 40 characters')
+    return cleaned
+
+
 def _require_listen_port(value: Any) -> int:
     """TCP listen ports are integers from 1 through 65535. Booleans are not ports."""
     if type(value) is not int or value < 1 or value > 65535:
@@ -155,6 +165,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     _require_model_complexity(merged.get('model_complexity'))
     _require_listen_port(merged.get('port'))
     _require_camera_roles(merged.get('camera_roles'))
+    _require_player_name(merged.get('player_name'))
     if _config_recordings_dir_leaves_home(root, merged.get('recordings_dir')):
         raise ValueError('recordings folder must stay inside the project')
     path = local_config_path(root)
