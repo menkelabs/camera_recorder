@@ -440,6 +440,9 @@ def merge_platform_camera_config(
 ) -> str:
     name = 'config_windows.json' if os.name == 'nt' else 'config_linux.json'
     path = os.path.join(root, name)
+    # A symlink would be followed by open() and truncate a file outside the project.
+    if os.path.islink(path):
+        raise ValueError('camera config must not be a symlink')
     data: Dict[str, Any] = {}
     if os.path.isfile(path):
         try:
