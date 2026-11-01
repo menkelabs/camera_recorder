@@ -129,6 +129,32 @@ class TestLoadCameraConfigBothPlatforms(unittest.TestCase):
         loaded = load_camera_config(config_path=path)
         self.assertEqual(loaded['camera1_id'], 1)
 
+    def test_save_refuses_camera_id_that_is_not_a_non_negative_integer(self):
+        """A platform camera id must be a non-negative integer before the file is written."""
+        config_path = os.path.join(self.root, 'config_linux.json')
+        for label, bad in (
+            ('camera1_id', -1),
+            ('camera1_id', True),
+            ('camera1_id', '2'),
+            ('camera1_id', 1.5),
+            ('camera2_id', -1),
+            ('camera2_id', False),
+        ):
+            payload = {'platform': 'linux', 'camera1_id': 0, 'camera2_id': 1}
+            payload[label] = bad
+            with self.assertRaises(ValueError) as ctx:
+                save_camera_config(payload, platform='linux', root=self.root)
+            self.assertIn(label, str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        path = save_camera_config(
+            {'platform': 'linux', 'camera1_id': 0, 'camera2_id': 4},
+            platform='linux',
+            root=self.root,
+        )
+        loaded = load_camera_config(config_path=path)
+        self.assertEqual(loaded['camera1_id'], 0)
+        self.assertEqual(loaded['camera2_id'], 4)
+
     def test_save_refuses_symlink_config(self):
         """The platform config path must not be a symlink that truncates another file."""
         outside = os.path.join(self.root, 'outside')

@@ -148,6 +148,9 @@ def save_camera_config(
     """
     if config_path is None:
         config_path = get_config_path(platform=platform, root=root)
+    for label in ('camera1_id', 'camera2_id'):
+        if label in config:
+            _require_camera_index(config[label], label)
     # A symlink would be followed by open() and truncate a file outside the project.
     if os.path.islink(config_path):
         raise ValueError('camera config must not be a symlink')
