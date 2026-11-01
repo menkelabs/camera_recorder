@@ -471,6 +471,17 @@ class TestUsbHealth(unittest.TestCase):
         self.assertIsNotNone(w1)
         self.assertIn('Camera 1', w1)
 
+    def test_detect_shared_refuses_non_index(self):
+        """A USB check must refuse a camera id that is not a non-negative integer."""
+        from usb_health import detect_shared_usb_bus
+        for bad in (-1, True, '2', 1.5, False):
+            with self.assertRaises(ValueError) as ctx:
+                detect_shared_usb_bus(bad, 1)
+            self.assertIn('camera1_id', str(ctx.exception))
+            with self.assertRaises(ValueError) as ctx:
+                detect_shared_usb_bus(0, bad)
+            self.assertIn('camera2_id', str(ctx.exception))
+
     def test_detect_shared_without_v4l(self):
         from usb_health import detect_shared_usb_bus
         result = detect_shared_usb_bus(0, 1)
