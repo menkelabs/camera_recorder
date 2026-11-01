@@ -252,6 +252,17 @@ class TestPoseModelPath(unittest.TestCase):
             self.assertEqual(handle.read(), b'secret-bytes')
         self.assertTrue(os.path.islink(link))
 
+    def test_get_model_path_rejects_complexity_other_than_0_1_or_2(self):
+        """An unknown complexity must not fall through to the heavy model."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        models = os.path.join(tmp.name, 'models')
+        for complexity in (-1, 3, 9, True, '2'):
+            with self.assertRaises(ValueError) as ctx:
+                get_model_path(complexity, models_dir=models)
+            self.assertIn('model complexity', str(ctx.exception))
+        self.assertFalse(os.path.isdir(models))
+
 
 class TestAnalysisToolsOnMockCaptures(unittest.TestCase):
     """SwayCalculator + clip export fed by mock dual-camera captures."""
