@@ -73,6 +73,35 @@ class TestInstallConfig(unittest.TestCase):
         save_install_config(self.root, {'port': 65535})
         self.assertEqual(load_install_config(self.root)['port'], 65535)
 
+    def test_save_refuses_camera_role_other_than_face_on_or_dtl(self):
+        """camera1 and camera2 must be face_on or dtl before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for bad in ('side', '', 'Face_On', True, None, 1):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {
+                    'camera_roles': {'camera1': bad, 'camera2': 'dtl'},
+                })
+            self.assertIn('camera role', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        with self.assertRaises(ValueError) as ctx:
+            save_install_config(self.root, {
+                'camera_roles': {'camera1': 'face_on', 'camera2': 'rear'},
+            })
+        self.assertIn('camera role', str(ctx.exception))
+        self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {
+            'camera_roles': {'camera1': 'face_on', 'camera2': 'face_on'},
+        })
+        loaded = load_install_config(self.root)
+        self.assertEqual(loaded['camera_roles']['camera1'], 'face_on')
+        self.assertEqual(loaded['camera_roles']['camera2'], 'face_on')
+        save_install_config(self.root, {
+            'camera_roles': {'camera1': 'dtl', 'camera2': 'face_on'},
+        })
+        loaded = load_install_config(self.root)
+        self.assertEqual(loaded['camera_roles']['camera1'], 'dtl')
+        self.assertEqual(loaded['camera_roles']['camera2'], 'face_on')
+
     def test_save_refuses_symlink_config(self):
         """swinglab.local.json must not be a symlink that truncates another file."""
         outside = os.path.join(self.root, 'outside')
