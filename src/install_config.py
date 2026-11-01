@@ -109,6 +109,13 @@ def load_install_config(root: str) -> Optional[Dict[str, Any]]:
     return merged
 
 
+def _require_listen_port(value: Any) -> int:
+    """TCP listen ports are integers from 1 through 65535. Booleans are not ports."""
+    if type(value) is not int or value < 1 or value > 65535:
+        raise ValueError('listen port must be an integer from 1 to 65535')
+    return value
+
+
 def save_install_config(root: str, data: Dict[str, Any]) -> str:
     merged = default_install_config(root)
     if data:
@@ -120,6 +127,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
             }
     if not merged.get('completed_at'):
         merged['completed_at'] = datetime.now().isoformat(timespec='seconds')
+    _require_listen_port(merged.get('port'))
     path = local_config_path(root)
     # A symlink would be followed by open() and truncate a file outside the project.
     if os.path.islink(path):

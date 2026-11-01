@@ -60,6 +60,19 @@ class TestInstallConfig(unittest.TestCase):
     def test_missing_config_is_none(self):
         self.assertIsNone(load_install_config(self.root))
 
+    def test_save_refuses_listen_port_outside_tcp_range(self):
+        """A listen port must be an integer from 1 to 65535 before the profile is written."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for bad in (0, 65536, -1, True, '5000', 1.5):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {'port': bad})
+            self.assertIn('listen port', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {'port': 1})
+        self.assertEqual(load_install_config(self.root)['port'], 1)
+        save_install_config(self.root, {'port': 65535})
+        self.assertEqual(load_install_config(self.root)['port'], 65535)
+
     def test_save_refuses_symlink_config(self):
         """swinglab.local.json must not be a symlink that truncates another file."""
         outside = os.path.join(self.root, 'outside')
