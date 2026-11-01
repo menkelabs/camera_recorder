@@ -170,6 +170,24 @@ class TestCameraSuggestAndConfig(unittest.TestCase):
             self.assertEqual(data['camera2_id'], 6)
             self.assertEqual(len(data['detected_cameras']), 1)
 
+    def test_merge_refuses_symlink_config(self):
+        """The wizard camera config must not be a symlink that truncates another file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = os.path.join(tmp, 'outside')
+            os.makedirs(outside)
+            secret = os.path.join(outside, 'secret.json')
+            with open(secret, 'w', encoding='utf-8') as handle:
+                handle.write('secret-bytes')
+            name = 'config_windows.json' if os.name == 'nt' else 'config_linux.json'
+            link = os.path.join(tmp, name)
+            os.symlink(secret, link)
+            with self.assertRaises(ValueError) as ctx:
+                merge_platform_camera_config(tmp, 1, 2)
+            self.assertIn('symlink', str(ctx.exception))
+            with open(secret, encoding='utf-8') as handle:
+                self.assertEqual(handle.read(), 'secret-bytes')
+            self.assertTrue(os.path.islink(link))
+
 
 class TestFinishAndLaunchers(unittest.TestCase):
     def setUp(self):
