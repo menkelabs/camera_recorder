@@ -599,6 +599,28 @@ def apply_studio_extras(root: str, config: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def _recordings_dir_leaves_project(root: str, raw: Any) -> bool:
+    """True when a wizard recordings folder resolves outside the project.
+
+    Absolute paths, ``..`` components, and symlinks that leave the project
+    are refused before any config or directory is written.
+    """
+    if not isinstance(raw, str):
+        return True
+    text = raw.strip() or 'recordings'
+    if os.path.isabs(text):
+        return True
+    parts = text.replace('\\', '/').split('/')
+    if any(part == '..' for part in parts):
+        return True
+    candidate = os.path.abspath(os.path.join(root, text))
+    real_root = os.path.realpath(root)
+    real_candidate = os.path.realpath(candidate)
+    if real_candidate == real_root:
+        return False
+    return not real_candidate.startswith(real_root + os.sep)
+
+
 def finish_install(
     root: str,
     settings: Dict[str, Any],
@@ -610,6 +632,11 @@ def finish_install(
         cfg['camera_roles'] = {
             **cfg['camera_roles'],
             **settings['camera_roles'],
+        }
+    if _recordings_dir_leaves_project(root, cfg.get('recordings_dir')):
+        return {
+            'ok': False,
+            'error': 'recordings folder must stay inside the project',
         }
     path = save_install_config(root, cfg)
     saved = load_install_config(root) or cfg
@@ -734,7 +761,8 @@ def handle_request(
             settings,
             detected=state.last_cameras or None,
         )
-        status, payload = _json_bytes(result)
+        code = 200 if result.get('ok') else 400
+        status, payload = _json_bytes(result, code)
         return status, payload, 'application/json'
     if method == 'POST' and route == '/api/start':
         status, payload = _json_bytes(start_app(state.root))
