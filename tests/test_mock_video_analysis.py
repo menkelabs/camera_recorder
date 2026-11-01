@@ -295,6 +295,18 @@ class TestAnalysisToolsOnMockCaptures(unittest.TestCase):
         with self.assertRaises(ValueError):
             jpeg_frames_to_mp4([], os.path.join(self.tmp, 'empty.mp4'))
 
+    def test_resolve_clip_output_rejects_non_recording_timestamp(self):
+        for stamp in ('../outside', '20260727_160000/../../tmp', 'not-a-stamp', ''):
+            with self.assertRaises(ValueError) as ctx:
+                resolve_clip_output(self.tmp, stamp, 1)
+            self.assertIn('Invalid timestamp', str(ctx.exception))
+
+    def test_resolve_clip_output_rejects_camera_other_than_1_or_2(self):
+        for camera in (0, 3, 9, True):
+            with self.assertRaises(ValueError) as ctx:
+                resolve_clip_output(self.tmp, '20260727_160000', camera)
+            self.assertIn('camera must be 1 or 2', str(ctx.exception))
+
 
 # ======================================================================
 # PoseProcessor._extract_landmarks wiring (dict ↔ FakeLandmark)
