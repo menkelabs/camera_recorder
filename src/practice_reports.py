@@ -32,6 +32,13 @@ def _cam_summary(analysis: Dict, cam: int) -> Dict:
 
 
 def load_analysis_file(path: str) -> Optional[Dict]:
+    """Load one analysis JSON file.
+
+    A symlink is refused before it is opened, so a saved analysis name cannot
+    be pointed at a file outside the recordings directory.
+    """
+    if os.path.islink(path):
+        raise ValueError('analysis file must not be a symlink')
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(_PROJECT_ROOT, 'scripts'))
 sys.path.insert(0, os.path.join(_PROJECT_ROOT, 'tests'))
 
 from local_db import LocalDB, get_db, reset_db_cache  # noqa: E402
-from practice_reports import build_progress_from_stats  # noqa: E402
+from practice_reports import build_progress_from_stats, load_analysis_file  # noqa: E402
 from practice_settings import (  # noqa: E402
     load_practice_settings,
     set_reference_timestamp,
@@ -113,6 +113,22 @@ class TestLocalDBCore(unittest.TestCase):
         self.assertEqual(db.integrity_check(), 'ok')
         meta = get_recording_meta(self.dir, '20260715_120000')
         self.assertFalse(meta['favorite'])
+
+    def test_load_analysis_file_refuses_symlink(self):
+        """An analysis path that is a symlink must not be read."""
+        outside = os.path.join(self.dir, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'secret.json')
+        with open(secret, 'w', encoding='utf-8') as handle:
+            handle.write('{"timestamp": "stolen"}')
+        link = os.path.join(self.dir, 'analysis_20260715_120000.json')
+        os.symlink(secret, link)
+        with self.assertRaises(ValueError) as ctx:
+            load_analysis_file(link)
+        self.assertIn('symlink', str(ctx.exception))
+        with open(secret, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), '{"timestamp": "stolen"}')
+        self.assertTrue(os.path.islink(link))
 
     def test_import_analysis_json_into_swing_stats(self):
         path = os.path.join(self.dir, 'analysis_20260715_120000.json')
