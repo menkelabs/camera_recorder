@@ -56,6 +56,13 @@ def _usb_bus_root(usb_name: str) -> str:
     return base
 
 
+def _require_camera_index(value: Any, label: str) -> int:
+    """Device indexes are non-negative ints. Booleans are not indexes."""
+    if type(value) is not int or value < 0:
+        raise ValueError(f'{label} must be a non-negative integer')
+    return value
+
+
 def detect_shared_usb_bus(camera1_id: int, camera2_id: int) -> Dict[str, Any]:
     """
     Best-effort check whether both cameras sit on the same USB root port.
@@ -78,12 +85,14 @@ def detect_shared_usb_bus(camera1_id: int, camera2_id: int) -> Dict[str, Any]:
         'warning': None,
         'platform_supported': os.path.isdir('/sys/class/video4linux'),
     }
+    camera1_id = _require_camera_index(camera1_id, 'camera1_id')
+    camera2_id = _require_camera_index(camera2_id, 'camera2_id')
     if not result['platform_supported']:
         result['warning'] = None  # Windows: rely on frame-delivery heuristic instead
         return result
 
-    usb1 = _v4l_usb_path(int(camera1_id))
-    usb2 = _v4l_usb_path(int(camera2_id))
+    usb1 = _v4l_usb_path(camera1_id)
+    usb2 = _v4l_usb_path(camera2_id)
     result['camera1_usb'] = usb1
     result['camera2_usb'] = usb2
     result['checked'] = True
