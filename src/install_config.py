@@ -121,6 +121,9 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     if not merged.get('completed_at'):
         merged['completed_at'] = datetime.now().isoformat(timespec='seconds')
     path = local_config_path(root)
+    # A symlink would be followed by open() and truncate a file outside the project.
+    if os.path.islink(path):
+        raise ValueError('install config must not be a symlink')
     with open(path, 'w', encoding='utf-8') as fh:
         json.dump(merged, fh, indent=2)
         fh.write('\n')
