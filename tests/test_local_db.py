@@ -66,6 +66,30 @@ class TestLocalDBCore(unittest.TestCase):
         self.assertTrue(os.path.isfile(db.path))
         self.assertEqual(db.integrity_check(), 'ok')
 
+    def test_open_refuses_symlink_database(self):
+        """swinglab.db must not be a symlink that sqlite overwrites."""
+        outside = os.path.join(self.dir, 'outside')
+        os.makedirs(outside)
+        secret = os.path.join(outside, 'notes.txt')
+        with open(secret, 'wb') as handle:
+            handle.write(b'')
+        rec = os.path.join(self.dir, 'recordings')
+        os.makedirs(rec)
+        link = os.path.join(rec, 'swinglab.db')
+        os.symlink(secret, link)
+        previous = os.environ.pop('SWINGLAB_DB_PATH', None)
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                get_db(rec)
+            self.assertIn('symlink', str(ctx.exception))
+            with open(secret, 'rb') as handle:
+                self.assertEqual(handle.read(), b'')
+            self.assertTrue(os.path.islink(link))
+        finally:
+            if previous is not None:
+                os.environ['SWINGLAB_DB_PATH'] = previous
+            reset_db_cache()
+
     def test_migrate_recording_meta_json(self):
         with open(os.path.join(self.dir, 'recording_meta.json'), 'w') as f:
             json.dump({
