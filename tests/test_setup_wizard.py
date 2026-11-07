@@ -23,6 +23,7 @@ from install_config import (  # noqa: E402
     venv_python,
 )
 from setup_wizard import (  # noqa: E402
+    WizardHandler,
     WizardState,
     check_prerequisites,
     finish_install,
@@ -459,6 +460,55 @@ class TestWizardHttp(unittest.TestCase):
         status, body, _ = handle_request(self.state, 'GET', '/nope', b'')
         self.assertEqual(status, 404)
         self.assertIn('error', json.loads(body))
+
+    def test_post_refuses_body_length_before_reading(self):
+        """A bad Content-Length must not be read or applied as a finish body.
+
+        A negative length makes read() consume the stream until EOF, which
+        would write the install profile. A huge length waits on the socket.
+        """
+        payload = json.dumps({'player_name': 'Kim', 'port': 5002}).encode()
+
+        class Stream:
+            def __init__(self):
+                self.calls = []
+
+            def read(self, n=-1):
+                self.calls.append(n)
+                if n is None or n < 0:
+                    return payload
+                return payload[:n]
+
+        def post(length):
+            stream = Stream()
+            handler = WizardHandler.__new__(WizardHandler)
+            handler.state = WizardState(self.root)
+            handler.path = '/api/finish'
+            handler.rfile = stream
+            handler.headers = {'Content-Length': length}
+            sent = {}
+
+            def _send(status, body, content_type):
+                sent['status'] = status
+                sent['body'] = body
+                sent['type'] = content_type
+
+            handler._send = _send
+            handler.do_POST()
+            return stream, sent
+
+        profile = os.path.join(self.root, 'swinglab.local.json')
+        for length in ('-1', str(1024 * 1024 + 1), 'nope'):
+            stream, sent = post(length)
+            self.assertEqual(sent['status'], 400, length)
+            self.assertIn('body', json.loads(sent['body'])['error'])
+            self.assertEqual(stream.calls, [], length)
+            self.assertFalse(os.path.isfile(profile), length)
+
+        stream, sent = post(str(len(payload)))
+        self.assertEqual(stream.calls, [len(payload)])
+        self.assertEqual(sent['status'], 200)
+        self.assertEqual(load_install_config(self.root)['player_name'], 'Kim')
 
     def test_state_includes_frozen_flag(self):
         status, body, _ = handle_request(self.state, 'GET', '/api/state', b'')
