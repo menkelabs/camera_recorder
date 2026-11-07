@@ -209,6 +209,36 @@ class TestPracticeReports(unittest.TestCase):
         self.assertIn('Golf Swing Analysis Report', html)
         self.assertIn('Metric breakdown', html)
 
+    def test_html_report_escapes_score_text(self):
+        """Score text is placed in the report body and must not become markup."""
+        scored = {
+            'grade': '<script>',
+            'score': 10.0,
+            'breakdown': [{
+                'label': '<img src=x onerror=alert(1)>',
+                'cam': '<b>',
+                'value': 1.0,
+                'rating': 'good',
+                'points': 1,
+            }],
+            'strengths': ['<script>alert(1)</script>'],
+            'focus_areas': ['</div><script>'],
+            'rated_count': 1,
+            'metric_count': 1,
+        }
+        report = analysis_to_html_report(
+            {'timestamp': '20260715_120000'},
+            scored,
+            title='<title>',
+        )
+        self.assertNotIn('<script>', report)
+        self.assertNotIn('<img', report)
+        self.assertNotIn('<b>', report)
+        self.assertIn('&lt;script&gt;', report)
+        self.assertIn('&lt;img src=x onerror=alert(1)&gt;', report)
+        self.assertIn('20260715_120000', report)
+        self.assertIn('10.0', report)
+
 
 class TestPracticeAPIEndpoints(unittest.TestCase):
     """Flask API smoke tests for the new practice features."""
