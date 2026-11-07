@@ -263,14 +263,13 @@ def _op_api_recordings_cleanup():
     max_age_days = data.get('max_age_days')
     if max_age_days is None:
         return jsonify({'error': 'Missing max_age_days'}), 400
+    # int(True) is 1 and int(1.9) is 1. Those must not delete recordings.
+    if type(max_age_days) is not int or max_age_days < 1:
+        return jsonify({'error': 'max_age_days must be an integer >= 1'}), 400
     try:
-        max_age_days = int(max_age_days)
-    except (TypeError, ValueError):
-        return jsonify({'error': 'max_age_days must be an integer'}), 400
-    if max_age_days < 1:
-        return jsonify({'error': 'max_age_days must be >= 1'}), 400
-
-    cutoff = datetime.now() - timedelta(days=max_age_days)
+        cutoff = datetime.now() - timedelta(days=max_age_days)
+    except OverflowError:
+        return jsonify({'error': 'max_age_days must be an integer >= 1'}), 400
     pairs = _list_recording_pairs()
     rec_dir = _get_recordings_dir()
     try:
