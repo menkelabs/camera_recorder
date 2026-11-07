@@ -104,6 +104,9 @@ class LocalDB:
             parent = os.path.dirname(os.path.abspath(self.path))
             if parent:
                 os.makedirs(parent, exist_ok=True)
+            # sqlite follows a symlink and writes a database into that file.
+            if os.path.islink(self.path):
+                raise ValueError('database path must not be a symlink')
             self._conn = sqlite3.connect(
                 self.path,
                 check_same_thread=False,
