@@ -6,12 +6,14 @@ Capture stays at the camera rate. Analysis samples near 30 fps so a
 
 from __future__ import annotations
 
+import math
+
 
 def sample_plan(source_fps: float, sample_fps: float = 30.0) -> tuple:
     """Return ``(source_fps, stride, sample_fps)``.
 
-    A missing or unusable source rate is treated as the sample rate, which
-    keeps a 1:1 stride.
+    A missing, non-finite, or otherwise unusable source rate is treated as
+    the sample rate, which keeps a 1:1 stride.
     """
     sample = _positive(sample_fps, 30.0)
     source = _positive(source_fps, sample)
@@ -30,6 +32,6 @@ def _positive(value, fallback: float) -> float:
         number = float(value)
     except (TypeError, ValueError):
         return fallback
-    if number < 1:
+    if not math.isfinite(number) or number < 1:
         return fallback
     return number
