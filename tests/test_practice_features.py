@@ -23,7 +23,12 @@ from recording_meta import (
     list_favorites,
     update_recording_meta,
 )
-from practice_reports import analysis_to_csv, analysis_to_html_report, build_progress_series
+from practice_reports import (
+    analysis_to_csv,
+    analysis_to_html_report,
+    build_progress_from_stats,
+    build_progress_series,
+)
 
 
 def _good_analysis():
@@ -197,6 +202,30 @@ class TestPracticeReports(unittest.TestCase):
         self.assertIn('score', progress['series'])
         self.assertIsNotNone(progress['latest_score'])
         self.assertIsNotNone(progress['score_delta'])
+
+    def test_progress_skips_a_timestamp_that_is_not_text(self):
+        """A non-text timestamp cannot be ordered with a recording id.
+
+        Comparing them raises TypeError and the progress chart never loads.
+        """
+        good = _good_analysis()
+        progress = build_progress_series([
+            {'timestamp': 20260715, 'camera1': {'summary': {}}},
+            good,
+        ])
+        self.assertEqual(
+            [point['timestamp'] for point in progress['points']],
+            [good['timestamp']],
+        )
+
+        stats = build_progress_from_stats([
+            {'timestamp': {'bad': True}, 'score': 10, 'metrics': {}},
+            {'timestamp': '20260715_130000', 'score': 20, 'metrics': {}},
+        ])
+        self.assertEqual(
+            [point['timestamp'] for point in stats['points']],
+            ['20260715_130000'],
+        )
 
     def test_csv_export(self):
         csv_text = analysis_to_csv(_good_analysis())

@@ -52,6 +52,19 @@ def load_analysis_file(path: str) -> Optional[Dict]:
         return None
 
 
+def _chronological(items: List[Dict]) -> List[Dict]:
+    """Order records by timestamp.
+
+    A timestamp that is not text cannot be ordered with a recording id.
+    Comparing them raises TypeError and the progress chart never loads.
+    """
+    usable = [
+        item for item in items
+        if isinstance(item, dict) and isinstance(item.get('timestamp'), str)
+    ]
+    return sorted(usable, key=lambda item: item.get('timestamp') or '')
+
+
 def build_progress_series(analyses: List[Dict]) -> Dict[str, Any]:
     """
     Build chronological trend series from a list of analysis payloads.
@@ -60,7 +73,7 @@ def build_progress_series(analyses: List[Dict]) -> Dict[str, Any]:
       timestamp, date (optional), camera1/camera2 summaries
     """
     # Sort oldest → newest for charts
-    items = sorted(analyses, key=lambda a: a.get('timestamp') or '')
+    items = _chronological(analyses)
 
     series = {m['key']: [] for m in TREND_METRICS}
     points = []
@@ -116,7 +129,7 @@ def build_progress_from_stats(stats_rows: List[Dict]) -> Dict[str, Any]:
 
     Each row should look like LocalDB.list_swing_stats() output.
     """
-    items = sorted(stats_rows, key=lambda a: a.get('timestamp') or '')
+    items = _chronological(stats_rows)
     series = {m['key']: [] for m in TREND_METRICS}
     points = []
 
