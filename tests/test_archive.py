@@ -264,6 +264,64 @@ class TestArchiveAPIEndpoints(unittest.TestCase):
             shutil.rmtree(rec_dir)
             shutil.rmtree(archive_dir)
 
+    def test_archive_run_refuses_selection_that_is_not_a_list(self):
+        """A selection that is not a list must not copy recordings.
+
+        Null used to copy every take. A bare recording id matched by
+        substring. An empty list is a selection of nothing.
+        """
+        from local_db import get_db, reset_db_cache
+
+        rec_dir = tempfile.mkdtemp()
+        archive_dir = tempfile.mkdtemp()
+        import flask_gui
+        orig_dir = flask_gui._get_recordings_dir
+        flask_gui._get_recordings_dir = lambda: rec_dir
+        first = '20260215_140000'
+        second = '20260215_150000'
+        try:
+            for ts in (first, second):
+                for cam in ('camera1', 'camera2'):
+                    with open(os.path.join(rec_dir, f'recording_{ts}_{cam}.mp4'), 'wb') as fh:
+                        fh.write(b'x')
+            reset_db_cache()
+            db = get_db(rec_dir)
+            db.claim_recording(first)
+            db.claim_recording(second)
+            self.client.post('/api/archive/config', json={'archive_path': archive_dir})
+
+            def copied(ts):
+                return os.path.isfile(
+                    os.path.join(archive_dir, f'recording_{ts}_camera1.mp4'))
+
+            for payload in (None, first, True):
+                resp = self.client.post('/api/archive/run', json={'timestamps': payload})
+                self.assertEqual(resp.status_code, 400, payload)
+                body = json.loads(resp.data)
+                self.assertIn('list', body['error'])
+                self.assertFalse(copied(first))
+                self.assertFalse(copied(second))
+
+            resp = self.client.post('/api/archive/run', json={'timestamps': []})
+            self.assertEqual(resp.status_code, 200)
+            body = json.loads(resp.data)
+            self.assertEqual(body['archived_count'], 0)
+            self.assertFalse(copied(first))
+            self.assertFalse(copied(second))
+
+            resp = self.client.post('/api/archive/run', json={'timestamps': [first]})
+            self.assertEqual(resp.status_code, 200)
+            body = json.loads(resp.data)
+            copied_ts = {item['timestamp'] for item in body['results'] if item.get('copied')}
+            self.assertEqual(copied_ts, {first})
+            self.assertTrue(copied(first))
+            self.assertFalse(copied(second))
+        finally:
+            flask_gui._get_recordings_dir = orig_dir
+            reset_db_cache()
+            shutil.rmtree(rec_dir)
+            shutil.rmtree(archive_dir)
+
 
 # ======================================================================
 # Runner
