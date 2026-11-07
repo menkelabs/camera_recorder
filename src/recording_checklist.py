@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 
@@ -97,13 +98,27 @@ def _frame_items(mgr) -> list:
     ]
 
 
+def _reported_pixels(value) -> int:
+    """A capture that does not report a size must not abort the checklist.
+
+    ``nan`` is truthy, so ``value or 0`` still reaches ``int()`` and raises.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(number):
+        return 0
+    return int(number)
+
+
 def _resolution_item(mgr) -> dict:
     cam1_ok = bool(mgr.cap1 and mgr.cap1.isOpened())
     res_ok = True
     detail = f'Target {mgr.width}x{mgr.height} @ {mgr.fps}fps'
     if cam1_ok:
-        width = int(mgr.cap1.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
-        height = int(mgr.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        width = _reported_pixels(mgr.cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = _reported_pixels(mgr.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT))
         if width and height:
             res_ok = width >= mgr.width * 0.9 and height >= mgr.height * 0.9
             detail = f'Cam1 reports {width}x{height}; target {mgr.width}x{mgr.height}'
