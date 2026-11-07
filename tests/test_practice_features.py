@@ -280,6 +280,20 @@ class TestPracticeAPIEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(b'Swing Score', r.data)
 
+    def test_export_refuses_timestamp_that_is_not_a_recording_id(self):
+        """A saved timestamp must not be copied into the download header."""
+        payload = _good_analysis()
+        payload['timestamp'] = '20260715_120000\r\nX-Injected: yes'
+        path = os.path.join(self.tmp.name, 'analysis_20260715_130000.json')
+        with open(path, 'w', encoding='utf-8') as handle:
+            json.dump(payload, handle)
+        response = self.client.get(
+            '/api/analysis/export?format=csv&timestamp=20260715_130000',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Invalid timestamp', response.get_json()['error'])
+        self.assertNotIn('X-Injected', response.headers.get('Content-Disposition', ''))
+
 
 class TestDrillsAndReference(unittest.TestCase):
     def test_poor_swing_includes_drills(self):

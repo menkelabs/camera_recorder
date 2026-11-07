@@ -402,6 +402,13 @@ def _op_api_analysis_export():
         else score_analysis(role_aware_analysis(data, settings))
     )
     stamp = data.get('timestamp') or 'current'
+    # The download name is placed in Content-Disposition. A recording id or
+    # "current" is safe. Anything else, including a newline, becomes a 500
+    # or a header the browser treats as another filename.
+    if stamp != 'current' and (
+        not isinstance(stamp, str) or re.fullmatch(r'\d{8}_\d{6}', stamp) is None
+    ):
+        return jsonify({'error': 'Invalid timestamp'}), 400
 
     if fmt == 'csv':
         body = analysis_to_csv(data, scored)
