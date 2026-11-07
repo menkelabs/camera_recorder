@@ -344,6 +344,20 @@ class TestRecordingManagementAPI(unittest.TestCase):
                                 json={'max_age_days': 0})
         self.assertEqual(resp.status_code, 400)
 
+    def test_cleanup_refuses_age_that_is_not_a_positive_integer(self):
+        """A boolean, float, or overflowing age must not delete a recording."""
+        old_ts = self._old_timestamp()
+        self._create_pair(old_ts)
+        video = os.path.join(self.tmpdir, f'recording_{old_ts}_camera1.mp4')
+        for bad in (True, False, 1.5, '30', -3, 10 ** 18):
+            resp = self.client.post(
+                '/api/recordings/cleanup',
+                json={'max_age_days': bad},
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+            self.assertIn('integer', resp.get_json()['error'])
+            self.assertTrue(os.path.exists(video))
+
     def test_stats_endpoint(self):
         self._create_pair('20260215_140000')
         resp = self.client.get('/api/recordings/stats')
