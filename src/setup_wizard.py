@@ -35,6 +35,7 @@ from install_config import (
 
 WIZARD_PORT = 8765
 HTML_NAME = 'setup_wizard.html'
+_MAX_WIZARD_BODY = 1024 * 1024
 
 _DETECT_SNIPPET = r'''
 import json, sys
@@ -774,6 +775,27 @@ def handle_request(
     return status, payload, 'application/json'
 
 
+def read_wizard_body(headers: Any, rfile: Any) -> bytes:
+    """Read a POST body only when its length is a safe size.
+
+    ``read(-1)`` consumes the stream until EOF, so a negative Content-Length
+    would apply the wizard JSON. A huge length waits for bytes that never
+    arrive. Either one is refused before the stream is read.
+    """
+    raw_length = headers.get('Content-Length') if headers is not None else None
+    if raw_length is None or str(raw_length).strip() == '':
+        return b''
+    try:
+        length = int(str(raw_length).strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError('request body length is not valid') from exc
+    if length < 0 or length > _MAX_WIZARD_BODY:
+        raise ValueError('request body length is not valid')
+    if length == 0:
+        return b''
+    return rfile.read(length)
+
+
 class WizardHandler(BaseHTTPRequestHandler):
     state: WizardState
 
@@ -793,8 +815,12 @@ class WizardHandler(BaseHTTPRequestHandler):
         self._send(status, body, ctype)
 
     def do_POST(self) -> None:  # noqa: N802
-        length = int(self.headers.get('Content-Length') or 0)
-        raw = self.rfile.read(length) if length else b''
+        try:
+            raw = read_wizard_body(self.headers, self.rfile)
+        except ValueError as exc:
+            status, payload = _json_bytes({'error': str(exc)}, 400)
+            self._send(status, payload, 'application/json')
+            return
         status, body, ctype = handle_request(self.state, 'POST', self.path, raw)
         self._send(status, body, ctype)
 
