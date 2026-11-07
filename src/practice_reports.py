@@ -5,6 +5,7 @@ Progress trends and analysis report export helpers.
 from __future__ import annotations
 
 import csv
+import html
 import io
 import json
 import os
@@ -24,6 +25,11 @@ TREND_METRICS = [
     {'key': 'max_sway_right', 'label': 'Lateral Sway', 'cam': 1},
     {'key': 'max_head_sway_right', 'label': 'Head Sway', 'cam': 1},
 ]
+
+
+def _html(value: Any) -> str:
+    """Text placed in a report must not become markup."""
+    return html.escape(str(value), quote=True)
 
 
 def _cam_summary(analysis: Dict, cam: int) -> Dict:
@@ -174,15 +180,18 @@ def analysis_to_html_report(analysis: Dict, scored: Optional[Dict] = None,
     """Self-contained HTML report for download / print."""
     if scored is None:
         scored = score_analysis(analysis)
-    ts = analysis.get('timestamp') or ''
+    ts_raw = analysis.get('timestamp') or ''
     try:
-        date = datetime.strptime(ts, '%Y%m%d_%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+        date = datetime.strptime(ts_raw, '%Y%m%d_%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
     except ValueError:
-        date = ts or 'Unknown'
+        date = ts_raw or 'Unknown'
+    ts = _html(ts_raw)
+    date = _html(date)
+    title = _html(title)
 
-    grade = scored.get('grade') or '—'
+    grade = _html(scored.get('grade') or '—')
     score = scored.get('score')
-    score_txt = f'{score:.1f}' if score is not None else '—'
+    score_txt = _html(f'{score:.1f}' if score is not None else '—')
 
     rows = []
     for e in scored.get('breakdown') or []:
@@ -192,15 +201,16 @@ def analysis_to_html_report(analysis: Dict, scored: Optional[Dict] = None,
         color = {
             'good': '#238636', 'ok': '#9e6a03', 'needs_work': '#da3633'
         }.get(rating, '#8b949e')
+        points = e.get('points') if e.get('points') is not None else '—'
         rows.append(
-            f"<tr><td>{e.get('label')}</td><td>Cam {e.get('cam')}</td>"
-            f"<td>{val_txt}</td>"
-            f"<td style='color:{color};font-weight:600'>{rating}</td>"
-            f"<td>{e.get('points') if e.get('points') is not None else '—'}</td></tr>"
+            f"<tr><td>{_html(e.get('label'))}</td><td>Cam {_html(e.get('cam'))}</td>"
+            f"<td>{_html(val_txt)}</td>"
+            f"<td style='color:{color};font-weight:600'>{_html(rating)}</td>"
+            f"<td>{_html(points)}</td></tr>"
         )
 
-    strengths = ', '.join(scored.get('strengths') or []) or '—'
-    focus = ', '.join(scored.get('focus_areas') or []) or '—'
+    strengths = _html(', '.join(scored.get('strengths') or []) or '—')
+    focus = _html(', '.join(scored.get('focus_areas') or []) or '—')
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -232,7 +242,7 @@ def analysis_to_html_report(analysis: Dict, scored: Optional[Dict] = None,
     <div>
       <div class="score-num">{score_txt} / 100</div>
       <div style="color:#656d76;font-size:13px">
-        Rated {scored.get('rated_count', 0)} of {scored.get('metric_count', 0)} metrics
+        Rated {_html(scored.get('rated_count', 0))} of {_html(scored.get('metric_count', 0))} metrics
       </div>
     </div>
   </div>
