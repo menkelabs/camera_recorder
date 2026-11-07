@@ -389,5 +389,22 @@ class TestLandmarkExtraction(unittest.TestCase):
         self.assertIn('nose', extracted)
 
 
+class TestFrameSampler(unittest.TestCase):
+    def test_sample_plan_treats_non_finite_rate_as_unusable(self):
+        """A non-finite camera rate must not be divided into a stride.
+
+        OpenCV can report nan. That value is not less than 1, so the stride
+        division raises and         analysis never starts. An unusable rate keeps a
+        1:1 plan instead.
+        """
+        from frame_sampler import sample_plan
+
+        self.assertEqual(sample_plan(float('inf')), (30.0, 1, 30.0))
+        self.assertEqual(sample_plan(float('-inf')), (30.0, 1, 30.0))
+        self.assertEqual(sample_plan(float('nan')), (30.0, 1, 30.0))
+        self.assertEqual(sample_plan(120.0, float('inf')), (120.0, 4, 30.0))
+        self.assertEqual(sample_plan(0), (30.0, 1, 30.0))
+
+
 if __name__ == '__main__':
     unittest.main()
