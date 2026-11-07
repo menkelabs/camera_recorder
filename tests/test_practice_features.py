@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(project_root, 'src'))
@@ -385,7 +386,67 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         self.assertIn('camera1', ids)
         self.assertIn('disk', ids)
         self.assertIn('usb', ids)
+        self.assertIn('usb_controller', ids)
+        self.assertIn('disk_free', ids)
         self.assertIn('camera_labels', data)
+
+    def test_disk_free_fails_under_half_gigabyte(self):
+        class _Usage:
+            free = 1024
+            total = 4096
+            used = 3072
+
+        with patch('recording_checklist.shutil.disk_usage', return_value=_Usage()):
+            data = self.client.get('/api/checklist').get_json()
+        item = next(row for row in data['items'] if row['id'] == 'disk_free')
+        self.assertFalse(item['ok'])
+        self.assertFalse(data['ready'])
+
+    def test_windows_usb_controller_warning(self):
+        from usb_health import detect_windows_usb_controllers
+
+        shared = detect_windows_usb_controllers(devices=[
+            {'name': 'Cam A', 'controller': 'PCI\\VEN_8086\\USB1'},
+            {'name': 'Cam B', 'controller': 'PCI\\VEN_8086\\USB1'},
+        ])
+        self.assertTrue(shared['shared_controller'])
+        self.assertIn('USB controller', shared['warning'])
+        split = detect_windows_usb_controllers(devices=[
+            {'name': 'Cam A', 'controller': 'PCI\\VEN_8086\\USB1'},
+            {'name': 'Cam B', 'controller': 'PCI\\VEN_8086\\USB2'},
+        ])
+        self.assertFalse(split['shared_controller'])
+        self.assertIsNone(split['warning'])
+
+    def test_saved_overlay_can_be_scrubbed(self):
+        import cv2
+        import numpy as np
+        from swing_files import write_overlay_videos
+
+        frame = np.zeros((32, 32, 3), dtype=np.uint8)
+        frame[:, :, 1] = 180
+        ok, buf = cv2.imencode('.jpg', frame)
+        self.assertTrue(ok)
+        ts = '20260715_120000'
+        write_overlay_videos(self.tmp.name, ts, {1: [buf.tobytes(), buf.tobytes()]})
+        payload = _good_analysis()
+        payload['camera1']['sway'] = [0.0, 1.5]
+        payload['camera1']['phases'] = ['Address', 'Top']
+        with open(os.path.join(self.tmp.name, f'analysis_{ts}.json'), 'w') as handle:
+            json.dump(payload, handle)
+        results = self.client.get(f'/api/analysis/results?timestamp={ts}')
+        self.assertEqual(results.status_code, 200)
+        self.assertTrue(results.get_json()['has_frames'])
+        self.assertGreaterEqual(results.get_json()['max_frames'], 2)
+        image = self.client.get(f'/api/analysis/frame/1?timestamp={ts}&index=1')
+        self.assertEqual(image.mimetype, 'image/jpeg')
+        self.assertGreater(len(image.data), 50)
+        posted = self.client.post('/api/analysis/frame', json={'index': 1, 'timestamp': ts})
+        self.assertEqual(posted.status_code, 200)
+        body = posted.get_json()
+        self.assertEqual(body['frame_index'], 1)
+        self.assertEqual(body['source'], 'saved')
+        self.assertEqual(body['camera1']['current']['phase'], 'Top')
 
     def test_reference_api(self):
         r = self.client.post('/api/reference', json={'timestamp': '20260715_120000'})

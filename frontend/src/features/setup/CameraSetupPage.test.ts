@@ -58,7 +58,9 @@ describe('CameraSetupPage', () => {
     expect(useAppStore().streamSession).toBe(3)
 
     await userEvent.click(screen.getByRole('button', { name: 'Reinit' }))
-    await waitFor(() => expect(reinit).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(reinit).toHaveBeenCalledWith({ camera1_id: 0, camera2_id: 1 }),
+    )
     expect(useAppStore().streamSession).toBe(4)
   })
 })

@@ -36,6 +36,23 @@
   color: var(--text-bright);
 }
 
+.index {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.index input {
+  width: 6rem;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

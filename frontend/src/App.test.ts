@@ -76,6 +76,15 @@ describe('App shell', () => {
     await waitFor(() => expect(api.startRecording).toHaveBeenCalled())
   })
 
+  it('Space surfaces a checklist failure on the recording store', async () => {
+    vi.mocked(api.startRecording).mockRejectedValue(new Error('Checklist failed: Camera 1'))
+    mountApp()
+    await userEvent.keyboard(' ')
+    await waitFor(() =>
+      expect(useAppStore().recordingError).toBe('Checklist failed: Camera 1'),
+    )
+  })
+
   it('Space does not start recording from other tabs', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

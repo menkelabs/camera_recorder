@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../../api/client'
 import type { RecordingPair } from '../../api/types'
 import { useAppStore } from '../../store/appStore'
@@ -51,6 +51,15 @@ onMounted(() => {
     message.value = err instanceof Error ? err.message : 'Failed to load recordings'
   })
 })
+
+watch(
+  () => appStore.libraryRevision,
+  () => {
+    void refresh().catch((err) => {
+      message.value = err instanceof Error ? err.message : 'Failed to load recordings'
+    })
+  },
+)
 
 const visible = computed(() => {
   if (filter.value === 'favorites') return rows.value.filter((row) => row.favorite)

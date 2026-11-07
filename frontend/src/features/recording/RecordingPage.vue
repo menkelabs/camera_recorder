@@ -16,6 +16,11 @@ const checklist = ref<ChecklistResponse | null>(null)
 let checklistInterval: ReturnType<typeof setInterval> | undefined
 
 const recording = computed(() => Boolean(appStore.status?.is_recording))
+const take = computed(() => (recording.value ? null : appStore.status?.last_take))
+const checklistError = ref<string | null>(null)
+const shownError = computed(
+  () => error.value || appStore.recordingError || checklistError.value,
+)
 const autoOn = computed(() => Boolean(appStore.status?.auto_detect_enabled))
 const label1 = computed(() => appStore.status?.camera_labels?.camera1 || 'Face-On')
 const label2 = computed(() => appStore.status?.camera_labels?.camera2 || 'Down-the-Line')
@@ -26,8 +31,9 @@ const resolutionText = computed(
 async function refreshChecklist() {
   try {
     checklist.value = await api.checklist()
-  } catch {
-    /* ignore */
+    checklistError.value = null
+  } catch (err) {
+    checklistError.value = err instanceof Error ? err.message : 'Checklist failed'
   }
 }
 
@@ -46,7 +52,14 @@ watch(
 watch(
   () => appStore.status?.is_analyzing,
   (isAnalyzing) => {
-    if (isAnalyzing) appStore.setTab('analysis')
+    if (isAnalyzing && appStore.status?.session?.enabled) appStore.setTab('analysis')
+  },
+)
+
+watch(
+  () => appStore.recordingError,
+  (message) => {
+    if (message) void refreshChecklist()
   },
 )
 
@@ -57,6 +70,7 @@ onUnmounted(() => {
 async function toggleRecord() {
   busy.value = true
   error.value = null
+  appStore.setRecordingError(null)
   try {
     const result = recording.value ? await api.stopRecording() : await api.startRecording()
     if (result.error) {
@@ -67,6 +81,7 @@ async function toggleRecord() {
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Recording failed'
+    void refreshChecklist()
   } finally {
     busy.value = false
   }
@@ -149,7 +164,14 @@ async function toggleAuto() {
       </div>
 
       <AutoDetectPanel :enabled="autoOn" :status="appStore.status?.auto_detect_status" />
-      <p v-if="error" :class="styles.error">{{ error }}</p>
+      <p
+        v-if="take"
+        :class="styles.take"
+      >
+        Last take: {{ take.frames_written }} written, {{ take.frames_dropped }} dropped,
+        {{ take.achieved_fps }} fps
+      </p>
+      <p v-if="shownError" :class="styles.error">{{ shownError }}</p>
     </div>
 
     <ChecklistPanel :checklist="checklist" />

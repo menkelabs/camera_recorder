@@ -98,6 +98,12 @@
   font-size: 0.9rem;
 }
 
+.take {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 .error {
   color: var(--red);
 }

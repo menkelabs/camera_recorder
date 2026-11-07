@@ -129,6 +129,7 @@ class TestAnalysisPipelineMockVideos(unittest.TestCase):
         with open(json_path) as f:
             payload = json.load(f)
         self.assertEqual(payload['timestamp'], '20260727_181500')
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp, 'overlay_20260727_181500_camera1.mp4')))
         self.assertIn('camera1', payload)
         self.assertIn('camera2', payload)
         self.assertIn('score', payload)

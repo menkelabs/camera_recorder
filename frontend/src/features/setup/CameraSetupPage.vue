@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '../../api/client'
 import CameraPreview from '../../components/CameraPreview.vue'
 import PropertySliders from '../../components/PropertySliders.vue'
@@ -23,6 +23,15 @@ const roleLabel = computed(() =>
 
 const cameraIndex = computed(() =>
   props.cameraNum === 1 ? appStore.status?.camera1_id ?? '?' : appStore.status?.camera2_id ?? '?',
+)
+const indexDraft = ref(0)
+
+watch(
+  cameraIndex,
+  (value) => {
+    if (typeof value === 'number') indexDraft.value = value
+  },
+  { immediate: true },
 )
 
 const previewLabel = computed(
@@ -57,7 +66,17 @@ async function resetDefaults() {
 
 async function reinitCameras() {
   await run(async () => {
-    await api.reinitCameras()
+    const id = Number(indexDraft.value)
+    if (!Number.isInteger(id) || id < 0) {
+      message.value = 'Device index must be a non-negative integer'
+      return
+    }
+    const otherId = props.cameraNum === 1 ? appStore.status?.camera2_id : appStore.status?.camera1_id
+    const body =
+      props.cameraNum === 1
+        ? { camera1_id: id, ...(otherId != null ? { camera2_id: otherId } : {}) }
+        : { camera2_id: id, ...(otherId != null ? { camera1_id: otherId } : {}) }
+    await api.reinitCameras(body)
     appStore.bumpStreamSession()
     message.value = 'Cameras re-initialized'
   })
@@ -89,6 +108,15 @@ async function detectCameras() {
       <div :class="styles.controls">
         <h3>Properties</h3>
         <PropertySliders :camera-num="cameraNum" active />
+        <label :class="styles.index">
+          Device index
+          <input
+            v-model.number="indexDraft"
+            type="number"
+            min="0"
+            step="1"
+          >
+        </label>
         <div :class="styles.actions">
           <button type="button" :disabled="busy" @click="saveSettings">Save settings</button>
           <button type="button" :disabled="busy" @click="resetDefaults">Reset defaults</button>

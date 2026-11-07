@@ -20,6 +20,8 @@ export const useAppStore = defineStore('app', {
     streamSession: 0,
     comparePrefill: null as { a?: string; b?: string } | null,
     analysisPrefill: null as string | null,
+    recordingError: null as string | null,
+    libraryRevision: 0,
   }),
   actions: {
     setTab(tab: TabId) {
@@ -40,6 +42,12 @@ export const useAppStore = defineStore('app', {
     },
     bumpStreamSession() {
       this.streamSession += 1
+    },
+    setRecordingError(message: string | null) {
+      this.recordingError = message
+    },
+    bumpLibrary() {
+      this.libraryRevision += 1
     },
   },
 })

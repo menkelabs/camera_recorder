@@ -7,14 +7,18 @@ export function useStatusPoll() {
   const appStore = useAppStore()
   const busy = ref(false)
   let cancelled = false
+  let wasAnalyzing = false
   let timer: ReturnType<typeof setTimeout> | undefined
 
   const tick = async () => {
     try {
       const data = await api.status()
       if (!cancelled) {
-        busy.value = Boolean(data.is_recording || data.is_analyzing)
+        const analyzing = Boolean(data.is_analyzing)
+        busy.value = Boolean(data.is_recording || analyzing)
         appStore.setStatus(data)
+        if (wasAnalyzing && !analyzing) appStore.bumpLibrary()
+        wasAnalyzing = analyzing
       }
     } catch (err) {
       if (!cancelled) {

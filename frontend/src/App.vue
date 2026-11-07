@@ -35,8 +35,9 @@ function onKey(event: KeyboardEvent) {
       try {
         if (recording) await api.stopRecording()
         else await api.startRecording()
-      } catch {
-        /* status poll will surface messages */
+        appStore.setRecordingError(null)
+      } catch (err) {
+        appStore.setRecordingError(err instanceof Error ? err.message : 'Recording failed')
       }
     })()
     return

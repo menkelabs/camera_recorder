@@ -221,6 +221,23 @@ class TestPoseProcessorWithMockVideo(unittest.TestCase):
         z_mid = abs(detected[mid]['left_shoulder']['z'])
         self.assertGreater(z_mid, z0)
 
+    def test_high_fps_video_is_sampled_near_30fps(self):
+        path = write_mock_video(
+            os.path.join(self.tmp, 'fast.mp4'),
+            n_frames=12, fps=120.0, pattern='blank',
+        )
+        proc = _build_pose_processor(always_none=True)
+        landmarks, annotated = proc.process_video(path, sample_fps=30)
+        proc.release()
+        source = proc.last_sample['source_fps']
+        stride = proc.last_sample['stride']
+        self.assertGreaterEqual(stride, 1)
+        self.assertEqual(len(landmarks), len(annotated))
+        self.assertEqual(proc.last_sample['frames_read'], 12)
+        if source >= 60:
+            self.assertGreaterEqual(stride, 2)
+            self.assertLess(len(landmarks), 12)
+
     def test_missing_video_raises(self):
         proc = _build_pose_processor(always_none=True)
         with self.assertRaises(RuntimeError):

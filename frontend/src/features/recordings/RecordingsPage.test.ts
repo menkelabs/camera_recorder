@@ -48,6 +48,14 @@ describe('RecordingsPage', () => {
     expect(screen.getByText('OPEN')).toBeTruthy()
   })
 
+  it('reloads when analysis finishes', async () => {
+    mountPage()
+    await screen.findByRole('button', { name: 'Claim' })
+    expect(api.listRecordings).toHaveBeenCalledTimes(1)
+    useAppStore().bumpLibrary()
+    await waitFor(() => expect(api.listRecordings).toHaveBeenCalledTimes(2))
+  })
+
   it('requires confirmation before deleting', async () => {
     const del = vi.spyOn(api, 'deleteRecording').mockResolvedValue({ deleted: true })
     mountPage()

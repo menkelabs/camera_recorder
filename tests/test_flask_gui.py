@@ -574,6 +574,32 @@ class TestFlaskRoutes(unittest.TestCase):
         self.assertIn(resp.status_code, (301, 302))
         self.assertEqual(resp.headers.get('Location'), '/')
 
+    def test_record_stop_status_reports_drops_and_starts_analysis(self):
+        """A camera-free take reports drop counts and kicks off analysis."""
+        with patch('flask_gui.DualCameraRecorder') as MockRec, \
+             patch('flask_gui.time.sleep'), \
+             patch.object(self.mgr, '_reopen_cameras'), \
+             patch.object(self.mgr, 'start_analysis') as start_analysis:
+            mock_rec = MagicMock()
+            mock_rec.output_dir = 'recordings'
+            mock_rec.camera1.cap = self.mock_cap1
+            mock_rec.camera2.cap = self.mock_cap2
+            mock_rec.frames_written = 240
+            mock_rec.frames_dropped = 3
+            MockRec.return_value = mock_rec
+            started = self.client.post('/api/recording/start')
+            self.assertEqual(started.status_code, 200, started.get_json())
+            self.mgr.recording_start_time = 100.0
+            with patch('flask_gui.time.time', return_value=102.0):
+                stopped = self.client.post('/api/recording/stop')
+            self.assertEqual(stopped.status_code, 200, stopped.get_json())
+            start_analysis.assert_called_once()
+        status = self.client.get('/api/status').get_json()
+        take = status['last_take']
+        self.assertEqual(take['frames_written'], 240)
+        self.assertEqual(take['frames_dropped'], 3)
+        self.assertEqual(take['achieved_fps'], 120.0)
+
     def test_api_status(self):
         """GET /api/status returns JSON with expected keys."""
         resp = self.client.get('/api/status')
