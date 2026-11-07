@@ -851,5 +851,41 @@ class TestSessionAndPracticeSettingsAPI(unittest.TestCase):
         self.assertIn('practice', data)
 
 
+class TestPreRecordChecklist(unittest.TestCase):
+    def test_resolution_treats_non_finite_size_as_unreported(self):
+        """A camera that reports nan must not abort the pre-record checklist.
+
+        nan is truthy, so ``value or 0`` still reaches int() and raises.
+        """
+        from recording_checklist import _resolution_item
+
+        class Cap:
+            def __init__(self, size):
+                self.size = size
+
+            def isOpened(self):
+                return True
+
+            def get(self, _prop):
+                return self.size
+
+        class Mgr:
+            def __init__(self, size):
+                self.cap1 = Cap(size)
+                self.width = 1280
+                self.height = 720
+                self.fps = 30
+
+        for size in (float('nan'), float('inf')):
+            item = _resolution_item(Mgr(size))
+            self.assertEqual(item['id'], 'resolution', size)
+            self.assertNotIn('nan', item['detail'].lower())
+            self.assertNotIn('inf', item['detail'].lower())
+
+        reported = _resolution_item(Mgr(1280.0))
+        self.assertIn('1280', reported['detail'])
+        self.assertTrue(reported['ok'])
+
+
 if __name__ == '__main__':
     unittest.main()
