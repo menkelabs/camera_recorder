@@ -504,12 +504,17 @@ def _op_api_archive_run():
         return jsonify({'error': f'Archive path not accessible: {archive_path}'}), 400
 
     data = request.get_json(silent=True) or {}
-    requested_ts = data.get('timestamps')
 
     manifest = _load_archive_manifest()
     pairs = _archivable_for_active_user(_list_recording_pairs())
 
-    if requested_ts:
+    # A missing selection archives every take that is not already copied.
+    # A present selection is only those ids. Null is not a selection: it is
+    # falsy and would copy every take. A string matches by substring.
+    if 'timestamps' in data:
+        requested_ts = data.get('timestamps')
+        if not isinstance(requested_ts, list):
+            return jsonify({'error': 'timestamps must be a list'}), 400
         pairs = [p for p in pairs if p['timestamp'] in requested_ts]
     else:
         pairs = [p for p in pairs if p['timestamp'] not in manifest]
