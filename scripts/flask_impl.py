@@ -441,12 +441,15 @@ def _op_api_export_clip():
         return _err('camera must be 1 or 2', 400)
     if cam not in (1, 2):
         return _err('camera must be 1 or 2', 400)
-    try:
-        fps = float(data.get('fps') or 30.0)
-    except (TypeError, ValueError):
-        return _err('fps must be a number', 400)
-    if fps <= 0:
-        return _err('fps must be positive', 400)
+    raw_fps = data.get('fps', None)
+    if raw_fps is None:
+        fps = 30.0
+    else:
+        try:
+            from clip_exporter import require_clip_fps
+            fps = require_clip_fps(raw_fps)
+        except ValueError as exc:
+            return _err(str(exc), 400)
 
     ts = data.get('timestamp')
     if ts is not None:

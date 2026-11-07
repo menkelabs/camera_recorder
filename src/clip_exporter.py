@@ -4,6 +4,7 @@ Export annotated analysis frames as a short MP4 clip.
 
 from __future__ import annotations
 
+import math
 import os
 import re
 from typing import Iterator, List, Optional, Tuple
@@ -65,6 +66,23 @@ def _write_bgr_iter(frames: Iterator[np.ndarray], output_path: str, fps: float) 
     }
 
 
+def require_clip_fps(value) -> float:
+    """Clip and overlay frame rates are finite numbers greater than zero.
+
+    A boolean is not a frame rate. Zero must not be rewritten into a default
+    before a file is opened.
+    """
+    if isinstance(value, bool):
+        raise ValueError('fps must be positive')
+    try:
+        fps = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('fps must be a number') from exc
+    if not math.isfinite(fps) or fps <= 0:
+        raise ValueError('fps must be positive')
+    return fps
+
+
 def jpeg_frames_to_mp4(
     jpeg_frames: List[bytes],
     output_path: str,
@@ -74,8 +92,10 @@ def jpeg_frames_to_mp4(
     Write a list of JPEG byte-strings to an MP4 file.
 
     Returns a status dict with path, frame_count, and fps.
-    Raises ValueError if there are no frames or VideoWriter fails.
+    Raises ValueError if fps is not a positive finite number, there are no
+    frames, or VideoWriter fails.
     """
+    fps = require_clip_fps(fps)
     if not jpeg_frames:
         raise ValueError('No frames to export')
 
@@ -102,8 +122,10 @@ def video_file_to_mp4(
     """
     Re-encode a saved recording to a clip MP4 without loading every frame.
 
-    Raises ValueError if the file cannot be opened or has no readable frames.
+    Raises ValueError if fps is not a positive finite number, the file cannot
+    be opened, or it has no readable frames.
     """
+    fps = require_clip_fps(fps)
     if not os.path.isfile(video_path):
         raise ValueError(f'Video not found: {os.path.basename(video_path)}')
 

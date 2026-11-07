@@ -329,6 +329,24 @@ class TestClipExporter(unittest.TestCase):
             with self.assertRaises(ValueError):
                 jpeg_frames_to_mp4([], os.path.join(tmp, 'x.mp4'))
 
+    def test_clip_export_refuses_fps_that_is_not_positive(self):
+        from clip_exporter import jpeg_frames_to_mp4, require_clip_fps, video_file_to_mp4
+
+        self.assertEqual(require_clip_fps(30), 30.0)
+        self.assertEqual(require_clip_fps(15.5), 15.5)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, 'clip.mp4')
+            frames = [b'not-a-jpeg']
+            for bad in (0, 0.0, -1, True, False, float('inf'), float('nan'), 'fast', None):
+                with self.assertRaises(ValueError) as ctx:
+                    jpeg_frames_to_mp4(frames, out, fps=bad)
+                self.assertFalse(os.path.exists(out))
+                self.assertTrue(str(ctx.exception).startswith('fps must be'))
+            with self.assertRaises(ValueError) as ctx:
+                video_file_to_mp4(os.path.join(tmp, 'missing.mp4'), out, fps=0)
+            self.assertIn('fps must be positive', str(ctx.exception))
+            self.assertFalse(os.path.exists(out))
+
     def test_video_file_to_mp4(self):
         sys.path.insert(0, os.path.join(project_root, 'tests'))
         from helpers import count_video_frames, write_mock_video
@@ -468,6 +486,15 @@ class TestChecklistAndReferenceAPI(unittest.TestCase):
         r = self.client.post('/api/analysis/export-clip', json={'camera': 1})
         self.assertEqual(r.status_code, 400)
         self.assertIn('error', r.get_json())
+
+    def test_export_clip_refuses_non_positive_fps(self):
+        for fps in (0, -5, True, False, 'fast'):
+            response = self.client.post(
+                '/api/analysis/export-clip',
+                json={'camera': 1, 'timestamp': '20260715_120000', 'fps': fps},
+            )
+            self.assertEqual(response.status_code, 400, response.get_json())
+            self.assertIn('fps must be', response.get_json()['error'])
 
     def test_export_clip_from_saved_recording(self):
         sys.path.insert(0, os.path.join(project_root, 'tests'))
