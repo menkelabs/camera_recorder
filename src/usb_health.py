@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, Optional
+import subprocess
+import sys
+import time
+from typing import Any, Dict, List, Optional
 
 
 def _read_text(path: str) -> Optional[str]:
@@ -114,6 +117,107 @@ def detect_shared_usb_bus(camera1_id: int, camera2_id: int) -> Dict[str, Any]:
         )
     else:
         result['shared_bus'] = False
+    return result
+
+
+_WINDOWS_CACHE: Dict[str, Any] = {'at': 0.0, 'devices': []}
+_WINDOWS_CACHE_SECONDS = 30.0
+
+_WINDOWS_CONTROLLER_PS = r'''
+$ErrorActionPreference = "SilentlyContinue"
+$cams = @(Get-CimInstance Win32_PnPEntity | Where-Object {
+  $_.PNPClass -eq "Camera" -or $_.Service -eq "usbvideo"
+})
+foreach ($cam in $cams) {
+  $ctrl = ""
+  $cur = $cam.PNPDeviceID
+  for ($i = 0; $i -lt 8; $i++) {
+    if (-not $cur) { break }
+    $prop = Get-PnpDeviceProperty -InstanceId $cur -KeyName "DEVPKEY_Device_Parent" -ErrorAction SilentlyContinue
+    $parent = $prop.Data
+    if (-not $parent) { break }
+    if ($parent -like "PCI\*" -or $parent -like "USB\ROOT_HUB*") { $ctrl = [string]$parent; break }
+    $cur = [string]$parent
+  }
+  if ($cam.Name) { Write-Output ($cam.Name + "`t" + $ctrl) }
+}
+'''
+
+
+def query_windows_camera_controllers() -> List[Dict[str, Optional[str]]]:
+    """Best-effort camera name → USB controller map. Empty off Windows."""
+    if sys.platform != 'win32':
+        return []
+    now = time.time()
+    cached_at = float(_WINDOWS_CACHE.get('at') or 0)
+    if now - cached_at < _WINDOWS_CACHE_SECONDS:
+        return list(_WINDOWS_CACHE.get('devices') or [])
+    devices = _run_windows_controller_query()
+    _WINDOWS_CACHE['at'] = now
+    _WINDOWS_CACHE['devices'] = devices
+    return list(devices)
+
+
+def _run_windows_controller_query() -> List[Dict[str, Optional[str]]]:
+    try:
+        completed = subprocess.run(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command', _WINDOWS_CONTROLLER_PS],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    devices = []
+    for line in (completed.stdout or '').splitlines():
+        name, _, controller = line.partition('\t')
+        name = name.strip()
+        if not name:
+            continue
+        controller = controller.strip() or None
+        devices.append({'name': name, 'controller': controller})
+    return devices
+
+
+def detect_windows_usb_controllers(devices: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Warn when Windows cameras share one USB controller.
+
+    ``devices`` is optional so tests can pass a topology without WMI.
+    Each item is ``{'name': str, 'controller': str|None}``.
+    """
+    supplied = devices is not None
+    if not supplied and sys.platform != 'win32':
+        return {
+            'checked': False,
+            'shared_controller': None,
+            'controllers': [],
+            'warning': None,
+            'platform_supported': False,
+        }
+    if not supplied:
+        devices = query_windows_camera_controllers()
+    controllers = []
+    for device in devices or []:
+        controller = (device or {}).get('controller')
+        if controller:
+            controllers.append(str(controller))
+    result = {
+        'checked': True,
+        'shared_controller': None,
+        'controllers': controllers,
+        'warning': None,
+        'platform_supported': True,
+    }
+    if len(controllers) >= 2 and len(set(controllers)) == 1:
+        result['shared_controller'] = True
+        result['warning'] = (
+            f'Both cameras appear on USB controller {controllers[0]}. '
+            'High-FPS dual capture often fails on one controller — '
+            'plug one camera into a different USB controller.'
+        )
+    elif len(controllers) >= 2:
+        result['shared_controller'] = False
     return result
 
 

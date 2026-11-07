@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { api } from '../../api/client'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { api, recordingVideoUrl } from '../../api/client'
 import type { AnalysisListItem, CompareResponse, PracticeSettings } from '../../api/types'
 import LineChart from '../../components/LineChart.vue'
 import { useAppStore } from '../../store/appStore'
+import { phaseNameAt, videoTimeForPhase } from './phaseSync'
 import styles from './ComparePage.module.css'
 
 const FACE_ON_KEYS = [
@@ -151,6 +152,106 @@ watch([a, b], ([nextA, nextB], _previous, onCleanup) => {
     })
 })
 
+const videoA = ref<HTMLVideoElement | null>(null)
+const videoB = ref<HTMLVideoElement | null>(null)
+const playhead = ref(0)
+const playing = ref(false)
+let playTimer: ReturnType<typeof setInterval> | undefined
+
+function phasesFor(
+  swing: Record<string, unknown> | undefined,
+  cam: 'camera1' | 'camera2',
+): string[] {
+  const block = swing?.[cam]
+  if (!block || typeof block !== 'object') return []
+  const phases = (block as { phases?: unknown }).phases
+  return Array.isArray(phases) ? phases.map((item) => String(item)) : []
+}
+
+function captureFor(swing: Record<string, unknown> | undefined, cam: 'camera1' | 'camera2') {
+  const capture = (swing?.capture || {}) as Record<string, { stride?: number; source_fps?: number }>
+  const block = capture[cam] || {}
+  return { stride: Number(block.stride) || 1, sourceFps: Number(block.source_fps) || 0 }
+}
+
+function shownCamera(side: 'a' | 'b'): 1 | 2 {
+  const flags = data.value?.videos?.[side]
+  const face: 1 | 2 = faceOnCam.value === 'camera1' ? 1 : 2
+  const other: 1 | 2 = face === 1 ? 2 : 1
+  if (flags?.[`camera${face}`]) return face
+  if (flags?.[`camera${other}`]) return other
+  return face
+}
+
+function videoSrc(side: 'a' | 'b') {
+  const ts = side === 'a' ? a.value : b.value
+  const flags = data.value?.videos?.[side]
+  if (!ts || (flags && !flags.camera1 && !flags.camera2)) return ''
+  return recordingVideoUrl(ts, shownCamera(side))
+}
+
+const phaseLabel = computed(() => {
+  const cam = shownCamera('a') === 1 ? 'camera1' : 'camera2'
+  return phaseNameAt(phasesFor(data.value?.swing_a, cam), playhead.value)
+})
+
+function syncVideo(
+  el: HTMLVideoElement | null,
+  swing: Record<string, unknown> | undefined,
+  cam: 'camera1' | 'camera2',
+) {
+  if (!el) return
+  const capture = captureFor(swing, cam)
+  const next = videoTimeForPhase(
+    phasesFor(swing, cam),
+    playhead.value,
+    el.duration || 0,
+    capture.stride,
+    capture.sourceFps,
+  )
+  if (Math.abs((el.currentTime || 0) - next) > 0.04) el.currentTime = next
+}
+
+function applyPlayhead() {
+  const camA = shownCamera('a') === 1 ? 'camera1' : 'camera2'
+  const camB = shownCamera('b') === 1 ? 'camera1' : 'camera2'
+  syncVideo(videoA.value, data.value?.swing_a, camA)
+  syncVideo(videoB.value, data.value?.swing_b, camB)
+}
+
+function stopPlayback() {
+  playing.value = false
+  if (playTimer) clearInterval(playTimer)
+  playTimer = undefined
+}
+
+function togglePlayback() {
+  if (playing.value) {
+    stopPlayback()
+    return
+  }
+  playing.value = true
+  playTimer = setInterval(() => {
+    const dur = Math.max(videoA.value?.duration || 0, videoB.value?.duration || 0, 1)
+    playhead.value = Math.min(1, playhead.value + 0.05 / dur)
+    applyPlayhead()
+    if (playhead.value >= 1) stopPlayback()
+  }, 50)
+}
+
+function onScrub(event: Event) {
+  stopPlayback()
+  playhead.value = Number((event.target as HTMLInputElement).value) / 1000
+  applyPlayhead()
+}
+
+watch(data, () => {
+  stopPlayback()
+  playhead.value = 0
+})
+
+onUnmounted(stopPlayback)
+
 function fmt(value: number | null | undefined) {
   return value == null ? '-' : Number(value).toFixed(1)
 }
@@ -205,6 +306,58 @@ function metricLabel(value: string) {
     </p>
 
     <template v-if="data && !sameSwing">
+      <div :class="styles.players">
+        <figure>
+          <video
+            v-if="videoSrc('a')"
+            ref="videoA"
+            :src="videoSrc('a')"
+            muted
+            playsinline
+            preload="metadata"
+          />
+          <p
+            v-else
+            :class="styles.empty"
+          >
+            No recording file for swing A
+          </p>
+          <figcaption>Swing A<span v-if="phaseLabel"> · {{ phaseLabel }}</span></figcaption>
+        </figure>
+        <figure>
+          <video
+            v-if="videoSrc('b')"
+            ref="videoB"
+            :src="videoSrc('b')"
+            muted
+            playsinline
+            preload="metadata"
+          />
+          <p
+            v-else
+            :class="styles.empty"
+          >
+            No recording file for swing B
+          </p>
+          <figcaption>Swing B</figcaption>
+        </figure>
+      </div>
+      <div :class="styles.transport">
+        <button
+          type="button"
+          @click="togglePlayback"
+        >
+          {{ playing ? 'Pause' : 'Play' }}
+        </button>
+        <input
+          type="range"
+          min="0"
+          max="1000"
+          :value="Math.round(playhead * 1000)"
+          aria-label="Swing phase"
+          @input="onScrub"
+        >
+      </div>
       <div :class="styles.deltas">
         <div :class="styles.card">
           <h3>{{ faceOnLabel }}</h3>

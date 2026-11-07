@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -151,3 +151,33 @@ def resolve_clip_output(
         raise ValueError('camera must be 1 or 2')
     name = f'clip_{timestamp}_camera{camera_num}.mp4'
     return os.path.join(recordings_dir, name)
+
+
+def overlay_video_path(recordings_dir: str, timestamp: str, camera_num: int) -> str:
+    """Pose-overlay MP4 stored beside the recording pair."""
+    if not isinstance(timestamp, str) or _RECORDING_STAMP.fullmatch(timestamp) is None:
+        raise ValueError('Invalid timestamp')
+    if type(camera_num) is not int or camera_num not in (1, 2):
+        raise ValueError('camera must be 1 or 2')
+    name = f'overlay_{timestamp}_camera{camera_num}.mp4'
+    return os.path.join(recordings_dir, name)
+
+
+def read_video_frame_jpeg(video_path: str, index: int, quality: int = 85) -> Optional[bytes]:
+    """Decode one frame from an overlay video and return JPEG bytes."""
+    if not isinstance(index, int) or index < 0 or not os.path.isfile(video_path):
+        return None
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+    try:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            return None
+        encoded, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, int(quality)])
+        if not encoded:
+            return None
+        return buf.tobytes()
+    finally:
+        cap.release()

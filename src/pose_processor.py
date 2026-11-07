@@ -171,54 +171,59 @@ class PoseProcessor:
         
         return results, annotated_frame
     
-    def process_video(self, video_path):
+    def process_video(self, video_path, sample_fps=30.0):
         """
-        Process entire video file
-        
-        Args:
-            video_path: Path to video file
-            
-        Returns:
-            landmarks_sequence: List of landmark dictionaries for each frame
-            annotated_frames: List of frames with landmarks drawn
+        Process a video, sampling near ``sample_fps`` (default 30).
+
+        Returns landmarks and annotated frames for the kept frames only.
+        ``self.last_sample`` records the source rate and stride.
         """
+        from frame_sampler import keep_frame, sample_plan
+
         cap = cv2.VideoCapture(video_path)
-        
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
-        
+
+        source_fps, stride, used_sample = sample_plan(
+            cap.get(cv2.CAP_PROP_FPS) or 0, sample_fps,
+        )
+        self.last_sample = {
+            'source_fps': source_fps,
+            'sample_fps': used_sample,
+            'stride': stride,
+            'frames_read': 0,
+            'frames_used': 0,
+        }
         landmarks_sequence = []
         annotated_frames = []
-        frame_count = 0
-        
-        print(f"Processing video: {video_path}")
-        
+        frame_index = 0
+        print(f"Processing video: {video_path} (sample {used_sample:.0f} fps, stride {stride})")
+
         while cap.isOpened():
             ret, frame = cap.read()
-            
             if not ret:
                 break
-            
-            # Process frame
+            take = keep_frame(frame_index, stride)
+            frame_index += 1
+            if not take:
+                continue
             results, annotated_frame = self.process_frame(frame)
-            
-            # Extract landmarks
             if results.pose_landmarks:
-                landmarks_dict = self._extract_landmarks(results.pose_landmarks)
-                landmarks_sequence.append(landmarks_dict)
+                landmarks_sequence.append(self._extract_landmarks(results.pose_landmarks))
                 annotated_frames.append(annotated_frame)
             else:
                 landmarks_sequence.append(None)
                 annotated_frames.append(frame)
-            
-            frame_count += 1
-            
-            if frame_count % 30 == 0:
-                print(f"  Processed {frame_count} frames...")
-        
+            if len(landmarks_sequence) % 30 == 0:
+                print(f"  Processed {len(landmarks_sequence)} sampled frames...")
+
         cap.release()
-        print(f"Video processing complete: {frame_count} frames")
-        
+        self.last_sample['frames_read'] = frame_index
+        self.last_sample['frames_used'] = len(landmarks_sequence)
+        print(
+            f"Video processing complete: {len(landmarks_sequence)} sampled "
+            f"from {frame_index} frames"
+        )
         return landmarks_sequence, annotated_frames
     
     def _extract_landmarks(self, pose_landmarks):

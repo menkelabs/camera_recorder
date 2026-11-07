@@ -49,4 +49,31 @@ describe('RecordingPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Start recording' }))
     await waitFor(() => expect(start).toHaveBeenCalled())
   })
+
+  it('stays on Recording when analysis starts outside session mode', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useAppStore()
+    store.$patch({ tab: 'recording', status: mockStatus(), streamSession: 1 })
+    render(RecordingPage, { global: { plugins: [pinia] } })
+    store.setStatus(mockStatus({ is_analyzing: true }))
+    expect(store.tab).toBe('recording')
+  })
+
+  it('shows the last take and a checklist failure', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useAppStore()
+    store.$patch({
+      tab: 'recording',
+      status: mockStatus({
+        last_take: { frames_written: 240, frames_dropped: 3, achieved_fps: 119.5 },
+      }),
+      streamSession: 1,
+    })
+    store.setRecordingError('Checklist failed: Camera 1')
+    render(RecordingPage, { global: { plugins: [pinia] } })
+    expect(await screen.findByText(/240 written, 3 dropped, 119.5 fps/)).toBeTruthy()
+    expect(screen.getByText('Checklist failed: Camera 1')).toBeTruthy()
+  })
 })

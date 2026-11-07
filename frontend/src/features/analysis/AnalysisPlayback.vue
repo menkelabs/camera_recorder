@@ -9,10 +9,12 @@ const SPEEDS = [0.25, 0.5, 1, 2, 4]
 interface Props {
   maxFrames: number
   initialIndex?: number
+  timestamp?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   initialIndex: 0,
+  timestamp: '',
 })
 
 const emit = defineEmits<{
@@ -28,8 +30,8 @@ let timer: ReturnType<typeof setTimeout> | undefined
 
 const speed = computed(() => SPEEDS[speedIdx.value])
 const urls = computed(() => ({
-  cam1: analysisFrameUrl(1, index.value, bust.value),
-  cam2: analysisFrameUrl(2, index.value, bust.value),
+  cam1: analysisFrameUrl(1, index.value, bust.value, props.timestamp || ''),
+  cam2: analysisFrameUrl(2, index.value, bust.value, props.timestamp || ''),
 }))
 
 function clearPlaybackTimer() {
@@ -100,7 +102,9 @@ function onKey(event: KeyboardEvent) {
 onMounted(() => {
   sequencer = new PlaybackSequencer(
     async (frameIndex) => {
-      const data = await api.setAnalysisFrame(frameIndex)
+      const data = props.timestamp
+        ? await api.setAnalysisFrame(frameIndex, props.timestamp)
+        : await api.setAnalysisFrame(frameIndex)
       emit('results', data)
       bust.value += 1
     },

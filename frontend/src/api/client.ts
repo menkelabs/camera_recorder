@@ -100,10 +100,10 @@ export const api = {
     const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
     return jsonFetch<AnalysisResults>(`/api/analysis/results${q}`)
   },
-  setAnalysisFrame: (index: number) =>
+  setAnalysisFrame: (index: number, timestamp?: string) =>
     jsonFetch<AnalysisResults>('/api/analysis/frame', {
       method: 'POST',
-      body: JSON.stringify({ index }),
+      body: JSON.stringify({ index, ...(timestamp ? { timestamp } : {}) }),
     }),
   analysisScore: (timestamp?: string) => {
     const q = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : ''
@@ -226,8 +226,19 @@ export const api = {
     ),
 }
 
-export function analysisFrameUrl(cameraNum: 1 | 2, index: number, bust = 0): string {
-  return `/api/analysis/frame/${cameraNum}?index=${index}&_=${bust}`
+export function analysisFrameUrl(
+  cameraNum: 1 | 2,
+  index: number,
+  bust = 0,
+  timestamp = '',
+): string {
+  const query = new URLSearchParams({ index: String(index), _: String(bust) })
+  if (timestamp) query.set('timestamp', timestamp)
+  return `/api/analysis/frame/${cameraNum}?${query.toString()}`
+}
+
+export function recordingVideoUrl(timestamp: string, cameraNum: 1 | 2): string {
+  return `/api/recordings/${encodeURIComponent(timestamp)}/video/${cameraNum}`
 }
 
 export function formatPropValue(name: string, val: number): string {

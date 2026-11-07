@@ -168,7 +168,7 @@ function formatMetric(current: MetricCurrent, key: string) {
     </header>
     <p v-if="exportMsg" :class="styles.exportMsg">{{ exportMsg }}</p>
     <p v-if="isSaved" :class="styles.savedNote">
-      Saved swing — score and metrics from disk. Playback frames are only available for the latest session; clip export uses the original recording.
+      Saved swing — score and metrics from disk. This take has no pose-overlay video to scrub.
     </p>
 
     <p v-if="results?.is_analyzing" :class="styles.progress">
@@ -181,6 +181,7 @@ function formatMetric(current: MetricCurrent, key: string) {
     <AnalysisPlayback
       :max-frames="hasFrames ? results?.max_frames || 0 : 0"
       :initial-index="results?.frame_index || 0"
+      :timestamp="selectedTs"
       @results="results = $event as AnalysisResults"
     />
 

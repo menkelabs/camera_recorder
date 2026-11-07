@@ -68,6 +68,12 @@ export interface StatusResponse {
   practice?: PracticeSettings
   recording_duration?: number
   recording_files?: string[]
+  last_take?: {
+    frames_written: number
+    frames_dropped: number
+    achieved_fps: number
+    duration?: number
+  } | null
   active_user?: LocalUser | null
   users?: LocalUser[]
 }
@@ -195,6 +201,10 @@ export interface CompareResponse {
   deltas: {
     camera1: Record<string, CompareDelta> | null
     camera2: Record<string, CompareDelta> | null
+  }
+  videos?: {
+    a?: { camera1?: boolean; camera2?: boolean }
+    b?: { camera1?: boolean; camera2?: boolean }
   }
   error?: string
 }
