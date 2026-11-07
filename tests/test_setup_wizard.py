@@ -106,6 +106,19 @@ class TestInstallConfig(unittest.TestCase):
         save_install_config(self.root, {'port': 65535})
         self.assertEqual(load_install_config(self.root)['port'], 65535)
 
+    def test_save_refuses_listen_host_that_is_not_a_hostname_or_ip(self):
+        """A bind host must not be written when it is a URL, a newline, or not text."""
+        config_path = os.path.join(self.root, 'swinglab.local.json')
+        for bad in ('0.0.0.0\n', '127.0.0.1 extra', 'http://evil', '../x', '', True, None):
+            with self.assertRaises(ValueError) as ctx:
+                save_install_config(self.root, {'host': bad})
+            self.assertIn('listen host', str(ctx.exception))
+            self.assertFalse(os.path.exists(config_path))
+        save_install_config(self.root, {'host': '127.0.0.1'})
+        self.assertEqual(load_install_config(self.root)['host'], '127.0.0.1')
+        save_install_config(self.root, {'host': 'localhost'})
+        self.assertEqual(load_install_config(self.root)['host'], 'localhost')
+
     def test_save_refuses_camera_role_other_than_face_on_or_dtl(self):
         """camera1 and camera2 must be face_on or dtl before the profile is written."""
         config_path = os.path.join(self.root, 'swinglab.local.json')

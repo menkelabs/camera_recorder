@@ -140,6 +140,21 @@ def _require_listen_port(value: Any) -> int:
     return value
 
 
+_HOST_CHARS = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.:-')
+
+
+def _require_listen_host(value: Any) -> str:
+    """Bind hosts are hostnames or IP addresses, not URLs or header text."""
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 253
+        or any(ch not in _HOST_CHARS for ch in value)
+    ):
+        raise ValueError('listen host must be a hostname or IP address')
+    return value
+
+
 def _require_camera_roles(roles: Any) -> None:
     """camera1 and camera2 are face_on or dtl. Identical roles stay for practice settings to swap."""
     if not isinstance(roles, dict):
@@ -164,6 +179,7 @@ def save_install_config(root: str, data: Dict[str, Any]) -> str:
     _require_camera_index(merged.get('camera2_id'), 'camera2_id')
     _require_model_complexity(merged.get('model_complexity'))
     _require_listen_port(merged.get('port'))
+    _require_listen_host(merged.get('host'))
     _require_camera_roles(merged.get('camera_roles'))
     _require_player_name(merged.get('player_name'))
     if _config_recordings_dir_leaves_home(root, merged.get('recordings_dir')):
