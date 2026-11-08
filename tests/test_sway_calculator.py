@@ -530,6 +530,28 @@ class TestAnalyzeSequence(unittest.TestCase):
         results = calc.analyze_sequence(seq, frame_width=640)
         self.assertTrue(results['tempo'] is None or isinstance(results['tempo'], (int, float)))
 
+    def test_non_finite_angle_is_omitted_before_the_document_is_written(self):
+        """A pose angle that is not finite must not be written as NaN.
+
+        ``json.dumps`` emits the token NaN, and a strict parser then rejects
+        the whole analysis document, so the take never loads.
+        """
+        import json
+
+        broken = _make_landmarks({'left_shoulder': {'x': float('nan')}})
+        result = SwayCalculator().analyze_sequence([broken] * 6, frame_width=640)
+        text = json.dumps(result)
+        self.assertNotIn('NaN', text)
+        self.assertNotIn('Infinity', text)
+        self.assertIsNone(result['summary']['max_shoulder_turn'])
+        self.assertIsNone(result['shoulder_turn'][0])
+        self.assertGreater(result['summary']['max_hip_turn'], 0)
+        self.assertEqual(result['phases'][0], 'Address')
+
+        good = SwayCalculator().analyze_sequence([_make_landmarks()] * 6, frame_width=640)
+        self.assertGreater(good['summary']['max_shoulder_turn'], 0)
+        self.assertNotIn('NaN', json.dumps(good))
+
 
 class TestLegacyInterface(unittest.TestCase):
     """Test backwards-compatible legacy functions."""
