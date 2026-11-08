@@ -129,10 +129,15 @@ def load_camera_config(
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         print(f"Warning: Could not load config from {config_path}: {exc}")
         return None
+    # An array or scalar has no camera ids. Calling .get on it raises
+    # AttributeError while the app is resolving which cameras to open.
+    if not isinstance(data, dict):
+        raise ValueError('camera config must be an object')
+    return data
 
 
 def save_camera_config(

@@ -99,6 +99,25 @@ class TestLoadCameraConfigBothPlatforms(unittest.TestCase):
             (3, 8),
         )
 
+    def test_get_camera_ids_refuses_config_that_is_not_an_object(self):
+        """A JSON array or scalar is not a camera config.
+
+        ``.get`` on that value raises AttributeError while resolving ids,
+        so the app never starts. A real object still supplies the ids.
+        """
+        for payload in ([1, 2], 'linux', 1, True):
+            self._write('config_linux.json', payload)
+            with self.assertRaises(ValueError) as ctx:
+                get_camera_ids(platform='linux', root=self.root)
+            self.assertIn('object', str(ctx.exception))
+        self._write('config_linux.json', {
+            'platform': 'linux', 'camera1_id': 3, 'camera2_id': 8,
+        })
+        self.assertEqual(
+            get_camera_ids(platform='linux', root=self.root),
+            (3, 8),
+        )
+
     def test_get_camera_ids_rejects_non_index(self):
         """A configured camera id must be a non-negative integer before open."""
         for bad in (-1, True, '2', 1.5):
