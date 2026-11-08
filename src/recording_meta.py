@@ -23,6 +23,17 @@ def get_recording_meta(recordings_dir: str, timestamp: str) -> Dict[str, Any]:
     return get_db(recordings_dir).get_recording_meta(timestamp)
 
 
+def _require_favorite(value):
+    """A favorite flag is only true or false.
+
+    ``bool("false")`` is true, so a text flag would favorite the take and
+    age-based cleanup would keep it.
+    """
+    if type(value) is not bool:
+        raise ValueError('favorite must be a boolean')
+    return value
+
+
 def update_recording_meta(
     recordings_dir: str,
     timestamp: str,
@@ -35,6 +46,8 @@ def update_recording_meta(
     Patch meta fields for a recording. Pass only fields to change.
     Returns the updated meta dict.
     """
+    if favorite is not None:
+        favorite = _require_favorite(favorite)
     return get_db(recordings_dir).update_recording_meta(
         timestamp, favorite=favorite, notes=notes, tags=tags,
     )
@@ -75,9 +88,12 @@ def save_meta(recordings_dir: str, data: Dict[str, Any]) -> None:
     for ts, entry in (data.get('recordings') or {}).items():
         if not isinstance(entry, dict):
             continue
+        favorite = entry.get('favorite', False)
+        if favorite is None:
+            favorite = False
         db.update_recording_meta(
             ts,
-            favorite=bool(entry.get('favorite', False)),
+            favorite=_require_favorite(favorite),
             notes=entry.get('notes') or '',
             tags=list(entry.get('tags') or []),
         )
