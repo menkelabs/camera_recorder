@@ -8,6 +8,30 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple
 
 
+def _json_safe(value):
+    """Drop a measurement that is not a finite number.
+
+    ``json.dumps`` writes that measurement as the token ``NaN`` or
+    ``Infinity``. A strict parser then rejects the whole analysis document,
+    so the take never loads. Finite angles and distances stay.
+    """
+    if isinstance(value, tuple):
+        return tuple(_json_safe(part) for part in value)
+    if isinstance(value, list):
+        return [_json_safe(part) for part in value]
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return value
+    if not math.isfinite(number):
+        return None
+    return value
+
+
 def _angle_between(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float]) -> Optional[float]:
     """
     Calculate the angle at point b formed by points a-b-c (in degrees).
@@ -410,7 +434,7 @@ class SwayCalculator:
             'tempo_ratio': results['tempo'],
         }
 
-        return results
+        return _json_safe(results)
 
 
 # Legacy function interface for backwards compatibility
