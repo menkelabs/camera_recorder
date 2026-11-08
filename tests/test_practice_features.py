@@ -184,6 +184,24 @@ class TestRecordingMeta(unittest.TestCase):
         delete_recording_meta(self.dir, '20260715_120000')
         self.assertEqual(list_favorites(self.dir), [])
 
+    def test_update_refuses_favorite_that_is_not_a_boolean(self):
+        """A text favorite must not be stored as true.
+
+        ``bool("false")`` is true, so the take would be favorited and
+        age-based cleanup would keep it.
+        """
+        ts = '20260715_120000'
+        for bad in ('false', 'true', 1, 0):
+            with self.assertRaises(ValueError):
+                update_recording_meta(self.dir, ts, favorite=bad)
+            self.assertFalse(get_recording_meta(self.dir, ts)['favorite'])
+            self.assertEqual(list_favorites(self.dir), [])
+        cleared = update_recording_meta(self.dir, ts, favorite=False)
+        self.assertFalse(cleared['favorite'])
+        marked = update_recording_meta(self.dir, ts, favorite=True)
+        self.assertTrue(marked['favorite'])
+        self.assertEqual(list_favorites(self.dir), [ts])
+
     def test_attach_meta_to_pairs(self):
         update_recording_meta(self.dir, '20260715_120000', favorite=True, notes='x')
         pairs = [{'timestamp': '20260715_120000', 'total_size': 1}]
